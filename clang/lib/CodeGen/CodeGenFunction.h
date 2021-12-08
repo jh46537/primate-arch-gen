@@ -5001,6 +5001,10 @@ private:
   llvm::Value *
   FormAArch64ResolverCondition(const MultiVersionResolverOption &RO);
   llvm::Value *EmitAArch64CpuSupports(ArrayRef<StringRef> FeatureStrs);
+  llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
+
+  // Primate
+  void AddPrimateMetadata(const Stmt *S, ArrayRef<const Attr *> Attrs);
 };
 
 

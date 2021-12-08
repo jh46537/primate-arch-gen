@@ -846,6 +846,9 @@ ANNOTATION(decltype)     // annotation for a decltype expression,
 // one 'pragma_unused' annotation token followed by the argument token.
 PRAGMA_ANNOTATION(pragma_unused)
 
+// Annotations for primate pragma directives #pragma primate ...
+PRAGMA_ANNOTATION(pragma_primate)
+
 // Annotation for #pragma GCC visibility...
 // The lexer produces these so that they only take effect when the parser
 // handles them.

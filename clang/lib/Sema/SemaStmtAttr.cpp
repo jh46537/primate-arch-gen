@@ -74,6 +74,26 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
+static Attr *handlePrimateAttr(Sema &S, Stmt *St, const ParsedAttr &A,
+                                SourceRange) {
+  IdentifierLoc *PragmaNameLoc = A.getArgAsIdent(0);
+  IdentifierLoc *OptionLoc = A.getArgAsIdent(1);
+  IdentifierLoc *FuncNameLoc = A.getArgAsIdent(2);
+  Expr *ValueXput = A.getArgAsExpr(3);
+  Expr *ValueCount = A.getArgAsExpr(4);
+
+  StringRef PragmaName = PragmaNameLoc->Ident->getName();
+
+  PrimateAttr::OptionType Option =
+      llvm::StringSwitch<PrimateAttr::OptionType>(OptionLoc->Ident->getName())
+      .Case("blue", PrimateAttr::Blue)
+      .Default(PrimateAttr::Invalid);
+
+  StringRef FuncName = FuncNameLoc->Ident->getName();
+
+  return PrimateAttr::CreateImplicit(S.Context, Option, FuncName, ValueXput, ValueCount, A);
+}
+
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange) {
   IdentifierLoc *PragmaNameLoc = A.getArgAsIdent(0);
@@ -596,6 +616,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleAlwaysInlineAttr(S, St, A, Range);
   case ParsedAttr::AT_FallThrough:
     return handleFallThroughAttr(S, St, A, Range);
+  case ParsedAttr::AT_Primate:
+    return handlePrimateAttr(S, St, A, Range);
   case ParsedAttr::AT_LoopHint:
     return handleLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_OpenCLUnrollHint:

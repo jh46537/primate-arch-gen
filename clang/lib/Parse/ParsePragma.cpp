@@ -15,6 +15,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
+#include "clang/Parse/PrimatePragma.h"
 #include "clang/Parse/LoopHint.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
@@ -27,6 +28,12 @@
 using namespace clang;
 
 namespace {
+
+struct PragmaPrimateHandler : public PragmaHandler {
+  explicit PragmaPrimateHandler() : PragmaHandler("primate") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
 
 struct PragmaAlignHandler : public PragmaHandler {
   explicit PragmaAlignHandler() : PragmaHandler("align") {}
@@ -415,6 +422,9 @@ void markAsReinjectedForRelexing(llvm::MutableArrayRef<clang::Token> Toks) {
 }  // end namespace
 
 void Parser::initializePragmaHandlers() {
+  PrimateHandler = std::make_unique<PragmaPrimateHandler>();
+  PP.AddPragmaHandler(PrimateHandler.get());
+
   AlignHandler = std::make_unique<PragmaAlignHandler>();
   PP.AddPragmaHandler(AlignHandler.get());
 
@@ -569,6 +579,8 @@ void Parser::initializePragmaHandlers() {
 
 void Parser::resetPragmaHandlers() {
   // Remove the pragma handlers we installed.
+  PP.RemovePragmaHandler(PrimateHandler.get());
+  PrimateHandler.reset();
   PP.RemovePragmaHandler(AlignHandler.get());
   AlignHandler.reset();
   PP.RemovePragmaHandler("GCC", GCCVisibilityHandler.get());
@@ -711,6 +723,70 @@ void Parser::HandlePragmaUnused() {
   SourceLocation UnusedLoc = ConsumeAnnotationToken();
   Actions.ActOnPragmaUnused(Tok, getCurScope(), UnusedLoc);
   ConsumeToken(); // The argument token.
+}
+
+namespace {
+struct PragmaPrimateInfo {
+  Token PragmaName;
+  Token Option;
+  Token FuncName;
+  ArrayRef<Token> Toks;
+};
+} // end anonymous namespace
+
+static std::string PragmaPrimateString(Token PragmaName, Token Option) {
+  return (llvm::Twine(PragmaName.getIdentifierInfo()->getName()) + " " +
+      Option.getIdentifierInfo()->getName()).str();
+}
+
+bool Parser::HandlePragmaPrimate(PrimatePragma &Pragma) {
+  assert(Tok.is(tok::annot_pragma_primate));
+
+  PragmaPrimateInfo *Info =
+    static_cast<PragmaPrimateInfo *>(Tok.getAnnotationValue());
+
+  IdentifierInfo *PragmaNameInfo = Info->PragmaName.getIdentifierInfo();
+  Pragma.PragmaNameLoc = IdentifierLoc::create(
+      Actions.Context, Info->PragmaName.getLocation(), PragmaNameInfo);
+
+  IdentifierInfo *OptionInfo = Info->Option.getIdentifierInfo();
+  Pragma.OptionLoc = IdentifierLoc::create(
+      Actions.Context, Info->Option.getLocation(), OptionInfo);
+
+  IdentifierInfo *FuncNameInfo = Info->FuncName.getIdentifierInfo();
+  Pragma.FuncNameLoc = IdentifierLoc::create(
+      Actions.Context, Info->FuncName.getLocation(), FuncNameInfo);
+
+  llvm::ArrayRef<Token> Toks = Info->Toks;
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/false,
+                      /*IsReinject=*/false);
+  ConsumeAnnotationToken();
+
+  bool OptionBlue = OptionInfo->isStr("blue");
+  if (!OptionBlue) {
+    Diag(Info->Option.getLocation(), diag::err_pragma_primate_invalid_option)
+        << /*MissingOption=*/false << OptionInfo;
+
+    return false;
+  }
+
+  Pragma.ValueXput = ParseConstantExpression().get();
+  Pragma.ValueCount = ParseConstantExpression().get();
+
+  // Tokens following an error in an ill-formed constant expression will remain
+  // in the token stream and must be removed.
+  if (Tok.isNot(tok::eof)) {
+    Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+        << PragmaPrimateString(Info->PragmaName, Info->Option);
+    while (Tok.isNot(tok::eof))
+      ConsumeAnyToken();
+  }
+
+  ConsumeToken(); // Consume the constant expression eof terminator.
+
+  Pragma.Range = SourceRange(Info->PragmaName.getLocation(),
+                             Info->Toks.back().getLocation());
+  return true;
 }
 
 void Parser::HandlePragmaVisibility() {
@@ -2049,6 +2125,97 @@ void Parser::HandlePragmaAttribute() {
     Actions.ActOnPragmaAttributeAttribute(Attribute, PragmaLoc,
                                           SubjectMatchRules);
   }
+}
+
+/// Parses primate pragma value and fills in Info.
+static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName,
+                              Token Option, Token FuncName,
+                              PragmaPrimateInfo &Info) {
+  SmallVector<Token, 1> ValueList;
+
+  // Read constant expression.
+  while (Tok.is(tok::numeric_constant)) {
+    ValueList.push_back(Tok);
+    PP.Lex(Tok);
+  }
+
+  Token EOFTok;
+  EOFTok.startToken();
+  EOFTok.setKind(tok::eof);
+  EOFTok.setLocation(Tok.getLocation());
+  ValueList.push_back(EOFTok); // Terminates expression for parsing.
+
+  markAsReinjectedForRelexing(ValueList);
+  Info.Toks = llvm::makeArrayRef(ValueList).copy(PP.getPreprocessorAllocator());
+  Info.PragmaName = PragmaName;
+  Info.Option = Option;
+  Info.FuncName = FuncName;
+
+  return true;
+}
+
+// #pragma primate comes in one variant:
+//   'blue' <func unit name> [avg inv xput hint] [num func units hint]
+void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
+                                        PragmaIntroducer Introducer,
+                                        Token &Tok) {
+  // Incoming token is "primate" from "#pragma primate".
+  Token PragmaName = Tok;
+  SmallVector<Token, 1> TokenList;
+
+  // Lex the option and verify it is an identifier.
+  PP.Lex(Tok);
+  if (Tok.isNot(tok::identifier)) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_option)
+        << /*MissingOption=*/true << "";
+    return;
+  }
+  Token Option = Tok;
+  IdentifierInfo *OptionInfo = Tok.getIdentifierInfo();
+  bool OptionValid = llvm::StringSwitch<bool>(OptionInfo->getName())
+                         .Case("blue", true)
+                         .Default(false);
+  if (!OptionValid) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_option)
+        << /*MissingOption=*/false << OptionInfo;
+    return;
+  }
+
+  // Lex the function name and verify it is an identifier.
+  PP.Lex(Tok);
+  Token FuncName = Tok;
+  IdentifierInfo *FuncNameInfo = Tok.getIdentifierInfo();
+  if (Tok.isNot(tok::identifier)) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_func_name)
+        << /*MissingFuncName=*/false << FuncNameInfo;
+    return;
+  }
+
+  PP.Lex(Tok);
+  auto *Info = new (PP.getPreprocessorAllocator()) PragmaPrimateInfo;
+  if (!ParsePrimateValue(PP, Tok, PragmaName, Option, FuncName, *Info))
+    return;
+
+  // Generate the primate token.
+  Token PrimateTok;
+  PrimateTok.startToken();
+  PrimateTok.setKind(tok::annot_pragma_primate);
+  PrimateTok.setLocation(PragmaName.getLocation());
+  PrimateTok.setAnnotationEndLoc(PragmaName.getLocation());
+  PrimateTok.setAnnotationValue(static_cast<void *>(Info));
+  TokenList.push_back(PrimateTok);
+
+  if (Tok.isNot(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+        << "primate";
+    return;
+  }
+
+  auto TokenArray = std::make_unique<Token[]>(TokenList.size());
+  std::copy(TokenList.begin(), TokenList.end(), TokenArray.get());
+
+  PP.EnterTokenStream(std::move(TokenArray), TokenList.size(),
+                      /*DisableMacroExpansion=*/false, /*IsReinject=*/false);
 }
 
 // #pragma GCC visibility comes in two variants:

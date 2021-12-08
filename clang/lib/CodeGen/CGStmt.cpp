@@ -436,6 +436,12 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     EmitOMPParallelMaskedDirective(cast<OMPParallelMaskedDirective>(*S));
     break;
   }
+
+  if (Attrs.size() > 0) {
+    if (Attrs[0]->getKind() == attr::Primate) {
+      AddPrimateMetadata(S, Attrs);
+    }
+  }
 }
 
 bool CodeGenFunction::EmitSimpleStmt(const Stmt *S,

@@ -3906,6 +3906,38 @@ def InitSeg : Attr {
   }];
 }
 
+def Primate : Attr {
+  /// #pragma primate
+  /// blue: <func unit name> [avg inv xput hint] [num func units hint]
+  let Spellings = [Pragma<"", "primate">];
+
+  let Args = [EnumArgument<"Option", "OptionType",
+                           ["blue", "invalid"],
+                           ["Blue", "Invalid"]>,
+              StringArgument<"FuncName">,
+              ExprArgument<"ValueXput">, ExprArgument<"ValueCount">];
+
+  let AdditionalMembers = [{
+  static const char *getOptionName(int Option) {
+    switch(Option) {
+    case Blue: return "blue";
+    }
+    llvm_unreachable("Unhandled Primate option.");
+  }
+
+  void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
+
+  // Return a string containing the primate argument.
+  std::string getValueString(const PrintingPolicy &Policy) const;
+
+  // Return a string suitable for identifying this attribute in diagnostics.
+  std::string getDiagnosticName(const PrintingPolicy &Policy) const;
+  }];
+
+  let Documentation = [PrimateDocs];
+  let HasCustomParsing = 1;
+}
+
 def LoopHint : Attr {
   /// #pragma clang loop <option> directive
   /// vectorize: vectorizes loop operations if State == Enable.

@@ -16,6 +16,7 @@
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Parse/PrimatePragma.h"
 #include "clang/Parse/LoopHint.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
@@ -370,6 +371,10 @@ Retry:
     Res = ParseSEHLeaveStatement();
     SemiError = "__leave";
     break;
+
+  case tok::annot_pragma_primate:
+    ProhibitAttributes(Attrs);
+    return ParsePragmaPrimate(Stmts, StmtCtx, TrailingElseLoc, Attrs);
 
   case tok::annot_pragma_vis:
     ProhibitAttributes(CXX11Attrs);
@@ -2454,6 +2459,46 @@ StmtResult Parser::ParseReturnStatement() {
   if (IsCoreturn)
     return Actions.ActOnCoreturnStmt(getCurScope(), ReturnLoc, R.get());
   return Actions.ActOnReturnStmt(ReturnLoc, R.get(), getCurScope());
+}
+
+StmtResult Parser::ParsePragmaPrimate(StmtVector &Stmts,
+                                      ParsedStmtContext StmtCtx,
+                                      SourceLocation *TrailingElseLoc,
+                                      ParsedAttributesWithRange &Attrs) {
+  // Create temporary attribute list.
+  ParsedAttributesWithRange TempAttrs(AttrFactory);
+
+  SourceLocation StartLoc = Tok.getLocation();
+
+  // Get primate pragmas and consume annotated token.
+  while (Tok.is(tok::annot_pragma_primate)) {
+    PrimatePragma Pragma;
+    if (!HandlePragmaPrimate(Pragma))
+      continue;
+
+    ArgsUnion ArgsPragma[] = {Pragma.PragmaNameLoc, Pragma.OptionLoc,
+                              Pragma.FuncNameLoc,
+                              ArgsUnion(Pragma.ValueXput),
+                              ArgsUnion(Pragma.ValueCount)};
+    TempAttrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
+                     Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
+                     ParsedAttr::AS_Pragma);
+  }
+
+  // Get the next statement.
+  MaybeParseCXX11Attributes(Attrs);
+
+  StmtResult S = ParseStatementOrDeclarationAfterAttributes(
+      Stmts, StmtCtx, TrailingElseLoc, Attrs);
+
+  Attrs.takeAllFrom(TempAttrs);
+
+  // Start of attribute range may already be set for some invalid input.
+  // See PR46336.
+  if (Attrs.Range.getBegin().isInvalid())
+    Attrs.Range.setBegin(StartLoc);
+
+  return S;
 }
 
 StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,

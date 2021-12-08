@@ -1602,6 +1602,12 @@ def note_pragma_loop_invalid_vectorize_option : Note<
   "vectorize_width loop hint malformed; use vectorize_width(X, fixed) or "
   "vectorize_width(X, scalable) where X is an integer, or vectorize_width('fixed' or 'scalable')">;
 
+// Pragma primate support.
+def err_pragma_primate_invalid_option : Error<
+  "%select{invalid|missing}0 option%select{ %1|}0; expected blue">;
+def err_pragma_primate_invalid_func_name : Error<
+  "%select{invalid|missing}0 function name%select{ %1|}0">;
+
 def err_pragma_fp_invalid_option : Error<
   "%select{invalid|missing}0 option%select{ %1|}0; expected 'contract', 'reassociate', 'reciprocal', or 'exceptions'">;
 def err_pragma_fp_invalid_argument : Error<
