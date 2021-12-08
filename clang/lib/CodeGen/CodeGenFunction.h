@@ -4746,6 +4746,9 @@ private:
   llvm::Value *EmitX86CpuSupports(uint64_t Mask);
   llvm::Value *EmitX86CpuInit();
   llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
+
+  // Primate
+  void AddPrimateMetadata(const Stmt *S, ArrayRef<const Attr *> Attrs);
 };
 
 /// TargetFeatures - This class is used to check whether the builtin function

@@ -16,6 +16,19 @@
 #include "clang/AST/Type.h"
 using namespace clang;
 
+void PrimateAttr::printPrettyPragma(raw_ostream &OS,
+                                   const PrintingPolicy &Policy) const {
+  unsigned SpellingIndex = getAttributeSpellingListIndex();
+  OS << ' ' << getOptionName(option) << getValueString(Policy);
+}
+
+std::string PrimateAttr::getValueString(const PrintingPolicy &Policy) const {
+  std::string ValueName;
+  llvm::raw_string_ostream OS(ValueName);
+  OS << valueXput << " " << valueCount;
+  return OS.str();
+}
+
 void LoopHintAttr::printPrettyPragma(raw_ostream &OS,
                                      const PrintingPolicy &Policy) const {
   unsigned SpellingIndex = getAttributeSpellingListIndex();

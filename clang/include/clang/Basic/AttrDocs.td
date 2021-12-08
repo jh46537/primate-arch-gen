@@ -3238,6 +3238,14 @@ attributes.
   }];
 }
 
+def PrimateDocs : Documentation {
+  let Category = DocCatStmt;
+  let Heading = "#pragma primate";
+  let Content = [{
+The ``#pragma primate`` directive annotates hints for Primate arch generation.
+  }];
+}
+
 def LoopHintDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "#pragma clang loop";

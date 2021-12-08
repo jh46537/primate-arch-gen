@@ -37,6 +37,7 @@ namespace clang {
   class CorrectionCandidateCallback;
   class DeclGroupRef;
   class DiagnosticBuilder;
+  struct PrimatePragma;
   struct LoopHint;
   class Parser;
   class ParsingDeclRAIIObject;
@@ -170,6 +171,7 @@ class Parser : public CodeCompletionHandler {
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
 
+  std::unique_ptr<PragmaHandler> PrimateHandler;
   std::unique_ptr<PragmaHandler> AlignHandler;
   std::unique_ptr<PragmaHandler> GCCVisibilityHandler;
   std::unique_ptr<PragmaHandler> OptionsHandler;
@@ -691,6 +693,9 @@ private:
 
   /// Handle the annotation token produced for #pragma unused(...)
   void HandlePragmaUnused();
+
+  /// Handle the annotation token produced for #pragma primate...
+  bool HandlePragmaPrimate(PrimatePragma &Pragma);
 
   /// Handle the annotation token produced for
   /// #pragma GCC visibility...
@@ -2089,6 +2094,10 @@ private:
   StmtResult ParseReturnStatement();
   StmtResult ParseAsmStatement(bool &msAsm);
   StmtResult ParseMicrosoftAsmStatement(SourceLocation AsmLoc);
+  StmtResult ParsePragmaPrimate(StmtVector &Stmts,
+                                ParsedStmtContext StmtCtx,
+                                SourceLocation *TrailingElseLoc,
+                                ParsedAttributesWithRange &Attrs);
   StmtResult ParsePragmaLoopHint(StmtVector &Stmts,
                                  ParsedStmtContext StmtCtx,
                                  SourceLocation *TrailingElseLoc,
