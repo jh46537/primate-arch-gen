@@ -5004,7 +5004,7 @@ private:
   llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
 
   // Primate
-  void AddPrimateMetadata(const Stmt *S, ArrayRef<const Attr *> Attrs);
+  void AddPrimateMetadata(llvm::CallBase *CallInst);
 };
 
 

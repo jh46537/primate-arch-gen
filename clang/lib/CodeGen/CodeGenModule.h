@@ -1769,6 +1769,10 @@ private:
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);
+
+  // Primate
+  void AddPrimateMetadata(llvm::Function *F, const Decl *D,
+      ArrayRef<const Attr *> Attrs);
 };
 
 }  // end namespace CodeGen

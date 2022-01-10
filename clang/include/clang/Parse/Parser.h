@@ -3256,6 +3256,8 @@ private:
                             SourceLocation AliasLoc, IdentifierInfo *Alias,
                             SourceLocation &DeclEnd);
 
+  SourceLocation ParsePragmaPrimate(DeclSpec &DS);
+
   //===--------------------------------------------------------------------===//
   // C++ 9: classes [class] and C structs/unions.
   bool isValidAfterTypeSpecifier(bool CouldBeBitfield);

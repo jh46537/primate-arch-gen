@@ -8922,6 +8922,28 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
       *this, D, AL);
 }
 
+static void handlePrimateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  IdentifierLoc *PragmaNameLoc = AL.getArgAsIdent(0);
+  IdentifierLoc *OptionLoc = AL.getArgAsIdent(1);
+  IdentifierLoc *FuncNameLoc = AL.getArgAsIdent(2);
+  Expr *ValueXput = AL.getArgAsExpr(3);
+  Expr *ValueCount = AL.getArgAsExpr(4);
+
+  StringRef PragmaName = PragmaNameLoc->Ident->getName();
+
+  PrimateAttr::OptionType Option =
+      llvm::StringSwitch<PrimateAttr::OptionType>(OptionLoc->Ident->getName())
+      .Case("blue", PrimateAttr::Blue)
+      .Default(PrimateAttr::Invalid);
+
+  StringRef FuncName = FuncNameLoc->Ident->getName();
+
+  PrimateAttr *Attr =
+      PrimateAttr::CreateImplicit(S.Context, Option, FuncName, ValueXput,
+                                  ValueCount, AL);
+  D->addAttr(Attr);
+}
+
 //===----------------------------------------------------------------------===//
 // Top Level Sema Entry Points
 //===----------------------------------------------------------------------===//
@@ -9850,6 +9872,11 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   case ParsedAttr::AT_UsingIfExists:
     handleSimpleAttribute<UsingIfExistsAttr>(S, D, AL);
+    break;
+
+  // Primate attribute.
+  case ParsedAttr::AT_Primate:
+    handlePrimateAttr(S, D, AL);
     break;
   }
 }

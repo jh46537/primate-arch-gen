@@ -4640,6 +4640,15 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     }
   }
 
+  // Primate
+  if (D->hasAttrs()) {
+    ArrayRef<const Attr *> Attrs = D->getAttrs();
+    if (std::any_of(Attrs.begin(), Attrs.end(),
+                    [](auto A) { return A->getKind() == attr::Primate; })) {
+      AddPrimateMetadata(F, D, Attrs);
+    }
+  }
+
   // Make sure the result is of the requested type.
   if (!IsIncompleteFunction) {
     assert(F->getFunctionType() == Ty);
@@ -7645,4 +7654,42 @@ void CodeGenModule::moveLazyEmissionStates(CodeGenModule *NewBuilder) {
   NewBuilder->TBAA = std::move(TBAA);
 
   NewBuilder->ABI->MangleCtx = std::move(ABI->MangleCtx);
+}
+
+// Primate
+// Attach metadata to function declaration annotated with Primate pragma.
+void CodeGenModule::AddPrimateMetadata(llvm::Function *F, const Decl *D,
+    ArrayRef<const Attr *> Attrs) {
+  for (auto A : Attrs) {
+    if (A->getKind() == attr::Primate) {
+      const PrimateAttr *PA = (const PrimateAttr *) A;
+      ASTContext& ASTCtx = this->getContext();
+
+      switch (PA->getOption()) {
+      case PrimateAttr::Blue: {
+          llvm::StringRef funcName = PA->getFuncName();
+          uint64_t xput = PA->getValueXput()->
+              EvaluateKnownConstInt(ASTCtx).getZExtValue();
+          uint64_t count = PA->getValueCount()->
+              EvaluateKnownConstInt(ASTCtx).getZExtValue();
+
+          llvm::LLVMContext& Ctx = F->getContext();
+          llvm::MDNode* metadata = llvm::MDNode::get(Ctx,
+              {llvm::MDString::get(Ctx, "blue"),
+               llvm::MDString::get(Ctx, funcName),
+               llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+                  llvm::Type::getInt64Ty(Ctx), xput)),
+               llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+                  llvm::Type::getInt64Ty(Ctx), count))});
+
+          F->setMetadata("primate", metadata);
+        }
+        break;
+
+      default:
+        llvm_unreachable("Unhandled Primate option.");
+        break;
+      }
+    }
+  }
 }

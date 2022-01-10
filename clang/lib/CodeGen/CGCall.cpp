@@ -5692,6 +5692,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     llvm::MDTuple *MDT = llvm::MDNode::get(getLLVMContext(), {MD});
     CI->setMetadata("srcloc", MDT);
   }
+  // Primate
+  AddPrimateMetadata(CI);
 
   // 4. Finish the call.
 

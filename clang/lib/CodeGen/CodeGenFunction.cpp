@@ -2971,45 +2971,19 @@ llvm::Value *CodeGenFunction::emitBoolVecConversion(llvm::Value *SrcVec,
   return Builder.CreateShuffleVector(SrcVec, ShuffleMask, Name);
 }
 
-  // Primate
-void CodeGenFunction::AddPrimateMetadata(const Stmt *S,
-                                         ArrayRef<const Attr *> Attrs) {
-  const PrimateAttr *attr = (const PrimateAttr *)Attrs[0];
+// Primate
+// Find calls to functions with Primate metadata and copy metadata to call.
+void CodeGenFunction::AddPrimateMetadata(llvm::CallBase *CallInst) {
+  llvm::StringRef FuncName = CallInst->getCalledFunction()->getName();
+  const llvm::Module::FunctionListType &FList =
+      CallInst->getModule()->getFunctionList();
 
-  if (attr->getKind() == attr::Primate) {
-    llvm::BasicBlock *BB = Builder.GetInsertBlock();
-    ASTContext& ASTCxt = CGM.getContext();
-
-    switch (attr->getOption()) {
-    case PrimateAttr::Blue:
-      for (llvm::BasicBlock::reverse_iterator Ii = BB->rbegin();
-          Ii != BB->rend(); ++Ii) {
-        llvm::Instruction &I = *Ii;
-        if (isa<llvm::CallInst>(I)) {
-          std::string const& attrFuncName = attr->getFuncName().str();
-          std::string const& callFuncName = llvm::demangle(
-              cast<llvm::CallInst>(I).getCalledFunction()->getName().str());
-
-          uint64_t xput = attr->getValueXput()->EvaluateKnownConstInt(ASTCxt).
-              getZExtValue();
-          uint64_t count = attr->getValueCount()->EvaluateKnownConstInt(ASTCxt).
-              getZExtValue();
-
-          std::string metadata_string = "primate blue " + std::to_string(xput) +
-              " " + std::to_string(count);
-          llvm::LLVMContext& Cxt = I.getContext();
-          llvm::MDNode* N = llvm::MDNode::get(Cxt,
-              llvm::MDString::get(Cxt, metadata_string));
-          I.setMetadata("primate", N);
-
-          break;
-        }
+  for (const llvm::Function &F : FList) {
+    if (F.getName() == FuncName) {
+      llvm::MDNode *metadata = F.getMetadata("primate");
+      if (metadata) {
+        CallInst->setMetadata("primate", metadata);
       }
-      break;
-
-    default:
-      llvm_unreachable("Unhandled Primate option.");
-      break;
     }
   }
 }
