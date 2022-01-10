@@ -2094,10 +2094,6 @@ private:
   StmtResult ParseReturnStatement();
   StmtResult ParseAsmStatement(bool &msAsm);
   StmtResult ParseMicrosoftAsmStatement(SourceLocation AsmLoc);
-  StmtResult ParsePragmaPrimate(StmtVector &Stmts,
-                                ParsedStmtContext StmtCtx,
-                                SourceLocation *TrailingElseLoc,
-                                ParsedAttributesWithRange &Attrs);
   StmtResult ParsePragmaLoopHint(StmtVector &Stmts,
                                  ParsedStmtContext StmtCtx,
                                  SourceLocation *TrailingElseLoc,
@@ -3106,6 +3102,8 @@ private:
   Decl *ParseNamespaceAlias(SourceLocation NamespaceLoc,
                             SourceLocation AliasLoc, IdentifierInfo *Alias,
                             SourceLocation &DeclEnd);
+
+  SourceLocation ParsePragmaPrimate(DeclSpec &DS);
 
   //===--------------------------------------------------------------------===//
   // C++ 9: classes [class] and C structs/unions.

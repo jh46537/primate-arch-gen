@@ -4748,7 +4748,7 @@ private:
   llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
 
   // Primate
-  void AddPrimateMetadata(const Stmt *S, ArrayRef<const Attr *> Attrs);
+  void AddPrimateMetadata(llvm::CallBase *CallInst);
 };
 
 /// TargetFeatures - This class is used to check whether the builtin function

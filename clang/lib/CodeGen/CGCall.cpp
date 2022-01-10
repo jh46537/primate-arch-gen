@@ -5306,6 +5306,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       TargetDecl->hasAttr<MSAllocatorAttr>())
     getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy->getPointeeType(), Loc);
 
+  // Primate
+  AddPrimateMetadata(CI);
+
   // 4. Finish the call.
 
   // If the call doesn't return, finish the basic block and clear the
