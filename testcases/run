@@ -1,0 +1,1 @@
+opt -enable-new-pm=0 -load ../build/lib/LLVMPrimate.so -primate < pkt_reassembly.ll > /dev/null
