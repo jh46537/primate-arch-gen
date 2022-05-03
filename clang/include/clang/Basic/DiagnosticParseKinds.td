@@ -1604,9 +1604,9 @@ def note_pragma_loop_invalid_vectorize_option : Note<
 
 // Pragma primate support.
 def err_pragma_primate_invalid_option : Error<
-  "%select{invalid|missing}0 option%select{ %1|}0; expected blue">;
-def err_pragma_primate_invalid_func_name : Error<
-  "%select{invalid|missing}0 function name%select{ %1|}0">;
+  "%select{invalid|missing}0 option%select{ %1|}0; expected 'blue', 'green', 'reg', or 'model'">;
+def err_pragma_primate_invalid_suboption : Error<
+  "%select{invalid|missing}0 suboption%select{ %1|}0">;
 
 def err_pragma_fp_invalid_option : Error<
   "%select{invalid|missing}0 option%select{ %1|}0; expected 'contract', 'reassociate', 'reciprocal', or 'exceptions'">;

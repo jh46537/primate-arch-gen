@@ -729,7 +729,7 @@ namespace {
 struct PragmaPrimateInfo {
   Token PragmaName;
   Token Option;
-  Token FuncName;
+  Token Suboption;
   ArrayRef<Token> Toks;
 };
 } // end anonymous namespace
@@ -753,25 +753,32 @@ bool Parser::HandlePragmaPrimate(PrimatePragma &Pragma) {
   Pragma.OptionLoc = IdentifierLoc::create(
       Actions.Context, Info->Option.getLocation(), OptionInfo);
 
-  IdentifierInfo *FuncNameInfo = Info->FuncName.getIdentifierInfo();
-  Pragma.FuncNameLoc = IdentifierLoc::create(
-      Actions.Context, Info->FuncName.getLocation(), FuncNameInfo);
-
   llvm::ArrayRef<Token> Toks = Info->Toks;
   PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/false,
                       /*IsReinject=*/false);
   ConsumeAnnotationToken();
 
   bool OptionBlue = OptionInfo->isStr("blue");
-  if (!OptionBlue) {
+  bool OptionGreen = OptionInfo->isStr("green");
+  bool OptionReg = OptionInfo->isStr("reg");
+  bool OptionModel = OptionInfo->isStr("model");
+  if (!(OptionBlue || OptionGreen || OptionReg || OptionModel)) {
     Diag(Info->Option.getLocation(), diag::err_pragma_primate_invalid_option)
         << /*MissingOption=*/false << OptionInfo;
-
     return false;
   }
 
-  Pragma.ValueXput = ParseConstantExpression().get();
-  Pragma.ValueCount = ParseConstantExpression().get();
+  if (OptionBlue || OptionGreen || OptionModel) {
+    IdentifierInfo *SuboptionInfo = Info->Suboption.getIdentifierInfo();
+    Pragma.SuboptionLoc = IdentifierLoc::create(
+        Actions.Context, Info->Suboption.getLocation(), SuboptionInfo);
+  }
+
+  // TODO: @ahsu constants are optional
+  if (OptionBlue) {
+    Pragma.ValueArg0 = ParseConstantExpression().get();
+    Pragma.ValueArg1 = ParseConstantExpression().get();
+  }
 
   // Tokens following an error in an ill-formed constant expression will remain
   // in the token stream and must be removed.
@@ -2129,7 +2136,7 @@ void Parser::HandlePragmaAttribute() {
 
 /// Parses primate pragma value and fills in Info.
 static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName,
-                              Token Option, Token FuncName,
+                              Token Option, Token Suboption,
                               PragmaPrimateInfo &Info) {
   SmallVector<Token, 1> ValueList;
 
@@ -2149,13 +2156,14 @@ static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName,
   Info.Toks = llvm::makeArrayRef(ValueList).copy(PP.getPreprocessorAllocator());
   Info.PragmaName = PragmaName;
   Info.Option = Option;
-  Info.FuncName = FuncName;
+  Info.Suboption = Suboption;
 
   return true;
 }
 
-// #pragma primate comes in one variant:
+// #pragma primate comes in four variants:
 //   'blue' <func unit name> [avg inv xput hint] [num func units hint]
+//   TODO: @ahsu
 void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
                                         PragmaIntroducer Introducer,
                                         Token &Tok) {
@@ -2174,6 +2182,9 @@ void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
   IdentifierInfo *OptionInfo = Tok.getIdentifierInfo();
   bool OptionValid = llvm::StringSwitch<bool>(OptionInfo->getName())
                          .Case("blue", true)
+                         .Case("green", true)
+                         .Case("reg", true)
+                         .Case("model", true)
                          .Default(false);
   if (!OptionValid) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_option)
@@ -2181,19 +2192,28 @@ void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  // Lex the function name and verify it is an identifier.
-  PP.Lex(Tok);
-  Token FuncName = Tok;
-  IdentifierInfo *FuncNameInfo = Tok.getIdentifierInfo();
-  if (Tok.isNot(tok::identifier)) {
-    PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_func_name)
-        << /*MissingFuncName=*/false << FuncNameInfo;
-    return;
+  // Get the suboption if expected.
+  bool SuboptionExpected = llvm::StringSwitch<bool>(OptionInfo->getName())
+                               .Case("blue", true)
+                               .Case("green", true)
+                               .Case("model", true)
+                               .Default(false);
+  Token Suboption;
+  if (SuboptionExpected) {
+    // Lex the suboption and verify it is an identifier.
+    PP.Lex(Tok);
+    Suboption = Tok;
+    IdentifierInfo *SuboptionInfo = Tok.getIdentifierInfo();
+    if (Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_suboption)
+          << /*MissingSuboption=*/false << SuboptionInfo;
+      return;
+    }
   }
 
   PP.Lex(Tok);
   auto *Info = new (PP.getPreprocessorAllocator()) PragmaPrimateInfo;
-  if (!ParsePrimateValue(PP, Tok, PragmaName, Option, FuncName, *Info))
+  if (!ParsePrimateValue(PP, Tok, PragmaName, Option, Suboption, *Info))
     return;
 
   // Generate the primate token.

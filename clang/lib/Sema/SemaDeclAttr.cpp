@@ -8925,22 +8925,26 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
 static void handlePrimateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   IdentifierLoc *PragmaNameLoc = AL.getArgAsIdent(0);
   IdentifierLoc *OptionLoc = AL.getArgAsIdent(1);
-  IdentifierLoc *FuncNameLoc = AL.getArgAsIdent(2);
-  Expr *ValueXput = AL.getArgAsExpr(3);
-  Expr *ValueCount = AL.getArgAsExpr(4);
+  IdentifierLoc *SuboptionLoc = AL.getArgAsIdent(2);
+  Expr *ValueArg0 = AL.getArgAsExpr(3);
+  Expr *ValueArg1 = AL.getArgAsExpr(4);
 
   StringRef PragmaName = PragmaNameLoc->Ident->getName();
 
   PrimateAttr::OptionType Option =
       llvm::StringSwitch<PrimateAttr::OptionType>(OptionLoc->Ident->getName())
       .Case("blue", PrimateAttr::Blue)
+      .Case("green", PrimateAttr::Green)
+      .Case("reg", PrimateAttr::Reg)
+      .Case("model", PrimateAttr::Model)
       .Default(PrimateAttr::Invalid);
 
-  StringRef FuncName = FuncNameLoc->Ident->getName();
+  StringRef Suboption = SuboptionLoc ? SuboptionLoc->Ident->getName() :
+      StringRef();
 
   PrimateAttr *Attr =
-      PrimateAttr::CreateImplicit(S.Context, Option, FuncName, ValueXput,
-                                  ValueCount, AL);
+      PrimateAttr::CreateImplicit(S.Context, Option, Suboption, ValueArg0,
+                                  ValueArg1, AL);
   D->addAttr(Attr);
 }
 

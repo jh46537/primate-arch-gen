@@ -3361,6 +3361,12 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclarationWithPragmas(
     return nullptr;
 
     // Handle pragmas that can appear as member declarations.
+
+  // Primate
+  case tok::annot_pragma_primate:
+    ParsePragmaPrimateClassMember(AS, AccessAttrs, TagType, TagDecl);
+    return nullptr;
+
   case tok::annot_pragma_vis:
     HandlePragmaVisibility();
     return nullptr;

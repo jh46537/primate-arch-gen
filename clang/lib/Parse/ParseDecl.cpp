@@ -4450,8 +4450,9 @@ void Parser::ParseDeclarationSpecifiers(
       ParseDecltypeSpecifier(DS);
       continue;
 
+    // Primate
     case tok::annot_pragma_primate:
-      ParsePragmaPrimate(DS);
+      ParsePragmaPrimateFreeFunction(DS);
       continue;
 
     case tok::annot_pragma_pack:

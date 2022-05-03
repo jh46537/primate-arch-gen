@@ -3909,18 +3909,22 @@ def InitSeg : Attr {
 def Primate : Attr {
   /// #pragma primate
   /// blue: <func unit name> [avg inv xput hint] [num func units hint]
+  /// TODO: @ahsu
   let Spellings = [Pragma<"", "primate">];
 
   let Args = [EnumArgument<"Option", "OptionType",
-                           ["blue", "invalid"],
-                           ["Blue", "Invalid"]>,
-              StringArgument<"FuncName">,
-              ExprArgument<"ValueXput">, ExprArgument<"ValueCount">];
+                           ["blue", "green", "reg", "model", "invalid"],
+                           ["Blue", "Green", "Reg", "Model", "Invalid"]>,
+              StringArgument<"Suboption">,
+              ExprArgument<"ValueArg0">, ExprArgument<"ValueArg1">];
 
   let AdditionalMembers = [{
   static const char *getOptionName(int Option) {
     switch(Option) {
     case Blue: return "blue";
+    case Green: return "green";
+    case Reg: return "reg";
+    case Model: return "model";
     }
     llvm_unreachable("Unhandled Primate option.");
   }

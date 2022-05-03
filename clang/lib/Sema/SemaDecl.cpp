@@ -5377,7 +5377,12 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
   // Warn about ignored type attributes, for example:
   // __attribute__((aligned)) struct A;
   // Attributes should be placed after tag to apply to type declaration.
-  if (!DS.getAttributes().empty() || !DeclAttrs.empty()) {
+  // Primate pragmas are okay
+  bool AllPrimateAttrs = std::all_of(
+      DS.getAttributes().begin(), DS.getAttributes().end(),
+      [](auto const& v) { return v.getKind() ==
+          AttributeCommonInfo::AT_Primate; });
+  if ((!DS.getAttributes().empty() || DeclAttrs.empty()) && !AllPrimateAttrs) {
     DeclSpec::TST TypeSpecType = DS.getTypeSpecType();
     if (TypeSpecType == DeclSpec::TST_class ||
         TypeSpecType == DeclSpec::TST_struct ||

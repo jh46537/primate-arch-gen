@@ -20,13 +20,14 @@ using namespace clang;
 void PrimateAttr::printPrettyPragma(raw_ostream &OS,
                                    const PrintingPolicy &Policy) const {
   unsigned SpellingIndex = getAttributeSpellingListIndex();
-  OS << ' ' << getOptionName(option) << getValueString(Policy);
+  OS << ' ' << getOptionName(option) << ' ' << suboption << ' ' <<
+      getValueString(Policy);
 }
 
 std::string PrimateAttr::getValueString(const PrintingPolicy &Policy) const {
   std::string ValueName;
   llvm::raw_string_ostream OS(ValueName);
-  OS << valueXput << " " << valueCount;
+  OS << valueArg0 << ' ' << valueArg1;
   return OS.str();
 }
 

@@ -4641,7 +4641,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
   }
 
   // Primate
-  if (D->hasAttrs()) {
+  if (D && D->hasAttrs()) {
     ArrayRef<const Attr *> Attrs = D->getAttrs();
     if (std::any_of(Attrs.begin(), Attrs.end(),
                     [](auto A) { return A->getKind() == attr::Primate; })) {
@@ -7667,20 +7667,32 @@ void CodeGenModule::AddPrimateMetadata(llvm::Function *F, const Decl *D,
 
       switch (PA->getOption()) {
       case PrimateAttr::Blue: {
-          llvm::StringRef funcName = PA->getFuncName();
-          uint64_t xput = PA->getValueXput()->
+          llvm::StringRef suboption = PA->getSuboption();
+          uint64_t arg0 = PA->getValueArg0()->
               EvaluateKnownConstInt(ASTCtx).getZExtValue();
-          uint64_t count = PA->getValueCount()->
+          uint64_t arg1 = PA->getValueArg1()->
               EvaluateKnownConstInt(ASTCtx).getZExtValue();
 
           llvm::LLVMContext& Ctx = F->getContext();
           llvm::MDNode* metadata = llvm::MDNode::get(Ctx,
               {llvm::MDString::get(Ctx, "blue"),
-               llvm::MDString::get(Ctx, funcName),
+               llvm::MDString::get(Ctx, suboption),
                llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-                  llvm::Type::getInt64Ty(Ctx), xput)),
+                  llvm::Type::getInt64Ty(Ctx), arg0)),
                llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-                  llvm::Type::getInt64Ty(Ctx), count))});
+                  llvm::Type::getInt64Ty(Ctx), arg1))});
+
+          F->setMetadata("primate", metadata);
+        }
+        break;
+
+      case PrimateAttr::Green: {
+          llvm::StringRef suboption = PA->getSuboption();
+
+          llvm::LLVMContext& Ctx = F->getContext();
+          llvm::MDNode* metadata = llvm::MDNode::get(Ctx,
+              {llvm::MDString::get(Ctx, "green"),
+               llvm::MDString::get(Ctx, suboption)});
 
           F->setMetadata("primate", metadata);
         }
