@@ -25,6 +25,7 @@ add_llvm_component_library(LLVMTargetParser
   TargetParser.cpp
   Triple.cpp
   X86TargetParser.cpp
+  PrimateTargetParser.cpp
 
   ADDITIONAL_HEADER_DIRS
   Unix
@@ -38,4 +39,5 @@ add_llvm_component_library(LLVMTargetParser
 
   DEPENDS
   RISCVTargetParserTableGen
+  PrimateTargetParserTableGen
   )

@@ -109,6 +109,13 @@ StringRef llvm::object::getELFRelocationTypeName(uint32_t Machine,
       break;
     }
     break;
+  case ELF::EM_PRIMATE:
+    switch (Type) {
+#include "llvm/BinaryFormat/ELFRelocs/Primate.def"
+    default:
+      break;
+    }
+    break;
   case ELF::EM_RISCV:
     switch (Type) {
 #include "llvm/BinaryFormat/ELFRelocs/RISCV.def"
@@ -215,6 +222,8 @@ uint32_t llvm::object::getELFRelativeRelocationType(uint32_t Machine) {
     break;
   case ELF::EM_PPC64:
     return ELF::R_PPC64_RELATIVE;
+  case ELF::EM_PRIMATE:
+    return ELF::R_PRIMATE_RELATIVE;
   case ELF::EM_RISCV:
     return ELF::R_RISCV_RELATIVE;
   case ELF::EM_S390:
@@ -277,6 +286,9 @@ StringRef llvm::object::getELFSectionTypeName(uint32_t Machine, unsigned Type) {
       STRINGIFY_ENUM_CASE(ELF, SHT_AARCH64_MEMTAG_GLOBALS_DYNAMIC);
       STRINGIFY_ENUM_CASE(ELF, SHT_AARCH64_MEMTAG_GLOBALS_STATIC);
     }
+  case ELF::EM_PRIMATE:
+    switch (Type) { STRINGIFY_ENUM_CASE(ELF, SHT_PRIMATE_ATTRIBUTES); }
+    break;
   default:
     break;
   }

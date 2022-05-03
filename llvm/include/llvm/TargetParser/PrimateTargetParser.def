@@ -1,0 +1,27 @@
+#ifndef PROC_ALIAS
+#define PROC_ALIAS(NAME, PR32, PR64)
+#endif
+
+PROC_ALIAS("generic", "generic-pr32", "generic-pr64")
+PROC_ALIAS("rocket", "rocket-pr32", "rocket-pr64")
+PROC_ALIAS("sifive-7-series", "sifive-7-pr32", "sifive-7-pr64")
+
+#undef PROC_ALIAS
+
+#ifndef PROC
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH)
+#endif
+
+PROC(INVALID, {"invalid"}, FK_INVALID, {""})
+PROC(GENERIC_PR32, {"generic-pr32"}, FK_NONE, {""})
+PROC(GENERIC_PR64, {"generic-pr64"}, FK_64BIT, {""})
+PROC(ROCKET_PR32, {"rocket-pr32"}, FK_NONE, {""})
+PROC(ROCKET_PR64, {"rocket-pr64"}, FK_64BIT, {""})
+PROC(SIFIVE_732, {"sifive-7-pr32"}, FK_NONE, {""})
+PROC(SIFIVE_764, {"sifive-7-pr64"}, FK_64BIT, {""})
+PROC(SIFIVE_E31, {"sifive-e31"}, FK_NONE, {"pr32imac"})
+PROC(SIFIVE_U54, {"sifive-u54"}, FK_64BIT, {"pr64gc"})
+PROC(SIFIVE_E76, {"sifive-e76"}, FK_NONE, {"pr32imafc"})
+PROC(SIFIVE_U74, {"sifive-u74"}, FK_64BIT, {"pr64gc"})
+
+#undef PROC

@@ -320,6 +320,7 @@ enum {
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
   EM_LOONGARCH = 258,     // LoongArch
+  EM_PRIMATE = 253,       // Primate
 };
 
 // Object file classes.
@@ -687,6 +688,22 @@ enum {
   // Symbol may follow different calling convention than the standard calling
   // convention.
   STO_RISCV_VARIANT_CC = 0x80
+};
+
+// Primate Specific e_flags
+enum : unsigned {
+  EF_PRIMATE_RVC = 0x0001,
+  EF_PRIMATE_FLOAT_ABI = 0x0006,
+  EF_PRIMATE_FLOAT_ABI_SOFT = 0x0000,
+  EF_PRIMATE_FLOAT_ABI_SINGLE = 0x0002,
+  EF_PRIMATE_FLOAT_ABI_DOUBLE = 0x0004,
+  EF_PRIMATE_FLOAT_ABI_QUAD = 0x0006,
+  EF_PRIMATE_RVE = 0x0008
+};
+
+// ELF Relocation types for Primate
+enum {
+#include "ELFRelocs/Primate.def"
 };
 
 // ELF Relocation types for S390/zSeries
@@ -1125,6 +1142,7 @@ enum : unsigned {
   SHT_MSP430_ATTRIBUTES = 0x70000003U,
 
   SHT_RISCV_ATTRIBUTES = 0x70000003U,
+  SHT_PRIMATE_ATTRIBUTES = 0x70000003U,
 
   SHT_CSKY_ATTRIBUTES = 0x70000001U,
 

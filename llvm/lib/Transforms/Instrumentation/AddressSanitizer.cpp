@@ -108,6 +108,7 @@ static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
 static const uint64_t kLoongArch64_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kRISCV64_ShadowOffset64 = 0xd55550000;
+static const uint64_t kPrimate64_ShadowOffset64 = 0xd55550000;
 static const uint64_t kFreeBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kFreeBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kFreeBSDAArch64_ShadowOffset64 = 1ULL << 47;
@@ -496,6 +497,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                    TargetTriple.getArch() == Triple::aarch64_be;
   bool IsLoongArch64 = TargetTriple.isLoongArch64();
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
+  bool IsPrimate64 = TargetTriple.getArch() == Triple::primate64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
   bool IsEmscripten = TargetTriple.isOSEmscripten();
@@ -570,6 +572,8 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
       Mapping.Offset = kLoongArch64_ShadowOffset64;
     else if (IsRISCV64)
       Mapping.Offset = kRISCV64_ShadowOffset64;
+    else if (IsPrimate64)
+      Mapping.Offset = kPrimate64_ShadowOffset64;
     else if (IsAMDGPU)
       Mapping.Offset = (kSmallX86_64ShadowOffsetBase &
                         (kSmallX86_64ShadowOffsetAlignMask << Mapping.Scale));
@@ -591,7 +595,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   // SystemZ, we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
   Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS &&
-                           !IsRISCV64 && !IsLoongArch64 &&
+                           !IsRISCV64 && !IsPrimate64 && !IsLoongArch64 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
   bool IsAndroidWithIfuncSupport =

@@ -169,6 +169,67 @@ bool insertWaveSizeFeature(StringRef GPU, const Triple &T,
                            StringMap<bool> &Features, std::string &ErrorMsg);
 
 } // namespace AMDGPU
+
+namespace RISCV {
+
+enum CPUKind : unsigned {
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
+#include "RISCVTargetParser.def"
+};
+
+enum FeatureKind : unsigned {
+  FK_INVALID = 0,
+  FK_NONE = 1,
+  FK_STDEXTM = 1 << 2,
+  FK_STDEXTA = 1 << 3,
+  FK_STDEXTF = 1 << 4,
+  FK_STDEXTD = 1 << 5,
+  FK_STDEXTC = 1 << 6,
+  FK_64BIT = 1 << 7,
+};
+
+bool checkCPUKind(CPUKind Kind, bool IsRV64);
+bool checkTuneCPUKind(CPUKind Kind, bool IsRV64);
+CPUKind parseCPUKind(StringRef CPU);
+CPUKind parseTuneCPUKind(StringRef CPU, bool IsRV64);
+StringRef getMArchFromMcpu(StringRef CPU);
+void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
+void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
+bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
+StringRef resolveTuneCPUAlias(StringRef TuneCPU, bool IsRV64);
+
+} // namespace RISCV
+
+namespace Primate {
+
+enum CPUKind : unsigned {
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
+#include "PrimateTargetParser.def"
+};
+
+enum FeatureKind : unsigned {
+  FK_INVALID = 0,
+  FK_NONE = 1,
+  FK_STDEXTM = 1 << 2,
+  FK_STDEXTA = 1 << 3,
+  FK_STDEXTF = 1 << 4,
+  FK_STDEXTD = 1 << 5,
+  FK_STDEXTC = 1 << 6,
+  FK_64BIT = 1 << 7,
+};
+
+bool checkCPUKind(CPUKind Kind, bool IsRV64);
+bool checkTuneCPUKind(CPUKind Kind, bool IsRV64);
+CPUKind parseCPUKind(StringRef CPU);
+CPUKind parseTuneCPUKind(StringRef CPU, bool IsRV64);
+StringRef getMArchFromMcpu(StringRef CPU);
+void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
+void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
+bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
+StringRef resolveTuneCPUAlias(StringRef TuneCPU, bool IsRV64);
+
+} // namespace Primate
+
 } // namespace llvm
 
 #endif

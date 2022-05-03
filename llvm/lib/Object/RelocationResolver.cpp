@@ -518,6 +518,28 @@ static bool supportsCSKY(uint64_t Type) {
   }
 }
 
+static bool supportsPrimate(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_PRIMATE_NONE:
+  case ELF::R_PRIMATE_32:
+  case ELF::R_PRIMATE_32_PCREL:
+  case ELF::R_PRIMATE_64:
+  case ELF::R_PRIMATE_SET6:
+  case ELF::R_PRIMATE_SUB6:
+  case ELF::R_PRIMATE_ADD8:
+  case ELF::R_PRIMATE_SUB8:
+  case ELF::R_PRIMATE_ADD16:
+  case ELF::R_PRIMATE_SUB16:
+  case ELF::R_PRIMATE_ADD32:
+  case ELF::R_PRIMATE_SUB32:
+  case ELF::R_PRIMATE_ADD64:
+  case ELF::R_PRIMATE_SUB64:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static uint64_t resolveCSKY(uint64_t Type, uint64_t Offset, uint64_t S,
                             uint64_t LocData, int64_t Addend) {
   switch (Type) {
@@ -585,6 +607,44 @@ static uint64_t resolveLoongArch(uint64_t Type, uint64_t Offset, uint64_t S,
     return (LocData + (S + Addend));
   case ELF::R_LARCH_SUB64:
     return (LocData - (S + Addend));
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
+static uint64_t resolvePrimate(uint64_t Type, uint64_t Offset, uint64_t S,
+                               uint64_t LocData, int64_t Addend) {
+  int64_t RA = Addend;
+  uint64_t A = LocData;
+  switch (Type) {
+  case ELF::R_PRIMATE_NONE:
+    return LocData;
+  case ELF::R_PRIMATE_32:
+    return (S + RA) & 0xFFFFFFFF;
+  case ELF::R_PRIMATE_32_PCREL:
+    return (S + RA - Offset) & 0xFFFFFFFF;
+  case ELF::R_PRIMATE_64:
+    return S + RA;
+  case ELF::R_PRIMATE_SET6:
+    return (A & 0xC0) | ((S + RA) & 0x3F);
+  case ELF::R_PRIMATE_SUB6:
+    return (A & 0xC0) | (((A & 0x3F) - (S + RA)) & 0x3F);
+  case ELF::R_PRIMATE_ADD8:
+    return (A + (S + RA)) & 0xFF;
+  case ELF::R_PRIMATE_SUB8:
+    return (A - (S + RA)) & 0xFF;
+  case ELF::R_PRIMATE_ADD16:
+    return (A + (S + RA)) & 0xFFFF;
+  case ELF::R_PRIMATE_SUB16:
+    return (A - (S + RA)) & 0xFFFF;
+  case ELF::R_PRIMATE_ADD32:
+    return (A + (S + RA)) & 0xFFFFFFFF;
+  case ELF::R_PRIMATE_SUB32:
+    return (A - (S + RA)) & 0xFFFFFFFF;
+  case ELF::R_PRIMATE_ADD64:
+    return (A + (S + RA));
+  case ELF::R_PRIMATE_SUB64:
+    return (A - (S + RA));
   default:
     llvm_unreachable("Invalid relocation type");
   }
@@ -806,6 +866,8 @@ getRelocationResolver(const ObjectFile &Obj) {
         return {supportsAmdgpu, resolveAmdgpu};
       case Triple::riscv64:
         return {supportsRISCV, resolveRISCV};
+      case Triple::primate64:
+        return {supportsPrimate, resolvePrimate};
       default:
         if (isAMDGPU(Obj))
           return {supportsAmdgpu, resolveAmdgpu};
@@ -847,6 +909,8 @@ getRelocationResolver(const ObjectFile &Obj) {
       return {supportsRISCV, resolveRISCV};
     case Triple::csky:
       return {supportsCSKY, resolveCSKY};
+    case Triple::primate32:
+      return {supportsPrimate, resolvePrimate};
     default:
       if (isAMDGPU(Obj))
         return {supportsAmdgpu, resolveAmdgpu};
@@ -890,6 +954,10 @@ uint64_t resolveRelocation(RelocationResolver Resolver, const RelocationRef &R,
             Obj->getArch() != Triple::loongarch64 &&
             Obj->getArch() != Triple::riscv32 &&
             Obj->getArch() != Triple::riscv64)
+          LocData = 0;
+        // Primate relocations use both LocData and Addend.
+        if (Obj->getArch() != Triple::primate32 &&
+            Obj->getArch() != Triple::primate64)
           LocData = 0;
       }
     }

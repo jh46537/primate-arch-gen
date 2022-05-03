@@ -409,6 +409,27 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
   return "generic";
 }
 
+StringRef sys::detail::getHostCPUNameForPrimate(StringRef ProcCpuinfoContent) {
+    return "PrimateCustom"
+//  // There are 24 lines in /proc/cpuinfo
+//  SmallVector<StringRef> Lines;
+//  ProcCpuinfoContent.split(Lines, "\n");
+//
+//  // Look for uarch line to determine cpu name
+//  StringRef UArch;
+//  for (unsigned I = 0, E = Lines.size(); I != E; ++I) {
+//    if (Lines[I].starts_with("uarch")) {
+//      UArch = Lines[I].substr(5).ltrim("\t :");
+//      break;
+//    }
+//  }
+//
+//  return StringSwitch<const char *>(UArch)
+//      .Case("sifive,u74-mc", "sifive-u74")
+//      .Case("sifive,bullet0", "sifive-u74")
+//      .Default("generic");
+}
+
 StringRef sys::detail::getHostCPUNameForRISCV(StringRef ProcCpuinfoContent) {
   // There are 24 lines in /proc/cpuinfo
   SmallVector<StringRef> Lines;
@@ -1543,6 +1564,22 @@ StringRef sys::getHostCPUName() {
     break;
   }
   return "generic";
+}
+#elif defined(__primate)
+StringRef sys::getHostCPUName() {
+#if defined(__linux__)
+  std::unique_ptr<llvm::MemoryBuffer> P = getProcCpuinfoContent();
+  StringRef Content = P ? P->getBuffer() : "";
+  return detail::getHostCPUNameForPrimate(Content);
+#else
+#if __primate_xlen == 64
+  return "generic-rv64";
+#elif __primate_xlen == 32
+  return "generic-rv32";
+#else
+#error "Unhandled value of __primate_xlen"
+#endif
+#endif
 }
 #elif defined(__riscv)
 StringRef sys::getHostCPUName() {

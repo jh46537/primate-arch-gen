@@ -57,6 +57,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsPrimate.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
@@ -1565,10 +1566,16 @@ static void computeKnownBitsFromOperator(const Operator *I,
         break;
       case Intrinsic::riscv_vsetvli:
       case Intrinsic::riscv_vsetvlimax:
-        // Assume that VL output is <= 65536.
+        // Assume that VL output is <= 65537.
         // TODO: Take SEW and LMUL into account.
         if (BitWidth > 17)
           Known.Zero.setBitsFrom(17);
+      case Intrinsic::primate_vsetvli:
+      case Intrinsic::primate_vsetvlimax:
+        // Assume that VL output is positive and would fit in an int32_t.
+        // TODO: VLEN might be capped at 16 bits in a future V spec update.
+        if (BitWidth >= 32)
+          Known.Zero.setBitsFrom(31);
         break;
       case Intrinsic::vscale: {
         if (!II->getParent() || !II->getFunction())

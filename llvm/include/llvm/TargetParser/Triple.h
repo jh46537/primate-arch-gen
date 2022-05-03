@@ -70,6 +70,8 @@ public:
     ppcle,          // PPCLE: powerpc (little endian)
     ppc64,          // PPC64: powerpc64, ppu
     ppc64le,        // PPC64LE: powerpc64le
+    primate32,      // PRIMATE (32-bit): primate32
+    primate64,      // PRIMATE (64-bit): primate64
     r600,           // R600: AMD GPUs HD2XXX - HD6XXX
     amdgcn,         // AMDGCN: AMD GCN GPUs
     riscv32,        // RISC-V (32-bit): riscv32
@@ -946,6 +948,22 @@ public:
             ((getOS() == Triple::FreeBSD &&
               (getOSMajorVersion() >= 13 || getOSVersion().empty())) ||
              getOS() == Triple::OpenBSD || isMusl()));
+  }
+
+
+  /// Tests whether the target is Primate (32- and 64-bit).
+  bool isPrimate32() const {
+    return getArch() == Triple::primate32;
+  }
+
+  /// Tests whether the target is Primate (32- and 64-bit).
+  bool isPrimate64() const {
+    return getArch() == Triple::primate64;
+  }
+
+  /// Tests whether the target is Primate (32- and 64-bit).
+  bool isPrimate() const {
+    return getArch() == Triple::primate32 || getArch() == Triple::primate64;
   }
 
   /// Tests whether the target 32-bit PowerPC uses Secure PLT.

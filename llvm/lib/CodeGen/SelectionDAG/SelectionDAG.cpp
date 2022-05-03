@@ -5582,7 +5582,6 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
 SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
                               SDValue N1, const SDNodeFlags Flags) {
   assert(N1.getOpcode() != ISD::DELETED_NODE && "Operand is DELETED_NODE!");
-
   // Constant fold unary operations with a vector integer or float operand.
   switch (Opcode) {
   default:

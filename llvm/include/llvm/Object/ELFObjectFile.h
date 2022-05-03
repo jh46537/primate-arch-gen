@@ -62,6 +62,7 @@ class ELFObjectFileBase : public ObjectFile {
   SubtargetFeatures getARMFeatures() const;
   Expected<SubtargetFeatures> getRISCVFeatures() const;
   SubtargetFeatures getLoongArchFeatures() const;
+  SubtargetFeatures getPrimateFeatures() const;
 
   StringRef getAMDGPUCPUName() const;
   StringRef getNVPTXCPUName() const;
@@ -1232,6 +1233,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "elf32-msp430";
     case ELF::EM_PPC:
       return (IsLittleEndian ? "elf32-powerpcle" : "elf32-powerpc");
+    case ELF::EM_PRIMATE:
+      return "elf32-littleprimate";
     case ELF::EM_RISCV:
       return "elf32-littleriscv";
     case ELF::EM_CSKY:
@@ -1258,6 +1261,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return (IsLittleEndian ? "elf64-littleaarch64" : "elf64-bigaarch64");
     case ELF::EM_PPC64:
       return (IsLittleEndian ? "elf64-powerpcle" : "elf64-powerpc");
+    case ELF::EM_PRIMATE:
+      return "elf64-littleprimate";
     case ELF::EM_RISCV:
       return "elf64-littleriscv";
     case ELF::EM_S390:
@@ -1318,6 +1323,15 @@ template <class ELFT> Triple::ArchType ELFObjectFile<ELFT>::getArch() const {
     return IsLittleEndian ? Triple::ppcle : Triple::ppc;
   case ELF::EM_PPC64:
     return IsLittleEndian ? Triple::ppc64le : Triple::ppc64;
+  case ELF::EM_PRIMATE:
+    switch (EF.getHeader().e_ident[ELF::EI_CLASS]) {
+    case ELF::ELFCLASS32:
+      return Triple::riscv32;
+    case ELF::ELFCLASS64:
+      return Triple::riscv64;
+    default:
+      report_fatal_error("Invalid ELFCLASS!");
+    }
   case ELF::EM_RISCV:
     switch (EF.getHeader().e_ident[ELF::EI_CLASS]) {
     case ELF::ELFCLASS32:

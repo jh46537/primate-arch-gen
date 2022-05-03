@@ -6,6 +6,7 @@ add_llvm_library(LLVMTableGenCommon STATIC OBJECT EXCLUDE_FROM_ALL
   DirectiveEmitter.cpp
   IntrinsicEmitter.cpp
   RISCVTargetDefEmitter.cpp
+  PrimateTargetDefEmitter.cpp
   SDNodeProperties.cpp
   VTEmitter.cpp
   PARTIAL_SOURCES_INTENDED
@@ -70,6 +71,7 @@ add_tablegen(llvm-tblgen LLVM
   OptParserEmitter.cpp
   OptRSTEmitter.cpp
   PredicateExpander.cpp
+  PrimateCompressInstEmitter.cpp
   PseudoLoweringEmitter.cpp
   CompressInstEmitter.cpp
   MacroFusionPredicatorEmitter.cpp

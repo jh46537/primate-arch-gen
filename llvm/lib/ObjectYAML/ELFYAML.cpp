@@ -351,6 +351,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_56800EX);
   ECase(EM_AMDGPU);
   ECase(EM_RISCV);
+  ECase(EM_PRIMATE);
   ECase(EM_LANAI);
   ECase(EM_BPF);
   ECase(EM_VE);
@@ -549,6 +550,14 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_XTENSA_XT_INSN);
     BCaseMask(EF_XTENSA_MACH_NONE, EF_XTENSA_MACH);
     BCase(EF_XTENSA_XT_LIT);
+    break;
+  case ELF::EM_PRIMATE:
+    BCase(EF_PRIMATE_RVC);
+    BCaseMask(EF_PRIMATE_FLOAT_ABI_SOFT, EF_PRIMATE_FLOAT_ABI);
+    BCaseMask(EF_PRIMATE_FLOAT_ABI_SINGLE, EF_PRIMATE_FLOAT_ABI);
+    BCaseMask(EF_PRIMATE_FLOAT_ABI_DOUBLE, EF_PRIMATE_FLOAT_ABI);
+    BCaseMask(EF_PRIMATE_FLOAT_ABI_QUAD, EF_PRIMATE_FLOAT_ABI);
+    BCase(EF_PRIMATE_RVE);
     break;
   case ELF::EM_AMDGPU:
     BCaseMask(EF_AMDGPU_MACH_NONE, EF_AMDGPU_MACH);

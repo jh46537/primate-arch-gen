@@ -21,6 +21,8 @@
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/PrimateAttributeParser.h"
+#include "llvm/Support/PrimateAttributes.h"
 #include "llvm/Support/RISCVAttributeParser.h"
 #include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/RISCVISAInfo.h"
@@ -334,6 +336,61 @@ SubtargetFeatures ELFObjectFileBase::getLoongArchFeatures() const {
   case ELF::EF_LOONGARCH_ABI_SINGLE_FLOAT:
     Features.AddFeature("f");
     break;
+
+  }
+  return Features;
+}
+SubtargetFeatures ELFObjectFileBase::getPrimateFeatures() const {
+  SubtargetFeatures Features;
+  unsigned PlatformFlags = getPlatformFlags();
+
+  if (PlatformFlags & ELF::EF_PRIMATE_RVC) {
+    Features.AddFeature("c");
+  }
+
+  // Add features according to the ELF attribute section.
+  // If there are any unrecognized features, ignore them.
+  PrimateAttributeParser Attributes;
+  if (Error E = getBuildAttributes(Attributes)) {
+    // TODO Propagate Error.
+    consumeError(std::move(E));
+    return Features; // Keep "c" feature if there is one in PlatformFlags.
+  }
+
+  Optional<StringRef> Attr = Attributes.getAttributeString(PrimateAttrs::ARCH);
+  if (Attr.hasValue()) {
+    // The Arch pattern is [pc32|pc64][i|e]version(_[m|a|f|d|c]version)*
+    // Version string pattern is (major)p(minor). Major and minor are optional.
+    // For example, a version number could be 2p0, 2, or p92.
+    StringRef Arch = Attr.getValue();
+    if (Arch.consume_front("pc32"))
+      Features.AddFeature("64bit", false);
+    else if (Arch.consume_front("pc64"))
+      Features.AddFeature("64bit");
+
+    while (!Arch.empty()) {
+      switch (Arch[0]) {
+      default:
+        break; // Ignore unexpected features.
+      case 'i':
+        Features.AddFeature("e", false);
+        break;
+      case 'd':
+        Features.AddFeature("f"); // D-ext will imply F-ext.
+        LLVM_FALLTHROUGH;
+      case 'e':
+      case 'm':
+      case 'a':
+      case 'f':
+      case 'c':
+        Features.AddFeature(Arch.take_front());
+        break;
+      }
+
+      // FIXME: Handle version numbers.
+      Arch = Arch.drop_until([](char c) { return c == '_' || c == '\0'; });
+      Arch = Arch.drop_while([](char c) { return c == '_'; });
+    }
   }
 
   return Features;
@@ -349,6 +406,8 @@ Expected<SubtargetFeatures> ELFObjectFileBase::getFeatures() const {
     return getRISCVFeatures();
   case ELF::EM_LOONGARCH:
     return getLoongArchFeatures();
+  case ELF::EM_PRIMATE:
+    return getPrimateFeatures();
   default:
     return SubtargetFeatures();
   }
