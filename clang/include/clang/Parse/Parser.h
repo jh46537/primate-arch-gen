@@ -3103,8 +3103,6 @@ private:
                             SourceLocation AliasLoc, IdentifierInfo *Alias,
                             SourceLocation &DeclEnd);
 
-  SourceLocation ParsePragmaPrimate(DeclSpec &DS);
-
   //===--------------------------------------------------------------------===//
   // C++ 9: classes [class] and C structs/unions.
   bool isValidAfterTypeSpecifier(bool CouldBeBitfield);
@@ -3527,6 +3525,13 @@ private:
   bool isGNUAsmQualifier(const Token &TokAfterAsm) const;
   GNUAsmQualifiers::AQ getGNUAsmQualifier(const Token &Tok) const;
   bool parseGNUAsmQualifierListOpt(GNUAsmQualifiers &AQ);
+
+  // Primate
+  SourceLocation ParsePragmaPrimateFreeFunction(DeclSpec &DS);
+  void ParsePragmaPrimateClassMember(AccessSpecifier &AS,
+      ParsedAttributesWithRange &AccessAttrs, DeclSpec::TST TagType,
+      Decl *TagDecl);
+  void ParsePragmaPrimateFreeRecord();
 };
 
 }  // end namespace clang

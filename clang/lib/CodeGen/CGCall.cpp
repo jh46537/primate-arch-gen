@@ -5307,7 +5307,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     getDebugInfo()->addHeapAllocSiteMetadata(CI, RetTy->getPointeeType(), Loc);
 
   // Primate
-  AddPrimateMetadata(CI);
+  if (CI->getCalledFunction())
+    AddPrimateMetadata(CI);
 
   // 4. Finish the call.
 

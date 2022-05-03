@@ -4037,8 +4037,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       ParseDecltypeSpecifier(DS);
       continue;
 
+    // Primate
     case tok::annot_pragma_primate:
-      ParsePragmaPrimate(DS);
+      ParsePragmaPrimateFreeFunction(DS);
       continue;
 
     case tok::annot_pragma_pack:
@@ -7422,37 +7423,4 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
     return true;
   }
   return false;
-}
-
-SourceLocation Parser::ParsePragmaPrimate(DeclSpec &DS) {
-  // Create attribute list.
-  ParsedAttributesWithRange Attrs(AttrFactory);
-
-  SourceLocation StartLoc = Tok.getLocation();
-  SourceLocation EndLoc = SourceLocation{};
-
-  if (!Tok.is(tok::annot_pragma_primate)) {
-    DS.SetTypeSpecError();
-    return EndLoc;
-  }
-
-  // Get primate pragmas and consume annotated token.
-  PrimatePragma Pragma;
-
-  if (!HandlePragmaPrimate(Pragma)) {
-    DS.SetTypeSpecError();
-    return EndLoc;
-  }
-  EndLoc = Pragma.Range.getEnd();
-
-  ArgsUnion ArgsPragma[] = {Pragma.PragmaNameLoc, Pragma.OptionLoc,
-                            Pragma.FuncNameLoc,
-                            ArgsUnion(Pragma.ValueXput),
-                            ArgsUnion(Pragma.ValueCount)};
-  Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
-               Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
-               ParsedAttr::AS_Pragma);
-  DS.takeAttributesFrom(Attrs);
-
-  return EndLoc;
 }

@@ -23,17 +23,17 @@ struct PrimatePragma {
   // Identifier corresponding to the name of the pragma.  "primate" for
   // "#pragma primate" directives.
   IdentifierLoc *PragmaNameLoc;
-  // Name of the primate option.  Example: "blue".
+  // Name of the primate option.  "blue", "green", "reg", "model"
   IdentifierLoc *OptionLoc;
-  // Name of the function name.
-  IdentifierLoc *FuncNameLoc;
+  // Name of the primate suboption. Depends on option.
+  IdentifierLoc *SuboptionLoc;
   // Expression for the option argument if it exists, null otherwise.
-  Expr *ValueXput;
-  Expr *ValueCount;
+  Expr *ValueArg0;
+  Expr *ValueArg1;
 
   PrimatePragma()
-      : PragmaNameLoc(nullptr), OptionLoc(nullptr), FuncNameLoc(nullptr),
-        ValueXput(nullptr), ValueCount(nullptr) {}
+      : PragmaNameLoc(nullptr), OptionLoc(nullptr), SuboptionLoc(nullptr),
+        ValueArg0(nullptr), ValueArg1(nullptr) {}
 };
 
 } // end namespace clang
