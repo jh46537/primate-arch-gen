@@ -140,7 +140,8 @@ static Optional<uint64_t> absoluteSymbolDiff(const MCSymbol *Hi,
 void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
                                               const MCSymbol *Lo,
                                               unsigned Size) {
-  if (!getAssembler().getContext().getTargetTriple().isRISCV())
+  if (!getAssembler().getContext().getTargetTriple().isRISCV() &&
+      !getAssembler().getContext().getTargetTriple().isPrimate())
     if (Optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
       return emitIntValue(*Diff, Size);
   MCStreamer::emitAbsoluteSymbolDiff(Hi, Lo, Size);
@@ -148,7 +149,8 @@ void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
 
 void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
                                                        const MCSymbol *Lo) {
-  if (!getAssembler().getContext().getTargetTriple().isRISCV())
+  if (!getAssembler().getContext().getTargetTriple().isRISCV() &&
+      !getAssembler().getContext().getTargetTriple().isPrimate())
     if (Optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
       return emitULEB128IntValue(*Diff);
   MCStreamer::emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);

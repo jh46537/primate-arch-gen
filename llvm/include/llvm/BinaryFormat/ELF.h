@@ -320,6 +320,7 @@ enum {
   EM_BPF = 247,           // Linux kernel bpf virtual machine
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
+  EM_PRIMATE = 253,       // Primate
 };
 
 // Object file classes.
@@ -660,6 +661,22 @@ enum {
 #include "ELFRelocs/RISCV.def"
 };
 
+// Primate Specific e_flags
+enum : unsigned {
+  EF_PRIMATE_RVC = 0x0001,
+  EF_PRIMATE_FLOAT_ABI = 0x0006,
+  EF_PRIMATE_FLOAT_ABI_SOFT = 0x0000,
+  EF_PRIMATE_FLOAT_ABI_SINGLE = 0x0002,
+  EF_PRIMATE_FLOAT_ABI_DOUBLE = 0x0004,
+  EF_PRIMATE_FLOAT_ABI_QUAD = 0x0006,
+  EF_PRIMATE_RVE = 0x0008
+};
+
+// ELF Relocation types for Primate
+enum {
+#include "ELFRelocs/Primate.def"
+};
+
 // ELF Relocation types for S390/zSeries
 enum {
 #include "ELFRelocs/SystemZ.def"
@@ -973,6 +990,7 @@ enum : unsigned {
   SHT_MSP430_ATTRIBUTES = 0x70000003U,
 
   SHT_RISCV_ATTRIBUTES = 0x70000003U,
+  SHT_PRIMATE_ATTRIBUTES = 0x70000003U,
 
   SHT_HIPROC = 0x7fffffff, // Highest processor arch-specific type.
   SHT_LOUSER = 0x80000000, // Lowest type reserved for applications.

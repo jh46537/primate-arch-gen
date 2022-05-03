@@ -75,6 +75,7 @@ module LLVM_BinaryFormat {
     textual header "BinaryFormat/ELFRelocs/MSP430.def"
     textual header "BinaryFormat/ELFRelocs/PowerPC64.def"
     textual header "BinaryFormat/ELFRelocs/PowerPC.def"
+    textual header "BinaryFormat/ELFRelocs/Primate.def"
     textual header "BinaryFormat/ELFRelocs/RISCV.def"
     textual header "BinaryFormat/ELFRelocs/Sparc.def"
     textual header "BinaryFormat/ELFRelocs/SystemZ.def"
@@ -419,6 +420,7 @@ module LLVM_Utils {
     // These are intended for textual inclusion.
     textual header "Support/AArch64TargetParser.def"
     textual header "Support/ARMTargetParser.def"
+    textual header "Support/PrimateTargetParser.def"
     textual header "Support/RISCVTargetParser.def"
     textual header "Support/TargetOpcodes.def"
     textual header "Support/X86TargetParser.def"

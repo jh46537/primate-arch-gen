@@ -53,6 +53,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IntrinsicsPrimate.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
@@ -1684,6 +1685,8 @@ static void computeKnownBitsFromOperator(const Operator *I,
         break;
       case Intrinsic::riscv_vsetvli:
       case Intrinsic::riscv_vsetvlimax:
+      case Intrinsic::primate_vsetvli:
+      case Intrinsic::primate_vsetvlimax:
         // Assume that VL output is positive and would fit in an int32_t.
         // TODO: VLEN might be capped at 16 bits in a future V spec update.
         if (BitWidth >= 32)

@@ -333,3 +333,95 @@ bool getCPUFeaturesExceptStdExt(CPUKind Kind,
 
 } // namespace RISCV
 } // namespace llvm
+
+namespace llvm {
+namespace Primate {
+
+struct CPUInfo {
+  StringLiteral Name;
+  CPUKind Kind;
+  unsigned Features;
+  StringLiteral DefaultMarch;
+  bool is64Bit() const { return (Features & FK_64BIT); }
+};
+
+constexpr CPUInfo PrimateCPUInfo[] = {
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH)                              \
+  {NAME, CK_##ENUM, FEATURES, DEFAULT_MARCH},
+#include "llvm/Support/PrimateTargetParser.def"
+};
+
+bool checkCPUKind(CPUKind Kind, bool IsPR64) {
+  if (Kind == CK_INVALID)
+    return false;
+  return PrimateCPUInfo[static_cast<unsigned>(Kind)].is64Bit() == IsPR64;
+}
+
+bool checkTuneCPUKind(CPUKind Kind, bool IsPR64) {
+  if (Kind == CK_INVALID)
+    return false;
+  return PrimateCPUInfo[static_cast<unsigned>(Kind)].is64Bit() == IsPR64;
+}
+
+CPUKind parseCPUKind(StringRef CPU) {
+  return llvm::StringSwitch<CPUKind>(CPU)
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) .Case(NAME, CK_##ENUM)
+#include "llvm/Support/PrimateTargetParser.def"
+      .Default(CK_INVALID);
+}
+
+StringRef resolveTuneCPUAlias(StringRef TuneCPU, bool IsPR64) {
+  return llvm::StringSwitch<StringRef>(TuneCPU)
+#define PROC_ALIAS(NAME, PR32, PR64) .Case(NAME, IsPR64 ? StringRef(PR64) : StringRef(PR32))
+#include "llvm/Support/PrimateTargetParser.def"
+      .Default(TuneCPU);
+}
+
+CPUKind parseTuneCPUKind(StringRef TuneCPU, bool IsPR64) {
+  TuneCPU = resolveTuneCPUAlias(TuneCPU, IsPR64);
+
+  return llvm::StringSwitch<CPUKind>(TuneCPU)
+#define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) .Case(NAME, CK_##ENUM)
+#include "llvm/Support/PrimateTargetParser.def"
+      .Default(CK_INVALID);
+}
+
+StringRef getMArchFromMcpu(StringRef CPU) {
+  CPUKind Kind = parseCPUKind(CPU);
+  return PrimateCPUInfo[static_cast<unsigned>(Kind)].DefaultMarch;
+}
+
+void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsPR64) {
+  for (const auto &C : PrimateCPUInfo) {
+    if (C.Kind != CK_INVALID && IsPR64 == C.is64Bit())
+      Values.emplace_back(C.Name);
+  }
+}
+
+void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsPR64) {
+  for (const auto &C : PrimateCPUInfo) {
+    if (C.Kind != CK_INVALID && IsPR64 == C.is64Bit())
+      Values.emplace_back(C.Name);
+  }
+#define PROC_ALIAS(NAME, PR32, PR64) Values.emplace_back(StringRef(NAME));
+#include "llvm/Support/PrimateTargetParser.def"
+}
+
+// Get all features except standard extension feature
+bool getCPUFeaturesExceptStdExt(CPUKind Kind,
+                                std::vector<StringRef> &Features) {
+  unsigned CPUFeatures = PrimateCPUInfo[static_cast<unsigned>(Kind)].Features;
+
+  if (CPUFeatures == FK_INVALID)
+    return false;
+
+  if (CPUFeatures & FK_64BIT)
+    Features.push_back("+64bit");
+  else
+    Features.push_back("-64bit");
+
+  return true;
+}
+
+} // namespace Primate
+} // namespace llvm

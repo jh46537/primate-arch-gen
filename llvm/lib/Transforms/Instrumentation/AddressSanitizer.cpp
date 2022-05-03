@@ -107,6 +107,7 @@ static const uint64_t kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
 static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
 static const uint64_t kRISCV64_ShadowOffset64 = 0xd55550000;
+static const uint64_t kPrimate64_ShadowOffset64 = 0xd55550000;
 static const uint64_t kFreeBSD_ShadowOffset32 = 1ULL << 30;
 static const uint64_t kFreeBSD_ShadowOffset64 = 1ULL << 46;
 static const uint64_t kFreeBSDKasan_ShadowOffset64 = 0xdffff7c000000000;
@@ -460,6 +461,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   bool IsArmOrThumb = TargetTriple.isARM() || TargetTriple.isThumb();
   bool IsAArch64 = TargetTriple.getArch() == Triple::aarch64;
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
+  bool IsPrimate64 = TargetTriple.getArch() == Triple::primate64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
   bool IsEmscripten = TargetTriple.isOSEmscripten();
@@ -528,6 +530,8 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kAArch64_ShadowOffset64;
     else if (IsRISCV64)
       Mapping.Offset = kRISCV64_ShadowOffset64;
+    else if (IsPrimate64)
+      Mapping.Offset = kPrimate64_ShadowOffset64;
     else if (IsAMDGPU)
       Mapping.Offset = (kSmallX86_64ShadowOffsetBase &
                         (kSmallX86_64ShadowOffsetAlignMask << Mapping.Scale));
@@ -549,7 +553,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   // we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
   Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS4CPU &&
-                           !IsRISCV64 &&
+                           !IsRISCV64 && !IsPrimate64 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
   bool IsAndroidWithIfuncSupport =

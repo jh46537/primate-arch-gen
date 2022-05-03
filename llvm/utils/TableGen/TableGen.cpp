@@ -189,7 +189,8 @@ bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     EmitPseudoLowering(Records, OS);
     break;
   case GenCompressInst:
-    EmitCompressInst(Records, OS);
+    //EmitCompressInst(Records, OS);
+    EmitPrimateCompressInst(Records, OS);
     break;
   case GenDAGISel:
     EmitDAGISel(Records, OS);
