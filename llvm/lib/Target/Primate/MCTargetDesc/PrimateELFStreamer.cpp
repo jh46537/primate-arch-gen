@@ -40,7 +40,7 @@ PrimateTargetELFStreamer::PrimateTargetELFStreamer(MCStreamer &S,
   unsigned EFlags = MCA.getELFHeaderEFlags();
 
   if (Features[Primate::FeatureStdExtC])
-    EFlags |= ELF::EF_PRIMATE_RVC;
+    EFlags |= ELF::EF_PRIMATE_PRC;
 
   switch (ABI) {
   case PrimateABI::ABI_ILP32:
@@ -55,7 +55,7 @@ PrimateTargetELFStreamer::PrimateTargetELFStreamer(MCStreamer &S,
     EFlags |= ELF::EF_PRIMATE_FLOAT_ABI_DOUBLE;
     break;
   case PrimateABI::ABI_ILP32E:
-    EFlags |= ELF::EF_PRIMATE_RVE;
+    EFlags |= ELF::EF_PRIMATE_PRE;
     break;
   case PrimateABI::ABI_Unknown:
     llvm_unreachable("Improperly initialised target ABI");
@@ -72,8 +72,8 @@ void PrimateTargetELFStreamer::emitDirectiveOptionPush() {}
 void PrimateTargetELFStreamer::emitDirectiveOptionPop() {}
 void PrimateTargetELFStreamer::emitDirectiveOptionPIC() {}
 void PrimateTargetELFStreamer::emitDirectiveOptionNoPIC() {}
-void PrimateTargetELFStreamer::emitDirectiveOptionRVC() {}
-void PrimateTargetELFStreamer::emitDirectiveOptionNoRVC() {}
+void PrimateTargetELFStreamer::emitDirectiveOptionPRC() {}
+void PrimateTargetELFStreamer::emitDirectiveOptionNoPRC() {}
 void PrimateTargetELFStreamer::emitDirectiveOptionRelax() {}
 void PrimateTargetELFStreamer::emitDirectiveOptionNoRelax() {}
 

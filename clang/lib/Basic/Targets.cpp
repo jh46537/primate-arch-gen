@@ -32,6 +32,7 @@
 #include "Targets/OSTargets.h"
 #include "Targets/PNaCl.h"
 #include "Targets/PPC.h"
+#include "Targets/Primate.h"
 #include "Targets/RISCV.h"
 #include "Targets/SPIR.h"
 #include "Targets/Sparc.h"
@@ -465,6 +466,32 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       }
     default:
       return std::make_unique<RISCV64TargetInfo>(Triple, Opts);
+    }
+
+  case llvm::Triple::primate32:
+    // TODO: add cases for NetBSD, RTEMS once tested.
+    switch (os) {
+    case llvm::Triple::FreeBSD:
+      return new FreeBSDTargetInfo<Primate32TargetInfo>(Triple, Opts);
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<Primate32TargetInfo>(Triple, Opts);
+    default:
+      return new Primate32TargetInfo(Triple, Opts);
+    }
+
+  case llvm::Triple::primate64:
+    // TODO: add cases for NetBSD, RTEMS once tested.
+    switch (os) {
+    case llvm::Triple::FreeBSD:
+      return new FreeBSDTargetInfo<Primate64TargetInfo>(Triple, Opts);
+    case llvm::Triple::OpenBSD:
+      return new OpenBSDTargetInfo<Primate64TargetInfo>(Triple, Opts);
+    case llvm::Triple::Fuchsia:
+      return new FuchsiaTargetInfo<Primate64TargetInfo>(Triple, Opts);
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<Primate64TargetInfo>(Triple, Opts);
+    default:
+      return new Primate64TargetInfo(Triple, Opts);
     }
 
   case llvm::Triple::sparc:

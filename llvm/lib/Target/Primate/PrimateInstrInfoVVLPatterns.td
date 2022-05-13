@@ -230,7 +230,7 @@ def SDT_PrimateVWMUL_VL : SDTypeProfile<1, 4, [SDTCisVec<0>,
 def primate_vwmul_vl  : SDNode<"PrimateISD::VWMUL_VL",  SDT_PrimateVWMUL_VL, [SDNPCommutative]>;
 def primate_vwmulu_vl : SDNode<"PrimateISD::VWMULU_VL", SDT_PrimateVWMUL_VL, [SDNPCommutative]>;
 
-def SDTPRVVecReduce : SDTypeProfile<1, 4, [
+def SDTPPRVecReduce : SDTypeProfile<1, 4, [
   SDTCisVec<0>, SDTCisVec<1>, SDTCisSameAs<0, 2>, SDTCVecEltisVT<3, i1>,
   SDTCisSameNumEltsAs<1, 3>, SDTCisVT<4, XLenVT>
 ]>;
@@ -255,7 +255,7 @@ def primate_vwmulu_vl_oneuse : PatFrag<(ops node:$A, node:$B, node:$C, node:$D),
 
 foreach kind = ["ADD", "UMAX", "SMAX", "UMIN", "SMIN", "AND", "OR", "XOR",
                 "FADD", "SEQ_FADD", "FMIN", "FMAX"] in
-  def rvv_vecreduce_#kind#_vl : SDNode<"PrimateISD::VECREDUCE_"#kind#"_VL", SDTPRVVecReduce>;
+  def prv_vecreduce_#kind#_vl : SDNode<"PrimateISD::VECREDUCE_"#kind#"_VL", SDTPPRVecReduce>;
 
 // Ignore the vl operand.
 def SplatFPOp : PatFrag<(ops node:$op),
@@ -927,22 +927,22 @@ defm : VPatBinaryVL_VV_VX<primate_usubsat_vl, "PseudoVSSUBU">;
 
 // 15.1. Vector Single-Width Integer Reduction Instructions
 let Predicates = [HasStdExtV] in {
-defm : VPatReductionVL<rvv_vecreduce_ADD_vl,  "PseudoVREDSUM", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_UMAX_vl, "PseudoVREDMAXU", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_SMAX_vl, "PseudoVREDMAX", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_UMIN_vl, "PseudoVREDMINU", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_SMIN_vl, "PseudoVREDMIN", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_AND_vl,  "PseudoVREDAND", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_OR_vl,   "PseudoVREDOR", /*is_float*/0>;
-defm : VPatReductionVL<rvv_vecreduce_XOR_vl,  "PseudoVREDXOR", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_ADD_vl,  "PseudoVREDSUM", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_UMAX_vl, "PseudoVREDMAXU", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_SMAX_vl, "PseudoVREDMAX", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_UMIN_vl, "PseudoVREDMINU", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_SMIN_vl, "PseudoVREDMIN", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_AND_vl,  "PseudoVREDAND", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_OR_vl,   "PseudoVREDOR", /*is_float*/0>;
+defm : VPatReductionVL<prv_vecreduce_XOR_vl,  "PseudoVREDXOR", /*is_float*/0>;
 } // Predicates = [HasStdExtV]
 
 // 15.3. Vector Single-Width Floating-Point Reduction Instructions
 let Predicates = [HasStdExtV, HasStdExtF] in {
-defm : VPatReductionVL<rvv_vecreduce_SEQ_FADD_vl, "PseudoVFREDOSUM", /*is_float*/1>;
-defm : VPatReductionVL<rvv_vecreduce_FADD_vl,     "PseudoVFREDSUM", /*is_float*/1>;
-defm : VPatReductionVL<rvv_vecreduce_FMIN_vl,     "PseudoVFREDMIN", /*is_float*/1>;
-defm : VPatReductionVL<rvv_vecreduce_FMAX_vl,     "PseudoVFREDMAX", /*is_float*/1>;
+defm : VPatReductionVL<prv_vecreduce_SEQ_FADD_vl, "PseudoVFREDOSUM", /*is_float*/1>;
+defm : VPatReductionVL<prv_vecreduce_FADD_vl,     "PseudoVFREDSUM", /*is_float*/1>;
+defm : VPatReductionVL<prv_vecreduce_FMIN_vl,     "PseudoVFREDMIN", /*is_float*/1>;
+defm : VPatReductionVL<prv_vecreduce_FMAX_vl,     "PseudoVFREDMAX", /*is_float*/1>;
 } // Predicates = [HasStdExtV, HasStdExtF]
 
 let Predicates = [HasStdExtV, HasStdExtF] in {

@@ -1075,6 +1075,13 @@ void CodeGenModule::Release() {
               Ctx, llvm::MDString::get(Ctx, (*ParseResult)->toString())));
   }
 
+  if (Arch == llvm::Triple::primate32 || Arch == llvm::Triple::primate64) {
+    StringRef ABIStr = Target.getABI();
+    llvm::LLVMContext &Ctx = TheModule.getContext();
+    getModule().addModuleFlag(llvm::Module::Error, "target-abi",
+                              llvm::MDString::get(Ctx, ABIStr));
+  }
+
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     // Indicate that we want cross-DSO control flow integrity checks.
     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
@@ -1348,7 +1355,7 @@ void CodeGenModule::EmitOpenCLMetadata() {
 
 void CodeGenModule::EmitBackendOptionsMetadata(
     const CodeGenOptions &CodeGenOpts) {
-  if (getTriple().isRISCV()) {
+  if (getTriple().isRISCV() || getTriple().isPrimate()) {
     getModule().addModuleFlag(llvm::Module::Min, "SmallDataLimit",
                               CodeGenOpts.SmallDataLimit);
   }

@@ -69,8 +69,8 @@ PrimateAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_primate_tls_gd_hi20", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_primate_jal", 12, 20, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_primate_branch", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_primate_rvc_jump", 2, 11, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_primate_rvc_branch", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_primate_prc_jump", 2, 11, MCFixupKindInfo::FKF_IsPCRel},
+      {"fixup_primate_prc_branch", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_primate_call", 0, 64, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_primate_call_plt", 0, 64, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_primate_relax", 0, 0, 0},
@@ -154,11 +154,11 @@ bool PrimateAsmBackend::fixupNeedsRelaxationAdvanced(const MCFixup &Fixup,
   switch (Fixup.getTargetKind()) {
   default:
     return false;
-  case Primate::fixup_primate_rvc_branch:
+  case Primate::fixup_primate_prc_branch:
     // For compressed branch instructions the immediate must be
     // in the range [-256, 254].
     return Offset > 254 || Offset < -256;
-  case Primate::fixup_primate_rvc_jump:
+  case Primate::fixup_primate_prc_jump:
     // For compressed jump instructions the immediate must be
     // in the range [-2048, 2046].
     return Offset > 2046 || Offset < -2048;
@@ -455,7 +455,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     uint64_t LowerImm = Value & 0xfffULL;
     return UpperImm | ((LowerImm << 20) << 32);
   }
-  case Primate::fixup_primate_rvc_jump: {
+  case Primate::fixup_primate_prc_jump: {
     // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit Value.
     unsigned Bit11  = (Value >> 11) & 0x1;
     unsigned Bit4   = (Value >> 4) & 0x1;
@@ -469,7 +469,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
             (Bit6 << 5) | (Bit7 << 4) | (Bit3_1 << 1) | Bit5;
     return Value;
   }
-  case Primate::fixup_primate_rvc_branch: {
+  case Primate::fixup_primate_prc_branch: {
     // Need to produce offset[8|4:3], [reg 3 bit], offset[7:6|2:1|5]
     unsigned Bit8   = (Value >> 8) & 0x1;
     unsigned Bit7_6 = (Value >> 6) & 0x3;

@@ -450,6 +450,11 @@ void Sema::Initialize() {
 #define WASM_TYPE(Name, Id, SingletonId)                                       \
   addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
+  
+  if (Context.getTargetInfo().hasPrimateVTypes()) {
+#define PRV_TYPE(Name, Id, SingletonId)                                        \
+  addImplicitTypedef(Name, Context.SingletonId);
+#include "clang/Basic/PrimateVTypes.def"
   }
 
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {

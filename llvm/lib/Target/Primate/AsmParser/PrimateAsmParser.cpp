@@ -1879,8 +1879,8 @@ bool PrimateAsmParser::parseDirectiveOption() {
     return false;
   }
 
-  if (Option == "rvc") {
-    getTargetStreamer().emitDirectiveOptionRVC();
+  if (Option == "prc") {
+    getTargetStreamer().emitDirectiveOptionPRC();
 
     Parser.Lex();
     if (Parser.getTok().isNot(AsmToken::EndOfStatement))
@@ -1891,8 +1891,8 @@ bool PrimateAsmParser::parseDirectiveOption() {
     return false;
   }
 
-  if (Option == "norvc") {
-    getTargetStreamer().emitDirectiveOptionNoRVC();
+  if (Option == "noprc") {
+    getTargetStreamer().emitDirectiveOptionNoPRC();
 
     Parser.Lex();
     if (Parser.getTok().isNot(AsmToken::EndOfStatement))
@@ -1953,7 +1953,7 @@ bool PrimateAsmParser::parseDirectiveOption() {
 
   // Unknown option.
   Warning(Parser.getTok().getLoc(),
-          "unknown option, expected 'push', 'pop', 'rvc', 'norvc', 'relax' or "
+          "unknown option, expected 'push', 'pop', 'prc', 'noprc', 'relax' or "
           "'norelax'");
   Parser.eatToEndOfStatement();
   return false;

@@ -156,6 +156,7 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   IsRenderScriptTarget = false;
   HasAArch64SVETypes = false;
   HasRISCVVTypes = false;
+  HasPrimateVTypes = false;
   AllowAMDGPUUnsafeFPAtomics = false;
   ARMCDECoprocMask = 0;
 

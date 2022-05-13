@@ -344,7 +344,7 @@ SubtargetFeatures ELFObjectFileBase::getPrimateFeatures() const {
   SubtargetFeatures Features;
   unsigned PlatformFlags = getPlatformFlags();
 
-  if (PlatformFlags & ELF::EF_PRIMATE_RVC) {
+  if (PlatformFlags & ELF::EF_PRIMATE_PRC) {
     Features.AddFeature("c");
   }
 

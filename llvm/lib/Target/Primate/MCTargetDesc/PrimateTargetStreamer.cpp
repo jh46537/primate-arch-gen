@@ -25,8 +25,8 @@ void PrimateTargetStreamer::emitDirectiveOptionPush() {}
 void PrimateTargetStreamer::emitDirectiveOptionPop() {}
 void PrimateTargetStreamer::emitDirectiveOptionPIC() {}
 void PrimateTargetStreamer::emitDirectiveOptionNoPIC() {}
-void PrimateTargetStreamer::emitDirectiveOptionRVC() {}
-void PrimateTargetStreamer::emitDirectiveOptionNoRVC() {}
+void PrimateTargetStreamer::emitDirectiveOptionPRC() {}
+void PrimateTargetStreamer::emitDirectiveOptionNoPRC() {}
 void PrimateTargetStreamer::emitDirectiveOptionRelax() {}
 void PrimateTargetStreamer::emitDirectiveOptionNoRelax() {}
 void PrimateTargetStreamer::emitAttribute(unsigned Attribute, unsigned Value) {}
@@ -117,12 +117,12 @@ void PrimateTargetAsmStreamer::emitDirectiveOptionNoPIC() {
   OS << "\t.option\tnopic\n";
 }
 
-void PrimateTargetAsmStreamer::emitDirectiveOptionRVC() {
-  OS << "\t.option\trvc\n";
+void PrimateTargetAsmStreamer::emitDirectiveOptionPRC() {
+  OS << "\t.option\tprc\n";
 }
 
-void PrimateTargetAsmStreamer::emitDirectiveOptionNoRVC() {
-  OS << "\t.option\tnorvc\n";
+void PrimateTargetAsmStreamer::emitDirectiveOptionNoPRC() {
+  OS << "\t.option\tnoprc\n";
 }
 
 void PrimateTargetAsmStreamer::emitDirectiveOptionRelax() {

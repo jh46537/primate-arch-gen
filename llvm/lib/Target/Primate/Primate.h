@@ -49,6 +49,9 @@ void initializePrimateExpandAtomicPseudoPass(PassRegistry &);
 FunctionPass *createPrimateInsertVSETVLIPass();
 void initializePrimateInsertVSETVLIPass(PassRegistry &);
 
+FunctionPass *createPrimatePacketizer();
+void initializePrimatePacketizerPass(PassRegistry &);
+
 InstructionSelector *createPrimateInstructionSelector(const PrimateTargetMachine &,
                                                     PrimateSubtarget &,
                                                     PrimateRegisterBankInfo &);

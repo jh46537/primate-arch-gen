@@ -12,6 +12,7 @@
 #include "Arch/LoongArch.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
+#include "Arch/Primate.h"
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
@@ -251,6 +252,10 @@ static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
     return "elf64ppc";
   case llvm::Triple::ppc64le:
     return "elf64lppc";
+  case llvm::Triple::primate32:
+    return "elf32lprimate";
+  case llvm::Triple::primate64:
+    return "elf64lprimate";
   case llvm::Triple::riscv32:
     return "elf32lriscv";
   case llvm::Triple::riscv64:
@@ -758,6 +763,18 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
     CmdArgs.push_back("-mlittle-endian");
     CmdArgs.push_back(ppc::getPPCAsmModeForCPU(
         getCPUName(D, Args, getToolChain().getTriple())));
+    break;
+  }
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64: {
+    StringRef ABIName = primate::getPrimateABI(Args,
+                                               getToolChain().getTriple());
+    CmdArgs.push_back("-mabi");
+    CmdArgs.push_back(ABIName.data());
+    StringRef MArchName = primate::getPrimateArch(Args,
+                                                  getToolChain().getTriple());
+    CmdArgs.push_back("-march");
+    CmdArgs.push_back(MArchName.data());
     break;
   }
   case llvm::Triple::riscv32:
@@ -1938,6 +1955,98 @@ static void findRISCVMultilibs(const Driver &D,
     Result.Multilibs = RISCVMultilibs;
 }
 
+static void findPrimateBareMetalMultilibs(const Driver &D,
+                                        const llvm::Triple &TargetTriple,
+                                        StringRef Path, const ArgList &Args,
+                                        DetectedMultilibs &Result) {
+  FilterNonExistent NonExistent(Path, "/crtbegin.o", D.getVFS());
+  struct PrimateMultilib {
+    StringRef march;
+    StringRef mabi;
+  };
+  // currently only support the set of multilibs like primate-gnu-toolchain does.
+  // TODO: support MULTILIB_REUSE
+  constexpr PrimateMultilib PrimateMultilibSet[] = {
+      {"rv32i", "ilp32"},     {"rv32im", "ilp32"},     {"rv32iac", "ilp32"},
+      {"rv32imac", "ilp32"},  {"rv32imafc", "ilp32f"}, {"rv64imac", "lp64"},
+      {"rv64imafdc", "lp64d"}};
+
+  std::vector<Multilib> Ms;
+  for (auto Element : PrimateMultilibSet) {
+    // multilib path rule is ${march}/${mabi}
+    Ms.emplace_back(
+        makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi)).str())
+            .flag(Twine("+march=", Element.march).str())
+            .flag(Twine("+mabi=", Element.mabi).str()));
+  }
+  MultilibSet PrimateMultilibs =
+      MultilibSet()
+          .Either(ArrayRef<Multilib>(Ms))
+          .FilterOut(NonExistent)
+          .setFilePathsCallback([](const Multilib &M) {
+            return std::vector<std::string>(
+                {M.gccSuffix(),
+                 "/../../../../primate64-unknown-elf/lib" + M.gccSuffix(),
+                 "/../../../../primate32-unknown-elf/lib" + M.gccSuffix()});
+          });
+
+
+  Multilib::flags_list Flags;
+  llvm::StringSet<> Added_ABIs;
+  StringRef ABIName = tools::primate::getPrimateABI(Args, TargetTriple);
+  StringRef MArch = tools::primate::getPrimateArch(Args, TargetTriple);
+  for (auto Element : PrimateMultilibSet) {
+    addMultilibFlag(MArch == Element.march,
+                    Twine("march=", Element.march).str().c_str(), Flags);
+    if (!Added_ABIs.count(Element.mabi)) {
+      Added_ABIs.insert(Element.mabi);
+      addMultilibFlag(ABIName == Element.mabi,
+                      Twine("mabi=", Element.mabi).str().c_str(), Flags);
+    }
+  }
+
+  if (PrimateMultilibs.select(Flags, Result.SelectedMultilib))
+    Result.Multilibs = PrimateMultilibs;
+}
+
+static void findPrimateMultilibs(const Driver &D,
+                                 const llvm::Triple &TargetTriple,
+                                 StringRef Path, const ArgList &Args,
+                                 DetectedMultilibs &Result) {
+  if (TargetTriple.getOS() == llvm::Triple::UnknownOS)
+    return findPrimateBareMetalMultilibs(D, TargetTriple, Path, Args, Result);
+
+  FilterNonExistent NonExistent(Path, "/crtbegin.o", D.getVFS());
+  Multilib Ilp32 = makeMultilib("lib32/ilp32").flag("+m32").flag("+mabi=ilp32");
+  Multilib Ilp32f =
+      makeMultilib("lib32/ilp32f").flag("+m32").flag("+mabi=ilp32f");
+  Multilib Ilp32d =
+      makeMultilib("lib32/ilp32d").flag("+m32").flag("+mabi=ilp32d");
+  Multilib Lp64 = makeMultilib("lib64/lp64").flag("+m64").flag("+mabi=lp64");
+  Multilib Lp64f = makeMultilib("lib64/lp64f").flag("+m64").flag("+mabi=lp64f");
+  Multilib Lp64d = makeMultilib("lib64/lp64d").flag("+m64").flag("+mabi=lp64d");
+  MultilibSet PrimateMultilibs =
+      MultilibSet()
+          .Either({Ilp32, Ilp32f, Ilp32d, Lp64, Lp64f, Lp64d})
+          .FilterOut(NonExistent);
+
+  Multilib::flags_list Flags;
+  bool IsRV64 = TargetTriple.getArch() == llvm::Triple::primate64;
+  StringRef ABIName = tools::primate::getPrimateABI(Args, TargetTriple);
+
+  addMultilibFlag(!IsRV64, "m32", Flags);
+  addMultilibFlag(IsRV64, "m64", Flags);
+  addMultilibFlag(ABIName == "ilp32", "mabi=ilp32", Flags);
+  addMultilibFlag(ABIName == "ilp32f", "mabi=ilp32f", Flags);
+  addMultilibFlag(ABIName == "ilp32d", "mabi=ilp32d", Flags);
+  addMultilibFlag(ABIName == "lp64", "mabi=lp64", Flags);
+  addMultilibFlag(ABIName == "lp64f", "mabi=lp64f", Flags);
+  addMultilibFlag(ABIName == "lp64d", "mabi=lp64d", Flags);
+
+  if (PrimateMultilibs.select(Flags, Result.SelectedMultilib))
+    Result.Multilibs = PrimateMultilibs;
+}
+
 static bool findBiarchMultilibs(const Driver &D,
                                 const llvm::Triple &TargetTriple,
                                 StringRef Path, const ArgList &Args,
@@ -2551,6 +2660,17 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
       "powerpc64le-none-linux-gnu", "powerpc64le-suse-linux",
       "ppc64le-redhat-linux"};
 
+  static const char *const Primate32LibDirs[] = {"/lib32", "/lib"};
+  static const char *const Primate32Triples[] = {"primate32-unknown-linux-gnu",
+                                                 "primate32-linux-gnu",
+                                                 "primate32-unknown-elf"};
+  static const char *const Primate64LibDirs[] = {"/lib64", "/lib"};
+  static const char *const Primate64Triples[] = {"primate64-unknown-linux-gnu",
+                                                 "primate64-linux-gnu",
+                                                 "primate64-unknown-elf",
+                                                 "primate64-redhat-linux",
+                                                 "primate64-suse-linux"};
+
   static const char *const RISCV32LibDirs[] = {"/lib32", "/lib"};
   static const char *const RISCV32Triples[] = {"riscv32-unknown-linux-gnu",
                                                "riscv32-linux-gnu",
@@ -2815,6 +2935,18 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     BiarchLibDirs.append(begin(PPCLELibDirs), end(PPCLELibDirs));
     BiarchTripleAliases.append(begin(PPCLETriples), end(PPCLETriples));
     break;
+  case llvm::Triple::primate32:
+    LibDirs.append(begin(Primate32LibDirs), end(Primate32LibDirs));
+    TripleAliases.append(begin(Primate32Triples), end(Primate32Triples));
+    BiarchLibDirs.append(begin(Primate64LibDirs), end(Primate64LibDirs));
+    BiarchTripleAliases.append(begin(Primate64Triples), end(Primate64Triples));
+    break;
+  case llvm::Triple::primate64:
+    LibDirs.append(begin(Primate64LibDirs), end(Primate64LibDirs));
+    TripleAliases.append(begin(Primate64Triples), end(Primate64Triples));
+    BiarchLibDirs.append(begin(Primate32LibDirs), end(Primate32LibDirs));
+    BiarchTripleAliases.append(begin(Primate32Triples), end(Primate32Triples));
+    break;
   case llvm::Triple::riscv32:
     LibDirs.append(begin(RISCV32LibDirs), end(RISCV32LibDirs));
     TripleAliases.append(begin(RISCV32Triples), end(RISCV32Triples));
@@ -2874,6 +3006,8 @@ bool Generic_GCC::GCCInstallationDetector::ScanGCCForMultilibs(
       return false;
   } else if (TargetTriple.isRISCV()) {
     findRISCVMultilibs(D, TargetTriple, Path, Args, Detected);
+  } else if (TargetTriple.isPrimate()) {
+    findPrimateMultilibs(D, TargetTriple, Path, Args, Detected);
   } else if (isMSP430(TargetArch)) {
     findMSP430Multilibs(D, TargetTriple, Path, Args, Detected);
   } else if (TargetArch == llvm::Triple::avr) {

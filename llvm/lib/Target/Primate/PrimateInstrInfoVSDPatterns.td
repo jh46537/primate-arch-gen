@@ -33,7 +33,7 @@ def SDT_PrimateVMSETCLR_VL : SDTypeProfile<1, 1, [SDTCVecEltisVT<0, i1>,
 def primate_vmclr_vl : SDNode<"PrimateISD::VMCLR_VL", SDT_PrimateVMSETCLR_VL>;
 def primate_vmset_vl : SDNode<"PrimateISD::VMSET_VL", SDT_PrimateVMSETCLR_VL>;
 
-def rvv_vnot : PatFrag<(ops node:$in),
+def prv_vnot : PatFrag<(ops node:$in),
                        (xor node:$in, (primate_vmset_vl (XLenVT srcvalue)))>;
 
 // Give explicit Complexity to prefer simm5/uimm5.
@@ -556,25 +556,25 @@ foreach mti = AllMasks in {
             (!cast<Instruction>("PseudoVMXOR_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
 
-  def : Pat<(mti.Mask (rvv_vnot (and VR:$rs1, VR:$rs2))),
+  def : Pat<(mti.Mask (prv_vnot (and VR:$rs1, VR:$rs2))),
             (!cast<Instruction>("PseudoVMNAND_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
-  def : Pat<(mti.Mask (rvv_vnot (or VR:$rs1, VR:$rs2))),
+  def : Pat<(mti.Mask (prv_vnot (or VR:$rs1, VR:$rs2))),
             (!cast<Instruction>("PseudoVMNOR_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
-  def : Pat<(mti.Mask (rvv_vnot (xor VR:$rs1, VR:$rs2))),
+  def : Pat<(mti.Mask (prv_vnot (xor VR:$rs1, VR:$rs2))),
             (!cast<Instruction>("PseudoVMXNOR_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
 
-  def : Pat<(mti.Mask (and VR:$rs1, (rvv_vnot VR:$rs2))),
+  def : Pat<(mti.Mask (and VR:$rs1, (prv_vnot VR:$rs2))),
             (!cast<Instruction>("PseudoVMANDNOT_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
-  def : Pat<(mti.Mask (or VR:$rs1, (rvv_vnot VR:$rs2))),
+  def : Pat<(mti.Mask (or VR:$rs1, (prv_vnot VR:$rs2))),
             (!cast<Instruction>("PseudoVMORNOT_MM_"#mti.LMul.MX)
                  VR:$rs1, VR:$rs2, mti.AVL, mti.Log2SEW)>;
 
-  // Handle rvv_vnot the same as the vmnot.m pseudoinstruction.
-  def : Pat<(mti.Mask (rvv_vnot VR:$rs)),
+  // Handle prv_vnot the same as the vmnot.m pseudoinstruction.
+  def : Pat<(mti.Mask (prv_vnot VR:$rs)),
             (!cast<Instruction>("PseudoVMNAND_MM_"#mti.LMul.MX)
                  VR:$rs, VR:$rs, mti.AVL, mti.Log2SEW)>;
 }

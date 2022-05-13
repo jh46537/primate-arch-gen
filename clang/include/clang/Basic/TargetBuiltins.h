@@ -174,6 +174,16 @@ namespace clang {
   };
   } // namespace LoongArch
 
+  /// Primate builtins
+  namespace Primate {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsPrimate.def"
+    LastTSBuiltin
+  };
+  } // namespace Primate
+
   /// Flags to identify the types for overloaded Neon builtins.
   ///
   /// These must be kept in sync with the flags in utils/TableGen/NeonEmitter.h.
@@ -370,8 +380,9 @@ namespace clang {
       {ARM::LastTSBuiltin, AArch64::LastTSBuiltin, BPF::LastTSBuiltin,
        PPC::LastTSBuiltin, NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin,
        X86::LastTSBuiltin, VE::LastTSBuiltin, RISCV::LastTSBuiltin,
-       Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
-       SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin});
+       Primate::LastTSBuiltin, Hexagon::LastTSBuiltin, Mips::LastTSBuiltin,
+       XCore::LastTSBuiltin, SystemZ::LastTSBuiltin,
+       WebAssembly::LastTSBuiltin});
 
 } // end namespace clang.
 

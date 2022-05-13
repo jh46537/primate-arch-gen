@@ -11,6 +11,7 @@
 #include "Arch/LoongArch.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
+#include "Arch/Primate.h"
 #include "Arch/RISCV.h"
 #include "CommonArgs.h"
 #include "clang/Config/config.h"
@@ -210,6 +211,9 @@ static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
   if (Triple.getArch() == llvm::Triple::riscv32)
     return "lib32";
 
+  if (Triple.getArch() == llvm::Triple::primate32)
+    return "lib32";
+
   return Triple.isArch32Bit() ? "lib" : "lib64";
 }
 
@@ -260,6 +264,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   const bool IsHexagon = Arch == llvm::Triple::hexagon;
   const bool IsRISCV = Triple.isRISCV();
   const bool IsCSKY = Triple.isCSKY();
+  const bool IsPrimate = Triple.isPrimate();
 
   if (IsCSKY && !SelectedMultilibs.empty())
     SysRoot = SysRoot + SelectedMultilibs.back().osSuffix();
@@ -332,6 +337,11 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     StringRef ABIName = tools::riscv::getRISCVABI(Args, Triple);
     addPathIfExists(D, concat(SysRoot, "/", OSLibDir, ABIName), Paths);
     addPathIfExists(D, concat(SysRoot, "/usr", OSLibDir, ABIName), Paths);
+  }
+  if (IsPrimate) {
+    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    addPathIfExists(D, SysRoot + "/" + OSLibDir + "/" + ABIName, Paths);
+    addPathIfExists(D, SysRoot + "/usr/" + OSLibDir + "/" + ABIName, Paths);
   }
 
   Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
@@ -560,6 +570,18 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
     Loader =
         (tools::ppc::hasPPCAbiArg(Args, "elfv1")) ? "ld64.so.1" : "ld64.so.2";
     break;
+  case llvm::Triple::primate32: {
+    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    LibDir = "lib";
+    Loader = ("ld-linux-primate32-" + ABIName + ".so.1").str();
+    break;
+  }
+  case llvm::Triple::primate64: {
+    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    LibDir = "lib";
+    Loader = ("ld-linux-primate64-" + ABIName + ".so.1").str();
+    break;
+  }
   case llvm::Triple::riscv32: {
     StringRef ABIName = tools::riscv::getRISCVABI(Args, Triple);
     LibDir = "lib";
@@ -787,6 +809,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
                          getTriple().getArch() == llvm::Triple::thumbeb;
   const bool IsLoongArch64 = getTriple().getArch() == llvm::Triple::loongarch64;
   const bool IsRISCV64 = getTriple().getArch() == llvm::Triple::riscv64;
+  const bool IsPrimate64 = getTriple().getArch() == llvm::Triple::primate64;
   const bool IsSystemZ = getTriple().getArch() == llvm::Triple::systemz;
   const bool IsHexagon = getTriple().getArch() == llvm::Triple::hexagon;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
@@ -802,7 +825,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsLoongArch64)
     Res |= SanitizerKind::DataFlow;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsPowerPC64 ||
-      IsRISCV64 || IsSystemZ || IsHexagon || IsLoongArch64)
+      IsRISCV64 || IsSystemZ || IsHexagon || IsLoongArch64 || IsPrimate64)
     Res |= SanitizerKind::Leak;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64 || IsSystemZ ||
       IsLoongArch64 || IsRISCV64)

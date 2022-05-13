@@ -363,9 +363,9 @@ unsigned PrimateMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,
     } else if (MIFrm == PrimateII::InstFormatB) {
       FixupKind = Primate::fixup_primate_branch;
     } else if (MIFrm == PrimateII::InstFormatCJ) {
-      FixupKind = Primate::fixup_primate_rvc_jump;
+      FixupKind = Primate::fixup_primate_prc_jump;
     } else if (MIFrm == PrimateII::InstFormatCB) {
-      FixupKind = Primate::fixup_primate_rvc_branch;
+      FixupKind = Primate::fixup_primate_prc_branch;
     }
   }
 

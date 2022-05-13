@@ -78,10 +78,10 @@ unsigned PrimateELFObjectWriter::getRelocType(MCContext &Ctx,
       return ELF::R_PRIMATE_JAL;
     case Primate::fixup_primate_branch:
       return ELF::R_PRIMATE_BRANCH;
-    case Primate::fixup_primate_rvc_jump:
-      return ELF::R_PRIMATE_RVC_JUMP;
-    case Primate::fixup_primate_rvc_branch:
-      return ELF::R_PRIMATE_RVC_BRANCH;
+    case Primate::fixup_primate_prc_jump:
+      return ELF::R_PRIMATE_PRC_JUMP;
+    case Primate::fixup_primate_prc_branch:
+      return ELF::R_PRIMATE_PRC_BRANCH;
     case Primate::fixup_primate_call:
       return ELF::R_PRIMATE_CALL;
     case Primate::fixup_primate_call_plt:

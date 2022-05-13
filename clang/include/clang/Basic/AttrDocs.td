@@ -2431,6 +2431,29 @@ the type is not supported for that value of ``__riscv_v_fixed_vlen``.
 }];
 }
 
+def PrimateInterruptDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "interrupt (Primate)";
+  let Content = [{
+Clang supports the GNU style ``__attribute__((interrupt))`` attribute on Primate
+targets. This attribute may be attached to a function definition and instructs
+the backend to generate appropriate function entry/exit code so that it can be
+used directly as an interrupt service routine.
+
+Permissible values for this parameter are ``user``, ``supervisor``,
+and ``machine``. If there is no parameter, then it defaults to machine.
+
+Repeated interrupt attribute on the same declaration will cause a warning
+to be emitted. In case of repeated declarations, the last one prevails.
+
+Refer to:
+https://gcc.gnu.org/onlinedocs/gcc/Primate-Function-Attributes.html
+https://primate.org/specifications/privileged-isa/
+The Primate Instruction Set Manual Volume II: Privileged Architecture
+Version 1.10.
+  }];
+}
+
 def AVRInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (AVR)";

@@ -386,6 +386,7 @@ class BranchCC_rri<bits<3> funct3, string opcodestr>
   let isTerminator = 1;
 }
 
+let Predicates = [HasFullI] in
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 class Load_ri<bits<3> funct3, string opcodestr>
     : PRInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
@@ -394,6 +395,7 @@ class Load_ri<bits<3> funct3, string opcodestr>
 // Operands for stores are in the order srcreg, base, offset rather than
 // reflecting the order these fields are specified in the instruction
 // encoding.
+let Predicates = [HasFullI] in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class Store_rri<bits<3> funct3, string opcodestr>
     : PRInstS<funct3, OPC_STORE, (outs),
@@ -418,12 +420,14 @@ class ALU_rr<bits<7> funct7, bits<3> funct3, string opcodestr>
     : PRInstR<funct7, funct3, OPC_OP, (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
               opcodestr, "$rd, $rs1, $rs2">;
 
+let Predicates = [HasFullI] in
 let hasNoSchedulingInfo = 1,
     hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class CSR_ir<bits<3> funct3, string opcodestr>
     : PRInstI<funct3, OPC_SYSTEM, (outs GPR:$rd), (ins csr_sysreg:$imm12, GPR:$rs1),
               opcodestr, "$rd, $imm12, $rs1">, Sched<[WriteCSR, ReadCSR]>;
 
+let Predicates = [HasFullI] in
 let hasNoSchedulingInfo = 1,
     hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class CSR_ii<bits<3> funct3, string opcodestr>
@@ -443,6 +447,7 @@ class ALUW_rr<bits<7> funct7, bits<3> funct3, string opcodestr>
     : PRInstR<funct7, funct3, OPC_OP_32, (outs GPR:$rd),
               (ins GPR:$rs1, GPR:$rs2), opcodestr, "$rd, $rs1, $rs2">;
 
+let Predicates = [HasFullI] in
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 class Priv<string opcodestr, bits<7> funct7>
     : PRInstR<funct7, 0b000, OPC_SYSTEM, (outs), (ins GPR:$rs1, GPR:$rs2),
@@ -457,6 +462,7 @@ let isReMaterializable = 1, isAsCheapAsAMove = 1 in
 def LUI : PRInstU<OPC_LUI, (outs GPR:$rd), (ins uimm20_lui:$imm20),
                   "lui", "$rd, $imm20">, Sched<[WriteIALU]>;
 
+let Predicates = [HasFullI] in
 def AUIPC : PRInstU<OPC_AUIPC, (outs GPR:$rd), (ins uimm20_auipc:$imm20),
                     "auipc", "$rd, $imm20">, Sched<[WriteIALU]>;
 
@@ -464,6 +470,7 @@ let isCall = 1 in
 def JAL : PRInstJ<OPC_JAL, (outs GPR:$rd), (ins simm21_lsb0_jal:$imm20),
                   "jal", "$rd, $imm20">, Sched<[WriteJal]>;
 
+let Predicates = [HasFullI] in
 let isCall = 1 in
 def JALR : PRInstI<0b000, OPC_JALR, (outs GPR:$rd),
                    (ins GPR:$rs1, simm12:$imm12),
@@ -478,15 +485,19 @@ def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
 def BGEU : BranchCC_rri<0b111, "bgeu">;
 
+let Predicates = [HasFullI] in {
 def LB  : Load_ri<0b000, "lb">, Sched<[WriteLDB, ReadMemBase]>;
 def LH  : Load_ri<0b001, "lh">, Sched<[WriteLDH, ReadMemBase]>;
 def LW  : Load_ri<0b010, "lw">, Sched<[WriteLDW, ReadMemBase]>;
 def LBU : Load_ri<0b100, "lbu">, Sched<[WriteLDB, ReadMemBase]>;
 def LHU : Load_ri<0b101, "lhu">, Sched<[WriteLDH, ReadMemBase]>;
+} // Predicates = [HasFullI]
 
+let Predicates = [HasFullI] in {
 def SB : Store_rri<0b000, "sb">, Sched<[WriteSTB, ReadStoreData, ReadMemBase]>;
 def SH : Store_rri<0b001, "sh">, Sched<[WriteSTH, ReadStoreData, ReadMemBase]>;
 def SW : Store_rri<0b010, "sw">, Sched<[WriteSTW, ReadStoreData, ReadMemBase]>;
+} // Predicates = [HasFullI]
 
 // ADDI isn't always rematerializable, but isReMaterializable will be used as
 // a hint which is verified in isReallyTriviallyReMaterializable.
@@ -519,6 +530,7 @@ def OR   : ALU_rr<0b0000000, 0b110, "or">, Sched<[WriteIALU, ReadIALU, ReadIALU]
 def AND  : ALU_rr<0b0000000, 0b111, "and">, Sched<[WriteIALU, ReadIALU, ReadIALU]>;
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
+let Predicates = [HasFullI] in {
 def FENCE : PRInstI<0b000, OPC_MISC_MEM, (outs),
                     (ins fencearg:$pred, fencearg:$succ),
                     "fence", "$pred, $succ">, Sched<[]> {
@@ -554,6 +566,7 @@ def EBREAK : PRInstI<0b000, OPC_SYSTEM, (outs), (ins), "ebreak", "">,
   let rd = 0;
   let imm12 = 1;
 }
+} // Predicates = [HasFullI]
 
 // This is a de facto standard (as set by GNU binutils) 32-bit unimplemented
 // instruction (i.e., it should always trap, if your implementation has invalid
@@ -566,6 +579,7 @@ def UNIMP : PRInstI<0b001, OPC_SYSTEM, (outs), (ins), "unimp", "">,
 }
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
 
+let Predicates = [HasFullI] in {
 def CSRRW : CSR_ir<0b001, "csrrw">;
 def CSRRS : CSR_ir<0b010, "csrrs">;
 def CSRRC : CSR_ir<0b011, "csrrc">;
@@ -573,6 +587,7 @@ def CSRRC : CSR_ir<0b011, "csrrc">;
 def CSRRWI : CSR_ii<0b101, "csrrwi">;
 def CSRRSI : CSR_ii<0b110, "csrrsi">;
 def CSRRCI : CSR_ii<0b111, "csrrci">;
+} // Predicates = [HasFullI]
 
 /// PR64I instructions
 
@@ -607,6 +622,7 @@ def SRAW  : ALUW_rr<0b0100000, 0b101, "sraw">,
 // Privileged instructions
 //===----------------------------------------------------------------------===//
 
+let Predicates = [HasFullI] in {
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def URET : Priv<"uret", 0b0000000>, Sched<[]> {
   let rd = 0;
@@ -639,11 +655,13 @@ def SFENCE_VMA : PRInstR<0b0001001, 0b000, OPC_SYSTEM, (outs),
                          "sfence.vma", "$rs1, $rs2">, Sched<[]> {
   let rd = 0;
 }
+} // Predicates = [HasFullI]
 
 //===----------------------------------------------------------------------===//
 // Debug instructions
 //===----------------------------------------------------------------------===//
 
+let Predicates = [HasFullI] in
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def DRET : Priv<"dret", 0b0111101>, Sched<[]> {
   let rd = 0;
@@ -667,6 +685,7 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Size = 32,
 def PseudoLI : Pseudo<(outs GPR:$rd), (ins ixlenimm_li:$imm), [],
                       "li", "$rd, $imm">;
 
+let Predicates = [HasFullI] in {
 def PseudoLB  : PseudoLoad<"lb">;
 def PseudoLBU : PseudoLoad<"lbu">;
 def PseudoLH  : PseudoLoad<"lh">;
@@ -682,6 +701,7 @@ def PseudoLWU : PseudoLoad<"lwu">;
 def PseudoLD  : PseudoLoad<"ld">;
 def PseudoSD  : PseudoStore<"sd">;
 } // Predicates = [IsPR64]
+} // Predicates = [HasFullI]
 
 def : InstAlias<"mv $rd, $rs",   (ADDI GPR:$rd, GPR:$rs,       0)>;
 def : InstAlias<"not $rd, $rs",  (XORI GPR:$rd, GPR:$rs,      -1)>;
@@ -731,6 +751,7 @@ def : InstAlias<"bleu $rs, $rt, $offset",
 def : InstAlias<"j $offset",   (JAL X0, simm21_lsb0_jal:$offset)>;
 def : InstAlias<"jal $offset", (JAL X1, simm21_lsb0_jal:$offset)>;
 
+let Predicates = [HasFullI] in {
 // Non-zero offset aliases of "jalr" are the lowest weight, followed by the
 // two-register form, then the one-register forms and finally "ret".
 def : InstAlias<"jr $rs",                (JALR      X0, GPR:$rs, 0), 3>;
@@ -778,8 +799,10 @@ def : InstAlias<"csrrc $rd, $csr, $imm", (CSRRCI GPR:$rd, csr_sysreg:$csr, uimm5
 
 def : InstAlias<"sfence.vma",     (SFENCE_VMA      X0, X0)>;
 def : InstAlias<"sfence.vma $rs", (SFENCE_VMA GPR:$rs, X0)>;
+} // Predicates = [HasFullI]
 
 let EmitPriority = 0 in {
+let Predicates = [HasFullI] in {
 def : InstAlias<"lb $rd, (${rs1})",
                 (LB  GPR:$rd, GPR:$rs1, 0)>;
 def : InstAlias<"lh $rd, (${rs1})",
@@ -797,6 +820,7 @@ def : InstAlias<"sh $rs2, (${rs1})",
                 (SH  GPR:$rs2, GPR:$rs1, 0)>;
 def : InstAlias<"sw $rs2, (${rs1})",
                 (SW  GPR:$rs2, GPR:$rs1, 0)>;
+} // Predicates = [HasFullI]
 
 def : InstAlias<"add $rd, $rs1, $imm12",
                 (ADDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
@@ -813,12 +837,14 @@ def : InstAlias<"srl $rd, $rs1, $shamt",
 def : InstAlias<"sra $rd, $rs1, $shamt",
                 (SRAI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
 let Predicates = [IsPR64] in {
+let Predicates = [HasFullI] in {
 def : InstAlias<"lwu $rd, (${rs1})",
                 (LWU  GPR:$rd, GPR:$rs1, 0)>;
 def : InstAlias<"ld $rd, (${rs1})",
                 (LD  GPR:$rd, GPR:$rs1, 0)>;
 def : InstAlias<"sd $rs2, (${rs1})",
                 (SD  GPR:$rs2, GPR:$rs1, 0)>;
+} // Predicates = [HasFullI]
 
 def : InstAlias<"addw $rd, $rs1, $imm12",
                 (ADDIW  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
@@ -840,13 +866,66 @@ def : MnemonicAlias<"move", "mv">;
 // The SCALL and SBREAK instructions wererenamed to ECALL and EBREAK in
 // version 2.1 of the user-level ISA. Like the GNU toolchain, we still accept
 // the old name for backwards compatibility.
+let Predicates = [HasFullI] in {
 def : MnemonicAlias<"scall", "ecall">;
 def : MnemonicAlias<"sbreak", "ebreak">;
+} // Predicates = [HasFullI]
 
 // This alias was added to the spec in December 2020. Don't print it by default
 // to allow assembly we print to be compatible with versions of GNU assembler
 // that don't support this alias.
 def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
+
+//===----------------------------------------------------------------------===//
+// Primate special ops
+//===----------------------------------------------------------------------===//
+def : InstAlias<"end", (JAL X0, -1)>;
+
+let Itinerary = ItinIO in {
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INPUT_READ :
+    PRInstI<0b000, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INPUT_SEEK :
+    PRInstI<0b001, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUT_WRITE :
+    PRInstI<0b010, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "outputwrite", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUT_SEEK :
+    PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+}
+
+let Itinerary = ItinExtract in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def EXTRACT :
+    PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinInsert in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+//def INSERT :
+//    PRInstR<0b001, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+//        "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def MSPM :
+    PRInstI<0b000, OPC_PR_MPSM, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "mspm", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue1 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def ASCII :
+    PRInstI<0b000, OPC_PR_ASCII, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "ascii", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -994,6 +1073,7 @@ let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
                PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>;
 
+let Predicates = [HasFullI] in {
 let isBarrier = 1, isBranch = 1, isIndirectBranch = 1, isTerminator = 1 in
 def PseudoBRIND : Pseudo<(outs), (ins GPRJALR:$rs1, simm12:$imm12), []>,
                   PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>;
@@ -1001,7 +1081,9 @@ def PseudoBRIND : Pseudo<(outs), (ins GPRJALR:$rs1, simm12:$imm12), []>,
 def : Pat<(brind GPRJALR:$rs1), (PseudoBRIND GPRJALR:$rs1, 0)>;
 def : Pat<(brind (add GPRJALR:$rs1, simm12:$imm12)),
           (PseudoBRIND GPRJALR:$rs1, simm12:$imm12)>;
+} // Predicates = [HasFullI]
 
+let Predicates = [HasFullI] in {
 // PseudoCALLReg is a generic pseudo instruction for calls which will eventually
 // expand to auipc and jalr while encoding, with any given register used as the
 // destination.
@@ -1058,6 +1140,7 @@ def : Pat<(primate_tail (iPTR tglobaladdr:$dst)),
           (PseudoTAIL texternalsym:$dst)>;
 def : Pat<(primate_tail (iPTR texternalsym:$dst)),
           (PseudoTAIL texternalsym:$dst)>;
+} // Predicates = [HasFullI]
 
 let isCall = 0, isBarrier = 1, isBranch = 1, isTerminator = 1,
     isCodeGenOnly = 0, hasSideEffects = 0, mayStore = 0, mayLoad = 0 in
@@ -1065,6 +1148,7 @@ def PseudoJump : Pseudo<(outs GPR:$rd), (ins pseudo_jump_symbol:$target), []> {
   let AsmString = "jump\t$target, $rd";
 }
 
+let Predicates = [HasFullI] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLLA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
@@ -1084,6 +1168,7 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.gd", "$dst, $src">;
+} // Predicates = [HasFullI]
 
 
 /// Sign/Zero Extends
@@ -1106,6 +1191,7 @@ def PseudoZEXT_W : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.w", "$rd, $rs
 
 /// Loads
 
+let Predicates = [HasFullI] in {
 multiclass LdPat<PatFrag LoadOp, PRInst Inst, ValueType vt = XLenVT> {
   def : Pat<(vt (LoadOp BaseAddr:$rs1)), (Inst BaseAddr:$rs1, 0)>;
   def : Pat<(vt (LoadOp (add BaseAddr:$rs1, simm12:$imm12))),
@@ -1121,9 +1207,11 @@ defm : LdPat<extloadi16, LH>;
 defm : LdPat<load, LW, i32>, Requires<[IsPR32]>;
 defm : LdPat<zextloadi8, LBU>;
 defm : LdPat<zextloadi16, LHU>;
+} // Predicates = [HasFullI]
 
 /// Stores
 
+let Predicates = [HasFullI] in {
 multiclass StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,
                  ValueType vt> {
   def : Pat<(StoreOp (vt StTy:$rs2), BaseAddr:$rs1),
@@ -1137,12 +1225,14 @@ multiclass StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,
 defm : StPat<truncstorei8, SB, GPR, XLenVT>;
 defm : StPat<truncstorei16, SH, GPR, XLenVT>;
 defm : StPat<store, SW, GPR, i32>, Requires<[IsPR32]>;
+} // Predicates = [HasFullI]
 
 /// Fences
 
 // Refer to Table A.6 in the version 2.3 draft of the Primate Instruction Set
 // Manual: Volume I.
 
+let Predicates = [HasFullI] in {
 // fence acquire -> fence r, rw
 def : Pat<(atomic_fence (XLenVT 4), (timm)), (FENCE 0b10, 0b11)>;
 // fence release -> fence rw, w
@@ -1151,6 +1241,7 @@ def : Pat<(atomic_fence (XLenVT 5), (timm)), (FENCE 0b11, 0b1)>;
 def : Pat<(atomic_fence (XLenVT 6), (timm)), (FENCE_TSO)>;
 // fence seq_cst -> fence rw, rw
 def : Pat<(atomic_fence (XLenVT 7), (timm)), (FENCE 0b11, 0b11)>;
+} // Predicates = [HasFullI]
 
 // Lowering for atomic load and store is defined in PrimateInstrInfoA.td.
 // Although these are lowered to fence+load/store instructions defined in the
@@ -1164,6 +1255,7 @@ def : Pat<(atomic_fence (XLenVT 7), (timm)), (FENCE 0b11, 0b11)>;
 // register separately. Side effect is not used because dependencies are
 // expressed via use-def properties.
 
+let Predicates = [HasFullI] in {
 class ReadSysReg<SysReg SR, list<Register> Regs>
   : Pseudo<(outs GPR:$rd), (ins),
            [(set GPR:$rd, (primate_read_csr (XLenVT SR.Encoding)))]>,
@@ -1209,6 +1301,7 @@ class SwapSysRegImm<SysReg SR, list<Register> Regs>
 def ReadFRM : ReadSysReg<SysRegFRM, [FRM]>;
 def WriteFRM : WriteSysReg<SysRegFRM, [FRM]>;
 def WriteFRMImm : WriteSysRegImm<SysRegFRM, [FRM]>;
+} // Predicates = [HasFullI]
 
 /// Other pseudo-instructions
 
@@ -1262,17 +1355,22 @@ def : PatGprGpr<shiftopw<primate_sraw>, SRAW>;
 
 /// Loads
 
+let Predicates = [HasFullI] in {
 defm : LdPat<sextloadi32, LW, i64>;
 defm : LdPat<extloadi32, LW, i64>;
 defm : LdPat<zextloadi32, LWU, i64>;
 defm : LdPat<load, LD, i64>;
+} // Predicates = [HasFullI]
 
 /// Stores
 
+let Predicates = [HasFullI] in {
 defm : StPat<truncstorei32, SW, GPR, i64>;
 defm : StPat<store, SD, GPR, i64>;
+} // Predicates = [HasFullI]
 } // Predicates = [IsPR64]
 
+let Predicates = [HasFullI] in {
 /// readcyclecounter
 // On PR64, we can directly read the 64-bit "cycle" CSR.
 let Predicates = [IsPR64] in
@@ -1283,6 +1381,7 @@ let Predicates = [IsPR32], usesCustomInserter = 1, hasNoSchedulingInfo = 1 in
 def ReadCycleWide : Pseudo<(outs GPR:$lo, GPR:$hi), (ins),
                            [(set GPR:$lo, GPR:$hi, (primate_read_cycle_wide))],
                            "", "">;
+} // Predicates = [HasFullI]
 
 /// traps
 
@@ -1292,6 +1391,7 @@ def : Pat<(trap), (UNIMP)>;
 
 // We lower `debugtrap` to `ebreak`, as this will get the attention of the
 // debugger if possible.
+let Predicates = [HasFullI] in
 def : Pat<(debugtrap), (EBREAK)>;
 
 /// Simple optimization

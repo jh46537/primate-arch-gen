@@ -12,6 +12,7 @@
 def SiFive7Model : SchedMachineModel {
   let MicroOpBufferSize = 0; // Explicitly set to zero since SiFive7 is in-order.
   let IssueWidth = 2;        // 2 micro-ops are dispatched per cycle.
+  let Itineraries = NoItineraries;
   let LoadLatency = 3;
   let MispredictPenalty = 3;
   let CompleteModel = 0;

@@ -97,6 +97,9 @@ public:
                                     int64_t &Offset, unsigned &Width,
                                     const TargetRegisterInfo *TRI) const;
 
+  DFAPacketizer *
+  CreateTargetScheduleState(const TargetSubtargetInfo &STI) const override;
+
   bool areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
                                        const MachineInstr &MIb) const override;
 

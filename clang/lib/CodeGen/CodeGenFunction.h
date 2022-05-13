@@ -4402,6 +4402,9 @@ public:
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
   void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
+  llvm::Value *EmitPrimateBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
+                                      ReturnValueSlot ReturnValue);
+  bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
                                llvm::AtomicOrdering &AO,
                                llvm::SyncScope::ID &SSID);
 

@@ -47,6 +47,7 @@
 #include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
+#include "llvm/IR/IntrinsicsPrimate.h"
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsS390.h"
@@ -6044,6 +6045,9 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     return CGF->EmitRISCVBuiltinExpr(BuiltinID, E, ReturnValue);
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
+    return CGF->EmitPrimateBuiltinExpr(BuiltinID, E, ReturnValue);
   default:
     return nullptr;
   }
@@ -21315,6 +21319,150 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
 #include "clang/Basic/riscv_vector_builtin_cg.inc"
   // SiFive Vector builtins are handled from here.
 #include "clang/Basic/riscv_sifive_vector_builtin_cg.inc"
+  }
+
+  assert(ID != Intrinsic::not_intrinsic);
+
+  llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
+  return Builder.CreateCall(F, Ops, "");
+}
+
+Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
+                                               const CallExpr *E,
+                                               ReturnValueSlot ReturnValue) {
+  SmallVector<Value *, 4> Ops;
+  llvm::Type *ResultType = ConvertType(E->getType());
+
+  for (unsigned i = 0, e = E->getNumArgs(); i != e; i++)
+    Ops.push_back(EmitScalarExpr(E->getArg(i)));
+
+  Intrinsic::ID ID = Intrinsic::not_intrinsic;
+  unsigned NF = 1;
+
+  // Required for overloaded intrinsics.
+  llvm::SmallVector<llvm::Type *, 2> IntrinsicTypes;
+  switch (BuiltinID) {
+  default: llvm_unreachable("unexpected builtin ID");
+  case Primate::BI__builtin_primate_orc_b_32:
+  case Primate::BI__builtin_primate_orc_b_64:
+  case Primate::BI__builtin_primate_clmul:
+  case Primate::BI__builtin_primate_clmulh:
+  case Primate::BI__builtin_primate_clmulr:
+  case Primate::BI__builtin_primate_bcompress_32:
+  case Primate::BI__builtin_primate_bcompress_64:
+  case Primate::BI__builtin_primate_bdecompress_32:
+  case Primate::BI__builtin_primate_bdecompress_64:
+  case Primate::BI__builtin_primate_grev_32:
+  case Primate::BI__builtin_primate_grev_64:
+  case Primate::BI__builtin_primate_gorc_32:
+  case Primate::BI__builtin_primate_gorc_64:
+  case Primate::BI__builtin_primate_shfl_32:
+  case Primate::BI__builtin_primate_shfl_64:
+  case Primate::BI__builtin_primate_unshfl_32:
+  case Primate::BI__builtin_primate_unshfl_64:
+  case Primate::BI__builtin_primate_xperm_n:
+  case Primate::BI__builtin_primate_xperm_b:
+  case Primate::BI__builtin_primate_xperm_h:
+  case Primate::BI__builtin_primate_xperm_w:
+  case Primate::BI__builtin_primate_crc32_b:
+  case Primate::BI__builtin_primate_crc32_h:
+  case Primate::BI__builtin_primate_crc32_w:
+  case Primate::BI__builtin_primate_crc32_d:
+  case Primate::BI__builtin_primate_crc32c_b:
+  case Primate::BI__builtin_primate_crc32c_h:
+  case Primate::BI__builtin_primate_crc32c_w:
+  case Primate::BI__builtin_primate_crc32c_d: {
+    switch (BuiltinID) {
+    default: llvm_unreachable("unexpected builtin ID");
+    // Zbb
+    case Primate::BI__builtin_primate_orc_b_32:
+    case Primate::BI__builtin_primate_orc_b_64:
+      ID = Intrinsic::primate_orc_b;
+      break;
+
+    // Zbc
+    case Primate::BI__builtin_primate_clmul:
+      ID = Intrinsic::primate_clmul;
+      break;
+    case Primate::BI__builtin_primate_clmulh:
+      ID = Intrinsic::primate_clmulh;
+      break;
+    case Primate::BI__builtin_primate_clmulr:
+      ID = Intrinsic::primate_clmulr;
+      break;
+
+    // Zbe
+    case Primate::BI__builtin_primate_bcompress_32:
+    case Primate::BI__builtin_primate_bcompress_64:
+      ID = Intrinsic::primate_bcompress;
+      break;
+    case Primate::BI__builtin_primate_bdecompress_32:
+    case Primate::BI__builtin_primate_bdecompress_64:
+      ID = Intrinsic::primate_bdecompress;
+      break;
+
+    // Zbp
+    case Primate::BI__builtin_primate_grev_32:
+    case Primate::BI__builtin_primate_grev_64:
+      ID = Intrinsic::primate_grev;
+      break;
+    case Primate::BI__builtin_primate_gorc_32:
+    case Primate::BI__builtin_primate_gorc_64:
+      ID = Intrinsic::primate_gorc;
+      break;
+    case Primate::BI__builtin_primate_shfl_32:
+    case Primate::BI__builtin_primate_shfl_64:
+      ID = Intrinsic::primate_shfl;
+      break;
+    case Primate::BI__builtin_primate_unshfl_32:
+    case Primate::BI__builtin_primate_unshfl_64:
+      ID = Intrinsic::primate_unshfl;
+      break;
+    case Primate::BI__builtin_primate_xperm_n:
+      ID = Intrinsic::primate_xperm_n;
+      break;
+    case Primate::BI__builtin_primate_xperm_b:
+      ID = Intrinsic::primate_xperm_b;
+      break;
+    case Primate::BI__builtin_primate_xperm_h:
+      ID = Intrinsic::primate_xperm_h;
+      break;
+    case Primate::BI__builtin_primate_xperm_w:
+      ID = Intrinsic::primate_xperm_w;
+      break;
+
+    // Zbr
+    case Primate::BI__builtin_primate_crc32_b:
+      ID = Intrinsic::primate_crc32_b;
+      break;
+    case Primate::BI__builtin_primate_crc32_h:
+      ID = Intrinsic::primate_crc32_h;
+      break;
+    case Primate::BI__builtin_primate_crc32_w:
+      ID = Intrinsic::primate_crc32_w;
+      break;
+    case Primate::BI__builtin_primate_crc32_d:
+      ID = Intrinsic::primate_crc32_d;
+      break;
+    case Primate::BI__builtin_primate_crc32c_b:
+      ID = Intrinsic::primate_crc32c_b;
+      break;
+    case Primate::BI__builtin_primate_crc32c_h:
+      ID = Intrinsic::primate_crc32c_h;
+      break;
+    case Primate::BI__builtin_primate_crc32c_w:
+      ID = Intrinsic::primate_crc32c_w;
+      break;
+    case Primate::BI__builtin_primate_crc32c_d:
+      ID = Intrinsic::primate_crc32c_d;
+      break;
+    }
+
+    IntrinsicTypes = {ResultType};
+    break;
+  }
+  // Vector builtins are handled from here.
+#include "clang/Basic/primate_vector_builtin_cg.inc"
   }
 
   assert(ID != Intrinsic::not_intrinsic);
