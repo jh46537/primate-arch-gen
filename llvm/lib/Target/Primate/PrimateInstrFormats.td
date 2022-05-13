@@ -132,6 +132,10 @@ def OPC_BRANCH    : PrimateOpcode<0b1100011>;
 def OPC_JALR      : PrimateOpcode<0b1100111>;
 def OPC_JAL       : PrimateOpcode<0b1101111>;
 def OPC_SYSTEM    : PrimateOpcode<0b1110011>;
+def OPC_PR_IO     : PrimateOpcode<0b0001011>;
+def OPC_PR_REG    : PrimateOpcode<0b0101011>;
+def OPC_PR_MPSM   : PrimateOpcode<0b1011011>;
+def OPC_PR_ASCII  : PrimateOpcode<0b1111011>;
 
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format>
@@ -154,6 +158,7 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
   dag InOperandList = ins;
   let AsmString = opcodestr # "\t" # argstr;
   let Pattern = pattern;
+  let Itinerary = ItinGreen;
 
   let TSFlags{4-0} = format.Value;
 
@@ -179,6 +184,56 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
   bit HasVLOp = 0;
   let TSFlags{15} = HasVLOp;
 }
+
+//// Primate VLIW
+//class PrimateVLIWInst<dag outs, dag ins, string opcodestr, string argstr,
+//                      list<dag> pattern, InstFormat format>
+//    : Instruction {
+//  field <231> Inst;
+//  // SoftFail is a field the disassembler can use to provide a way for
+//  // instructions to not match without killing the whole decode process. It is
+//  // mainly used for ARM, but Tablegen expects this field to exist or it fails
+//  // to build the decode table.
+//  field bits<32> SoftFail = 0;
+//  let Size = 29;
+//
+//  bits<32> Green0Op;
+//  bits<1>  Green0OpV;
+//  bits<32> Green1Op;
+//  bits<1>  Green1OpV;
+//  bits<32> Blue0Op;
+//  bits<1>  Blue0OpV;
+//  bits<32> Blue1Op;
+//  bits<1>  Blue1OpV;
+//  bits<32> ExtractOp;
+//  bits<1>  ExtractOpV;
+//  bits<32> IOOp;
+//  bits<1>  IOOpV;
+//  bits<32> BranchOp;
+//  bits<1>  BranchOpV;
+//
+//  let Inst{31~0}    = Green0Op;
+//  let Inst{32}      = Green0OpV;
+//  let Inst{64~33}   = Green1Op;
+//  let Inst{65}      = Green1OpV;
+//  let Inst{97~66}   = Blue0Op;
+//  let Inst{98}      = Blue0OpV;
+//  let Inst{130~99}  = Blue1Op;
+//  let Inst{131}     = Blue1OpV;
+//  let Inst{163~132} = ExtractOp;
+//  let Inst{164}     = ExtractOpV;
+//  let Inst{196~165} = IOOp;
+//  let Inst{197}     = IOOpV;
+//  let Inst{229~198} = BranchOp;
+//  let Inst{230}     = BranchOpV;
+//
+//  let Namespace = "Primate";
+//
+//  dag OutOperandList = outs;
+//  dag InOperandList = ins;
+//  let AsmString = opcodestr # "\t" # argstr;
+//  let Pattern = pattern;
+//}
 
 // Pseudo instructions
 class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
@@ -380,6 +435,8 @@ class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
   let Inst{11-8} = imm12{3-0};
   let Inst{7} = imm12{10};
   let Opcode = opcode.Value;
+
+  let Itinerary = ItinBranch;
 }
 
 class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
@@ -405,4 +462,6 @@ class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
   let Inst{19-12} = imm20{18-11};
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
+
+  let Itinerary = ItinBranch;
 }

@@ -33,6 +33,8 @@ using namespace llvm;
 #define GEN_CHECK_COMPRESS_INSTR
 #include "PrimateGenCompressInstEmitter.inc"
 
+#include "PrimateGenDFAPacketizer.inc"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "PrimateGenInstrInfo.inc"
 
@@ -922,6 +924,12 @@ bool PrimateInstrInfo::getMemOperandWithOffsetWidth(
   BaseReg = &LdSt.getOperand(1);
   Offset = LdSt.getOperand(2).getImm();
   return true;
+}
+
+DFAPacketizer *PrimateInstrInfo::CreateTargetScheduleState(
+    const TargetSubtargetInfo &STI) const {
+  const InstrItineraryData *II = STI.getInstrItineraryData();
+  return static_cast<const PrimateSubtarget&>(STI).createDFAPacketizer(II);
 }
 
 bool PrimateInstrInfo::areMemAccessesTriviallyDisjoint(

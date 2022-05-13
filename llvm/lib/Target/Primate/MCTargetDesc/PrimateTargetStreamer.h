@@ -25,8 +25,8 @@ public:
   virtual void emitDirectiveOptionPop();
   virtual void emitDirectiveOptionPIC();
   virtual void emitDirectiveOptionNoPIC();
-  virtual void emitDirectiveOptionRVC();
-  virtual void emitDirectiveOptionNoRVC();
+  virtual void emitDirectiveOptionPRC();
+  virtual void emitDirectiveOptionNoPRC();
   virtual void emitDirectiveOptionRelax();
   virtual void emitDirectiveOptionNoRelax();
   virtual void emitAttribute(unsigned Attribute, unsigned Value);
@@ -55,8 +55,8 @@ public:
   void emitDirectiveOptionPop() override;
   void emitDirectiveOptionPIC() override;
   void emitDirectiveOptionNoPIC() override;
-  void emitDirectiveOptionRVC() override;
-  void emitDirectiveOptionNoRVC() override;
+  void emitDirectiveOptionPRC() override;
+  void emitDirectiveOptionNoPRC() override;
   void emitDirectiveOptionRelax() override;
   void emitDirectiveOptionNoRelax() override;
 };

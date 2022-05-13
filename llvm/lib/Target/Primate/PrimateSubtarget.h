@@ -34,6 +34,7 @@ class StringRef;
 
 class PrimateSubtarget : public PrimateGenSubtargetInfo {
   virtual void anchor();
+  bool HasReduceI = false;
   bool HasStdExtM = false;
   bool HasStdExtA = false;
   bool HasStdExtF = false;
@@ -102,6 +103,7 @@ public:
     return &TSInfo;
   }
   bool enableMachineScheduler() const override { return true; }
+  bool hasReduceI() const { return HasReduceI; }
   bool hasStdExtM() const { return HasStdExtM; }
   bool hasStdExtA() const { return HasStdExtA; }
   bool hasStdExtF() const { return HasStdExtF; }

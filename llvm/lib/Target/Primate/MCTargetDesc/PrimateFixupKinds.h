@@ -53,9 +53,9 @@ enum Fixups {
   // 12-bit fixup for symbol references in the branch instructions
   fixup_primate_branch,
   // 11-bit fixup for symbol references in the compressed jump instruction
-  fixup_primate_rvc_jump,
+  fixup_primate_prc_jump,
   // 8-bit fixup for symbol references in the compressed branch instruction
-  fixup_primate_rvc_branch,
+  fixup_primate_prc_branch,
   // Fixup representing a legacy no-pic function call attached to the auipc
   // instruction in a pair composed of adjacent auipc+jalr instructions.
   fixup_primate_call,

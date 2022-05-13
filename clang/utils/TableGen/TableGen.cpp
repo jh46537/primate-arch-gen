@@ -87,6 +87,9 @@ enum ActionType {
   GenRISCVVectorHeader,
   GenRISCVVectorBuiltins,
   GenRISCVVectorBuiltinCG,
+  GenPrimateVectorHeader,
+  GenPrimateVectorBuiltins,
+  GenPrimateVectorBuiltinCG,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -240,6 +243,13 @@ cl::opt<ActionType> Action(
                    "Generate riscv_vector_builtins.inc for clang"),
         clEnumValN(GenRISCVVectorBuiltinCG, "gen-riscv-vector-builtin-codegen",
                    "Generate riscv_vector_builtin_cg.inc for clang"),
+        clEnumValN(GenPrimateVectorHeader, "gen-primate-vector-header",
+                   "Generate primate_vector.h for clang"),
+        clEnumValN(GenPrimateVectorBuiltins, "gen-primate-vector-builtins",
+                   "Generate primate_vector_builtins.inc for clang"),
+        clEnumValN(GenPrimateVectorBuiltinCG,
+                   "gen-primate-vector-builtin-codegen",
+                   "Generate primate_vector_builtin_cg.inc for clang"),
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -451,6 +461,15 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenRISCVVectorBuiltinCG:
     EmitRVVBuiltinCG(Records, OS);
+    break;
+  case GenPrimateVectorHeader:
+    EmitPRVHeader(Records, OS);
+    break;
+  case GenPrimateVectorBuiltins:
+    EmitPRVBuiltins(Records, OS);
+    break;
+  case GenPrimateVectorBuiltinCG:
+    EmitPRVBuiltinCG(Records, OS);
     break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);

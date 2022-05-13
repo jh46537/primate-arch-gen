@@ -12,6 +12,16 @@ include "llvm/Target/Target.td"
 // Primate subtarget features and instruction predicates.
 //===----------------------------------------------------------------------===//
 
+def FeatureReduceI
+    : SubtargetFeature<"p", "HasReduceI", "true",
+                       "'P' (Primate Reduced Base Instruction Set)">;
+def HasReduceI : Predicate<"Subtarget->hasReduceI()">,
+                           AssemblerPredicate<(all_of FeatureReduceI),
+                           "'P' (Primate Reduced Base Instruction Set)">;
+def HasFullI : Predicate<"!Subtarget->hasReduceI()">,
+                         AssemblerPredicate<(all_of (not FeatureReduceI)),
+                         "'!P' (Primate Full Base Instruction Set)">;
+
 def FeatureStdExtM
     : SubtargetFeature<"m", "HasStdExtM", "true",
                        "'M' (Integer Multiplication and Division)">;
@@ -160,7 +170,7 @@ def HasStdExtB : Predicate<"Subtarget->hasStdExtB()">,
                            "'B' (Bit Manipulation Instructions)">;
 
 def FeatureNoPRCHints
-    : SubtargetFeature<"no-rvc-hints", "EnablePRCHintInstrs", "false",
+    : SubtargetFeature<"no-prc-hints", "EnablePRCHintInstrs", "false",
                        "Disable PRC Hint Instructions.">;
 def HasPRCHints : Predicate<"Subtarget->enablePRCHintInstrs()">,
                   AssemblerPredicate<(all_of(not FeatureNoPRCHints)),
@@ -234,6 +244,7 @@ include "PrimateRegisterInfo.td"
 include "PrimateCallingConv.td"
 include "PrimateInstrInfo.td"
 include "PrimateRegisterBanks.td"
+include "PrimateSchedPrimate.td"
 include "PrimateSchedRocket.td"
 include "PrimateSchedSiFive7.td"
 
@@ -241,8 +252,10 @@ include "PrimateSchedSiFive7.td"
 // Primate processors supported.
 //===----------------------------------------------------------------------===//
 
-def : ProcessorModel<"generic-pr32", NoSchedModel, []>;
-def : ProcessorModel<"generic-pr64", NoSchedModel, [Feature64Bit]>;
+def : ProcessorModel<"primate", PrimateModel, [FeatureReduceI]>;
+
+def : ProcessorModel<"generic-pr32", PrimateModel, []>;
+def : ProcessorModel<"generic-pr64", PrimateModel, [Feature64Bit]>;
 
 def : ProcessorModel<"rocket-pr32", RocketModel, []>;
 def : ProcessorModel<"rocket-pr64", RocketModel, [Feature64Bit]>;

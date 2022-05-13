@@ -4,8 +4,9 @@ set(LLVM_TARGET_DEFINITIONS Primate.td)
 
 tablegen(LLVM PrimateGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM PrimateGenAsmWriter.inc -gen-asm-writer)
-tablegen(LLVM PrimateGenCompressInstEmitter.inc -gen-compress-inst-emitter)
+tablegen(LLVM PrimateGenCompressInstEmitter.inc -gen-primate-compress-inst-emitter)
 tablegen(LLVM PrimateGenDAGISel.inc -gen-dag-isel)
+tablegen(LLVM PrimateGenDFAPacketizer.inc -gen-dfa-packetizer)
 tablegen(LLVM PrimateGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM PrimateGenInstrInfo.inc -gen-instr-info)
@@ -38,6 +39,7 @@ add_llvm_target(PrimateCodeGen
   PrimateTargetMachine.cpp
   PrimateTargetObjectFile.cpp
   PrimateTargetTransformInfo.cpp
+  PrimateVLIWPacketizer.cpp
 
   LINK_COMPONENTS
   Analysis

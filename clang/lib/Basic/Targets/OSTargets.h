@@ -253,6 +253,8 @@ public:
       break;
     case llvm::Triple::riscv32:
     case llvm::Triple::riscv64:
+    case llvm::Triple::primate32:
+    case llvm::Triple::primate64:
       break;
     }
   }
@@ -491,6 +493,8 @@ public:
       break;
     case llvm::Triple::riscv32:
     case llvm::Triple::riscv64:
+    case llvm::Triple::primate32:
+    case llvm::Triple::primate64:
       break;
     }
   }

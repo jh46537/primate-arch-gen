@@ -369,6 +369,7 @@ def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
 def TargetMSP430 : TargetArch<["msp430"]>;
 def TargetM68k : TargetArch<["m68k"]>;
+def TargetPrimate : TargetArch<["primate32", "primate64"]>;
 def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
@@ -745,7 +746,8 @@ def XRayLogArgs : InheritableAttr {
 def PatchableFunctionEntry
     : InheritableAttr,
       TargetSpecificAttr<TargetArch<
-          ["aarch64", "aarch64_be", "riscv32", "riscv64", "x86", "x86_64"]>> {
+          ["aarch64", "aarch64_be", "primate32", "primate64", "riscv32",
+           "riscv64", "x86", "x86_64"]>> {
   let Spellings = [GCC<"patchable_function_entry">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [UnsignedArgument<"Count">, DefaultIntArgument<"Offset", 0>];
@@ -1780,6 +1782,17 @@ def RISCVInterrupt : InheritableAttr, TargetSpecificAttr<TargetRISCV> {
                            1>];
   let ParseKind = "Interrupt";
   let Documentation = [RISCVInterruptDocs];
+}
+
+def PrimateInterrupt : InheritableAttr, TargetSpecificAttr<TargetPrimate> {
+  let Spellings = [GCC<"interrupt">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [EnumArgument<"Interrupt", "InterruptType",
+                           ["user", "supervisor", "machine"],
+                           ["user", "supervisor", "machine"],
+                           1>];
+  let ParseKind = "Interrupt";
+  let Documentation = [PrimateInterruptDocs];
 }
 
 // This is not a TargetSpecificAttr so that is silently accepted and

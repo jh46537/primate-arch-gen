@@ -40,6 +40,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePrimateTarget() {
   initializePrimateMergeBaseOffsetOptPass(*PR);
   initializePrimateExpandPseudoPass(*PR);
   initializePrimateInsertVSETVLIPass(*PR);
+  initializePrimatePacketizerPass(*PR);
 }
 
 static StringRef computeDataLayout(const Triple &TT) {
@@ -180,7 +181,10 @@ bool PrimatePassConfig::addGlobalInstructionSelect() {
 
 void PrimatePassConfig::addPreSched2() {}
 
-void PrimatePassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+void PrimatePassConfig::addPreEmitPass() {
+  addPass(&BranchRelaxationPassID);
+  addPass(createPrimatePacketizer(), false);
+}
 
 void PrimatePassConfig::addPreEmitPass2() {
   addPass(createPrimateExpandPseudoPass());

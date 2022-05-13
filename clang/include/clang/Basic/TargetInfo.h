@@ -229,6 +229,8 @@ protected:
 
   unsigned HasRISCVVTypes : 1;
 
+  unsigned HasPrimateVTypes : 1;
+
   unsigned AllowAMDGPUUnsafeFPAtomics : 1;
 
   unsigned ARMCDECoprocMask : 8;
@@ -895,6 +897,10 @@ public:
   /// Returns whether or not the RISC-V V built-in types are
   /// available on this target.
   bool hasRISCVVTypes() const { return HasRISCVVTypes; }
+
+  /// Returns whether or not the Primate V built-in types are
+  /// available on this target.
+  bool hasPrimateVTypes() const { return HasPrimateVTypes; }
 
   /// Returns whether or not the AMDGPU unsafe floating point atomics are
   /// allowed.

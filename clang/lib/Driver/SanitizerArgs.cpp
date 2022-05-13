@@ -498,7 +498,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if ((Kinds & SanitizerKind::ShadowCallStack) &&
       ((TC.getTriple().isAArch64() &&
         !llvm::AArch64::isX18ReservedByDefault(TC.getTriple())) ||
-       TC.getTriple().isRISCV()) &&
+       TC.getTriple().isRISCV() || TC.getTriple().isPrimate()) &&
       !Args.hasArg(options::OPT_ffixed_x18)) {
     D.Diag(diag::err_drv_argument_only_allowed_with)
         << lastArgumentForMask(D, Args, Kinds & SanitizerKind::ShadowCallStack)

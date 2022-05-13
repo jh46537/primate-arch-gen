@@ -99,8 +99,8 @@ public:
   void emitDirectiveOptionPop() override;
   void emitDirectiveOptionPIC() override;
   void emitDirectiveOptionNoPIC() override;
-  void emitDirectiveOptionRVC() override;
-  void emitDirectiveOptionNoRVC() override;
+  void emitDirectiveOptionPRC() override;
+  void emitDirectiveOptionNoPRC() override;
   void emitDirectiveOptionRelax() override;
   void emitDirectiveOptionNoRelax() override;
 };

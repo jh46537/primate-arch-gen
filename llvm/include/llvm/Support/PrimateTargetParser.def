@@ -13,6 +13,7 @@ PROC_ALIAS("sifive-7-series", "sifive-7-pr32", "sifive-7-pr64")
 #endif
 
 PROC(INVALID, {"invalid"}, FK_INVALID, {""})
+PROC(PRIMATE, {"primate"}, FK_NONE, {""})
 PROC(GENERIC_PR32, {"generic-pr32"}, FK_NONE, {""})
 PROC(GENERIC_PR64, {"generic-pr64"}, FK_64BIT, {""})
 PROC(ROCKET_PR32, {"rocket-pr32"}, FK_NONE, {""})

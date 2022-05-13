@@ -13,6 +13,7 @@
 #include "Arch/M68k.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
+#include "Arch/Primate.h"
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
@@ -338,6 +339,10 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::riscv64:
     riscv::getRISCVTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
+    primate::getPrimateTargetFeatures(D, Triple, Args, Features);
+    break;
   case llvm::Triple::systemz:
     systemz::getSystemZTargetFeatures(D, Args, Features);
     break;
@@ -535,6 +540,8 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
   case llvm::Triple::amdgcn:
@@ -1459,6 +1466,8 @@ static bool isSignedCharDefault(const llvm::Triple &Triple) {
   case llvm::Triple::hexagon:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64le:
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
   case llvm::Triple::systemz:
@@ -1689,6 +1698,11 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
     AddPPCTargetArgs(Args, CmdArgs);
+    break;
+
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
+    AddPrimateTargetArgs(Args, CmdArgs);
     break;
 
   case llvm::Triple::riscv32:
@@ -2038,6 +2052,61 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
   if (ABIName) {
     CmdArgs.push_back("-target-abi");
     CmdArgs.push_back(ABIName);
+  }
+}
+
+static void SetPrimateSmallDataLimit(const ToolChain &TC, const ArgList &Args,
+                                     ArgStringList &CmdArgs) {
+  const Driver &D = TC.getDriver();
+  const llvm::Triple &Triple = TC.getTriple();
+  // Default small data limitation is eight.
+  const char *SmallDataLimit = "8";
+  // Get small data limitation.
+  if (Args.getLastArg(options::OPT_shared, options::OPT_fpic,
+                      options::OPT_fPIC)) {
+    // Not support linker relaxation for PIC.
+    SmallDataLimit = "0";
+    if (Args.hasArg(options::OPT_G)) {
+      D.Diag(diag::warn_drv_unsupported_sdata);
+    }
+  } else if (Args.getLastArgValue(options::OPT_mcmodel_EQ)
+                 .equals_insensitive("large") &&
+             (Triple.getArch() == llvm::Triple::primate64)) {
+    // Not support linker relaxation for PR64 with large code model.
+    SmallDataLimit = "0";
+    if (Args.hasArg(options::OPT_G)) {
+      D.Diag(diag::warn_drv_unsupported_sdata);
+    }
+  } else if (Arg *A = Args.getLastArg(options::OPT_G)) {
+    SmallDataLimit = A->getValue();
+  }
+  // Forward the -msmall-data-limit= option.
+  CmdArgs.push_back("-msmall-data-limit");
+  CmdArgs.push_back(SmallDataLimit);
+}
+
+void Clang::AddPrimateTargetArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  const llvm::Triple &Triple = getToolChain().getTriple();
+  StringRef ABIName = primate::getPrimateABI(Args, Triple);
+
+  CmdArgs.push_back("-target-abi");
+  CmdArgs.push_back(ABIName.data());
+
+  SetPrimateSmallDataLimit(getToolChain(), Args, CmdArgs);
+
+  std::string TuneCPU;
+
+  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+    StringRef Name = A->getValue();
+
+    Name = llvm::Primate::resolveTuneCPUAlias(Name, Triple.isArch64Bit());
+    TuneCPU = std::string(Name);
+  }
+
+  if (!TuneCPU.empty()) {
+    CmdArgs.push_back("-tune-cpu");
+    CmdArgs.push_back(Args.MakeArgString(TuneCPU));
   }
 }
 
@@ -4785,7 +4854,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (RelocationModel != llvm::Reloc::Static && !IsPIE) {
       // The supported targets need to call AsmPrinter::getSymbolPreferLocal.
       bool SupportsLocalAlias =
-          Triple.isAArch64() || Triple.isRISCV() || Triple.isX86();
+          Triple.isAArch64() || Triple.isPrimate() || Triple.isRISCV() ||
+          Triple.isX86();
       if (!A)
         CmdArgs.push_back("-fhalf-no-semantic-interposition");
       else if (A->getOption().matches(options::OPT_fsemantic_interposition))
@@ -5791,7 +5861,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ)) {
     StringRef S0 = A->getValue(), S = S0;
     unsigned Size, Offset = 0;
-    if (!Triple.isAArch64() && !Triple.isRISCV() && !Triple.isX86())
+    if (!Triple.isAArch64() && !Triple.isPrimate() && !Triple.isRISCV() &&
+        !Triple.isX86())
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     else if (S.consumeInteger(10, Size) ||
@@ -7382,6 +7453,15 @@ void ClangAs::AddRISCVTargetArgs(const ArgList &Args,
   CmdArgs.push_back(ABIName.data());
 }
 
+void ClangAs::AddPrimateTargetArgs(const ArgList &Args,
+                               ArgStringList &CmdArgs) const {
+  const llvm::Triple &Triple = getToolChain().getTriple();
+  StringRef ABIName = primate::getPrimateABI(Args, Triple);
+
+  CmdArgs.push_back("-target-abi");
+  CmdArgs.push_back(ABIName.data());
+}
+
 void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
                            const InputInfo &Output, const InputInfoList &Inputs,
                            const ArgList &Args,
@@ -7566,6 +7646,11 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
+    break;
+
+  case llvm::Triple::primate32:
+  case llvm::Triple::primate64:
+    AddPrimateTargetArgs(Args, CmdArgs);
     break;
   }
 
