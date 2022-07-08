@@ -79,7 +79,8 @@ PrimateSubtarget::PrimateSubtarget(const Triple &TT, StringRef CPU,
     : PrimateGenSubtargetInfo(TT, CPU, TuneCPU, FS),
       UserReservedRegister(Primate::NUM_TARGET_REGS),
       FrameLowering(initializeSubtargetDependencies(TT, CPU, TuneCPU, FS, ABIName)),
-      InstrInfo(*this), RegInfo(getHwMode()), TLInfo(TM, *this) {
+      InstrInfo(*this), RegInfo(getHwMode()), TLInfo(TM, *this),
+      InstrItins(getInstrItineraryForCPU(selectPrimateCPU(CPU, TT.isArch64Bit()))) {
   CallLoweringInfo.reset(new PrimateCallLowering(*getTargetLowering()));
   Legalizer.reset(new PrimateLegalizerInfo(*this));
 

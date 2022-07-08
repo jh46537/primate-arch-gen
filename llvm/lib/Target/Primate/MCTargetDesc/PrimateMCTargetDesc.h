@@ -28,6 +28,8 @@ class MCRegisterInfo;
 class MCSubtargetInfo;
 class Target;
 
+StringRef selectPrimateCPU(StringRef CPU, bool Is64Bit);
+
 MCCodeEmitter *createPrimateMCCodeEmitter(const MCInstrInfo &MCII,
                                         const MCRegisterInfo &MRI,
                                         MCContext &Ctx);

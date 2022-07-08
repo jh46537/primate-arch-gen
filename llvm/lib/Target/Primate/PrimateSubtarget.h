@@ -71,6 +71,7 @@ class PrimateSubtarget : public PrimateGenSubtargetInfo {
   PrimateRegisterInfo RegInfo;
   PrimateTargetLowering TLInfo;
   SelectionDAGTargetInfo TSInfo;
+  InstrItineraryData InstrItins;
 
   /// Initializes using the passed in CPU and feature strings so that we can
   /// use initializer lists for subtarget initialization.
@@ -91,6 +92,9 @@ public:
 
   const PrimateFrameLowering *getFrameLowering() const override {
     return &FrameLowering;
+  }
+  const InstrItineraryData *getInstrItineraryData() const override {
+    return &InstrItins;
   }
   const PrimateInstrInfo *getInstrInfo() const override { return &InstrInfo; }
   const PrimateRegisterInfo *getRegisterInfo() const override {

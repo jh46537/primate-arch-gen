@@ -31,8 +31,8 @@ protected:
   const MachineLoopInfo *MLI;
 
 private:
-  const PrimateInstrInfo *HII;
-  const PrimateRegisterInfo *HRI;
+  const PrimateInstrInfo *PII;
+  const PrimateRegisterInfo *PRI;
 
 public:
   PrimatePacketizerList(MachineFunction &MF, MachineLoopInfo &MLI,

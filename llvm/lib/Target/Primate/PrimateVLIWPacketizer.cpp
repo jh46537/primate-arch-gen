@@ -55,7 +55,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "primate-packetizer"
 
-static cl::opt<bool> DisablePacketizer("disable-packetizer", cl::Hidden,
+static cl::opt<bool> DisablePacketizer("disable-primate-packetizer", cl::Hidden,
   cl::ZeroOrMore, cl::init(false),
   cl::desc("Disable Primate packetizer pass"));
 
@@ -94,8 +94,8 @@ namespace {
     }
 
   private:
-    const PrimateInstrInfo *HII = nullptr;
-    const PrimateRegisterInfo *HRI = nullptr;
+    const PrimateInstrInfo *PII = nullptr;
+    const PrimateRegisterInfo *PRI = nullptr;
   };
 
 } // end anonymous namespace
@@ -115,14 +115,14 @@ PrimatePacketizerList::PrimatePacketizerList(MachineFunction &MF,
       MachineLoopInfo &MLI, AAResults *AA,
       const MachineBranchProbabilityInfo *MBPI)
     : VLIWPacketizerList(MF, MLI, AA), MBPI(MBPI), MLI(&MLI) {
-  HII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
-  HRI = MF.getSubtarget<PrimateSubtarget>().getRegisterInfo();
+  PII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
+  PRI = MF.getSubtarget<PrimateSubtarget>().getRegisterInfo();
 }
 
 bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
-  auto &HST = MF.getSubtarget<PrimateSubtarget>();
-  HII = HST.getInstrInfo();
-  HRI = HST.getRegisterInfo();
+  auto &PST = MF.getSubtarget<PrimateSubtarget>();
+  PII = PST.getInstrInfo();
+  PRI = PST.getRegisterInfo();
   auto &MLI = getAnalysis<MachineLoopInfo>();
   auto *AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   auto *MBPI = &getAnalysis<MachineBranchProbabilityInfo>();
