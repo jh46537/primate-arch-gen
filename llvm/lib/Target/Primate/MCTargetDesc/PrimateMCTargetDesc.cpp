@@ -102,6 +102,15 @@ static MCTargetStreamer *createPrimateNullTargetStreamer(MCStreamer &S) {
   return new PrimateTargetStreamer(S);
 }
 
+StringRef llvm::selectPrimateCPU(StringRef CPU, bool Is64Bit) {
+  if (CPU.empty())
+    CPU = Is64Bit ? "generic-pr64" : "generic-pr32";
+  if (CPU == "generic")
+    report_fatal_error(Twine("CPU 'generic' is not supported. Use ") +
+                       (Is64Bit ? "generic-pr64" : "generic-pr32"));
+  return CPU;
+}
+
 namespace {
 
 class PrimateMCInstrAnalysis : public MCInstrAnalysis {
