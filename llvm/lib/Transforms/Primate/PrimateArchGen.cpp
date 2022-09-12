@@ -103,6 +103,8 @@ namespace {
             unsigned int n = 0;
 
             std::ofstream primateCFG;
+            std::ofstream primateHeader;
+            std::ofstream assemblerHeader;
 
             //print functions
 			//live variables before each basic block
@@ -430,28 +432,40 @@ namespace {
                 primateCFG << "SRC_POS=";
                 std::map<unsigned, unsigned> indexEncode;
                 int i = 0;
-                for (auto it = fieldIndex->begin(); it != std::prev(fieldIndex->end()); ++it) {
+                auto it = fieldIndex->begin();
+                for (; it != std::prev(fieldIndex->end()); ++it) {
                     primateCFG << (it->first) << " ";
                     indexEncode[it->first] = i;
                     i++;
                 }
+                indexEncode[it->first] = i;
                 primateCFG << "\n";
 
                 primateCFG << "SRC_MODE=";
+                assemblerHeader << "static std::map<std::string, int> srcType_dict {\n";
                 std::sort(gatherModes->begin(), gatherModes->end());
                 std::map<unsigned, unsigned> gatherEncode;
+                int last_mode;
                 for (int i = 0; i < gatherModes->size(); i++) {
                     gatherEncode[(*gatherModes)[i]] = i;
+                    last_mode = (*gatherModes)[i];
                     primateCFG << (*gatherModes)[i] << " ";
+                    assemblerHeader << "    {\"uint" << (*gatherModes)[i] << "\", " << i << "},\n";
                 }
                 gatherEncode[maxRegWidth] = gatherModes->size();
-                primateCFG << maxRegWidth << " " << "\n";
+                primateCFG << last_mode << " " << "\n";
+                assemblerHeader << "    {\"uint\", " << gatherModes->size() << "},\n";
+                assemblerHeader << "    {\"uimm\", " << gatherModes->size()+1 << "}\n};\n";
 
                 primateCFG << "MAX_FIELD_WIDTH=" << (*gatherModes).back() << "\n";
 
                 primateCFG << "NUM_SRC_POS=" << fieldIndex->size()-1 << "\n";
+                assemblerHeader << "#define NUM_SRC_POS " << fieldIndex->size()-1 << "\n";
+                assemblerHeader << "#define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))\n";
 
                 primateCFG << "NUM_SRC_MODES=" << gatherModes->size()+1 << "\n";
+                assemblerHeader << "#define NUM_SRC_MODE " << gatherModes->size()+1 << "\n";
+                assemblerHeader << "#define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))\n";
 
                 primateCFG << "DST_POS=";
                 for (auto it = fieldIndex->begin(); it != std::prev(fieldIndex->end()); ++it) {
@@ -475,11 +489,13 @@ namespace {
                     }
                     for (int j = 0; j < it->second->size(); j++) {
                         primateCFG << i << " " << gatherEncode[(*(it->second))[j]] << ";";
+                        errs() << (it->first) + (*(it->second))[j] << "\n";
                         int blocks = indexEncode[(it->first) + (*(it->second))[j]] - i;
                         scatterWbens.push_back(((1 << blocks) - 1) << i);
                     }
                     if (i == 0) {
-                        primateCFG << "0 " << gatherEncode[maxRegWidth] << ";";
+                        // primateCFG << "0 " << gatherEncode[maxRegWidth] << ";";
+                        primateCFG << "0 -1;";
                         scatterWbens.push_back((1 << numBlocks) - 1);
                     }
                     i++;
@@ -496,6 +512,27 @@ namespace {
                 primateCFG << "NUM_DST_POS=" << fieldIndex->size()-1 << "\n";
 
                 primateCFG << "NUM_DST_MODE=" << gatherModes->size()+1 << "\n";
+            }
+
+            void generate_header(Module &M) {
+                auto structTypes = M.getIdentifiedStructTypes();
+                unsigned maxRegWidth = 0;
+                gatherModes = new std::vector<unsigned>();
+                fieldIndex = new std::map<unsigned, std::vector<unsigned>*>();
+                primateHeader << "import chisel3._\nimport chisel3.util._\n\n";
+                for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
+                    if ((*it)->getName().contains("input_t")) {
+                        unsigned elemWidth = getStructWidth((**it), 0, false);
+                        primateHeader << "class input_t extends Bundle {\n";
+                        primateHeader << "    val data = UInt(" << elemWidth << ".W)\n";
+                        primateHeader << "}\n";
+                    } else if ((*it)->getName().contains("output_t")) {
+                        unsigned elemWidth = getStructWidth((**it), 0, false);
+                        primateHeader << "class output_t extends Bundle {\n";
+                        primateHeader << "    val data = UInt(" << elemWidth << ".W)\n";
+                        primateHeader << "}\n";
+                    }
+                }
             }
 
             unsigned getMaxConst(Function &F) {
@@ -1683,8 +1720,12 @@ namespace {
             	std::fill_n(live,50,0);
 
                 primateCFG.open("primate.cfg");
+                primateHeader.open("header.scala");
+                assemblerHeader.open("primate_assembler.h");
 
+                assemblerHeader << "#include <iostream>\n#include <map>\n#include <string>\n\n";
                 printRegfileKnobs(M);
+                generate_header(M);
 
                 int maxNumALU = 0;
                 int maxNumInst = 0;
@@ -1710,13 +1751,25 @@ namespace {
                 primateCFG << "NUM_THREADS=" << int(pow(2, ceil(log2(maxLatency)))) << "\n";
                 errs() << "Number of regs: " << numRegs << "\n";
                 primateCFG << "NUM_REGS=" << int(pow(2, ceil(log2(numRegs)))) << "\n";
+                assemblerHeader << "#define NUM_REGS " << int(pow(2, ceil(log2(numRegs)))) << "\n";
+                assemblerHeader << "#define NUM_REGS_LG int(ceil(log2(NUM_REGS)))\n";
+
                 primateCFG << "NUM_ALUS=" << maxNumALU << "\n";
                 primateCFG << "NUM_BFUS=" << blueFunction->size() - 1 << "\n";
+                assemblerHeader << "#define NUM_ALUS " << maxNumALU << "\n";
+                assemblerHeader << "#define NUM_FUS " << maxNumALU + blueFunction->size() - 1 << "\n";
+                assemblerHeader << "#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))\n";
+
                 primateCFG << "IP_WIDTH=" << int(ceil(log2(maxNumInst))) << "\n";
+                assemblerHeader << "#define IP_W " << int(ceil(log2(maxNumInst))) << "\n";
                 errs() << "Number of instructions: " << maxNumInst << "\n";
+
                 primateCFG << "IMM_WIDTH=" << int(ceil(log2(maxConst))) << "\n";
+                assemblerHeader << "#define IMM_W " << int(ceil(log2(maxConst))) << "\n";
 
                 primateCFG.close();
+                primateHeader.close();
+                assemblerHeader.close();
                 return false;
             }
 
