@@ -903,17 +903,17 @@ def OUTPUT_SEEK :
         "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 }
 
-let Itinerary = ItinExtract in
+let Itinerary = ItinExtractInsert in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def EXTRACT :
     PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let Itinerary = ItinInsert in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-//def INSERT :
-//    PRInstR<0b001, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-//        "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+def INSERT :
+    PRInstI<0b001, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+}
 
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
