@@ -228,6 +228,9 @@ void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     support::endian::write(OS, Bits, support::little);
     break;
   }
+  case 0:
+    // Primate: ignore
+    break;
   }
 
   ++MCNumEmitted; // Keep track of the # of mi's emitted.

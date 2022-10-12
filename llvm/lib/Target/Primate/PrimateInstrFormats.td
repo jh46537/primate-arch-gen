@@ -138,7 +138,7 @@ def OPC_PR_MPSM   : PrimateOpcode<0b1011011>;
 def OPC_PR_ASCII  : PrimateOpcode<0b1111011>;
 
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
-             list<dag> pattern, InstFormat format>
+             list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>
     : Instruction {
   field bits<32> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
@@ -158,7 +158,7 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
   dag InOperandList = ins;
   let AsmString = opcodestr # "\t" # argstr;
   let Pattern = pattern;
-  let Itinerary = ItinGreen;
+  let Itinerary = itin;
 
   let TSFlags{4-0} = format.Value;
 
@@ -185,59 +185,9 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
   let TSFlags{15} = HasVLOp;
 }
 
-//// Primate VLIW
-//class PrimateVLIWInst<dag outs, dag ins, string opcodestr, string argstr,
-//                      list<dag> pattern, InstFormat format>
-//    : Instruction {
-//  field <231> Inst;
-//  // SoftFail is a field the disassembler can use to provide a way for
-//  // instructions to not match without killing the whole decode process. It is
-//  // mainly used for ARM, but Tablegen expects this field to exist or it fails
-//  // to build the decode table.
-//  field bits<32> SoftFail = 0;
-//  let Size = 29;
-//
-//  bits<32> Green0Op;
-//  bits<1>  Green0OpV;
-//  bits<32> Green1Op;
-//  bits<1>  Green1OpV;
-//  bits<32> Blue0Op;
-//  bits<1>  Blue0OpV;
-//  bits<32> Blue1Op;
-//  bits<1>  Blue1OpV;
-//  bits<32> ExtractOp;
-//  bits<1>  ExtractOpV;
-//  bits<32> IOOp;
-//  bits<1>  IOOpV;
-//  bits<32> BranchOp;
-//  bits<1>  BranchOpV;
-//
-//  let Inst{31~0}    = Green0Op;
-//  let Inst{32}      = Green0OpV;
-//  let Inst{64~33}   = Green1Op;
-//  let Inst{65}      = Green1OpV;
-//  let Inst{97~66}   = Blue0Op;
-//  let Inst{98}      = Blue0OpV;
-//  let Inst{130~99}  = Blue1Op;
-//  let Inst{131}     = Blue1OpV;
-//  let Inst{163~132} = ExtractOp;
-//  let Inst{164}     = ExtractOpV;
-//  let Inst{196~165} = IOOp;
-//  let Inst{197}     = IOOpV;
-//  let Inst{229~198} = BranchOp;
-//  let Inst{230}     = BranchOpV;
-//
-//  let Namespace = "Primate";
-//
-//  dag OutOperandList = outs;
-//  dag InOperandList = ins;
-//  let AsmString = opcodestr # "\t" # argstr;
-//  let Pattern = pattern;
-//}
-
 // Pseudo instructions
 class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
-    : PRInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo>,
+    : PRInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo, ItinGreen>,
       Sched<[]> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -278,7 +228,7 @@ class PseudoStore<string opcodestr, RegisterClass rsty = GPR>
 
 class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
               dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
   bits<5> rs2;
   bits<5> rs1;
   bits<5> rd;
@@ -293,7 +243,7 @@ class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
 
 class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
                dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, ItinGreen> {
   bits<5> rs3;
   bits<5> rs2;
   bits<5> rs1;
@@ -310,7 +260,7 @@ class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
 
 class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
                   string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, ItinGreen> {
   bits<5> rs3;
   bits<5> rs2;
   bits<5> rs1;
@@ -329,7 +279,7 @@ class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
 class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
                     PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
                     string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
   bits<5> rs2;
   bits<5> rs1;
   bits<5> rd;
@@ -346,7 +296,7 @@ class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
 
 class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
                  string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
   bits<5> rs2;
   bits<5> rs1;
   bits<3> funct3;
@@ -362,7 +312,7 @@ class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
 
 class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
               string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
   bits<12> imm12;
   bits<5> rs1;
   bits<5> rd;
@@ -376,7 +326,7 @@ class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
 
 class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
                    dag outs, dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
   bits<6> shamt;
   bits<5> rs1;
   bits<5> rd;
@@ -392,7 +342,7 @@ class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
 
 class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
                     dag outs, dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
   bits<5> shamt;
   bits<5> rs1;
   bits<5> rd;
@@ -407,7 +357,7 @@ class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
 
 class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
               string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, ItinGreen> {
   bits<12> imm12;
   bits<5> rs2;
   bits<5> rs1;
@@ -422,7 +372,7 @@ class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
 
 class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
               string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB, ItinBranch> {
   bits<12> imm12;
   bits<5> rs2;
   bits<5> rs1;
@@ -441,7 +391,7 @@ class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
 
 class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
               string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU, ItinGreen> {
   bits<20> imm20;
   bits<5> rd;
 
@@ -452,7 +402,7 @@ class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
 
 class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
               string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ> {
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ, ItinBranch> {
   bits<20> imm20;
   bits<5> rd;
 

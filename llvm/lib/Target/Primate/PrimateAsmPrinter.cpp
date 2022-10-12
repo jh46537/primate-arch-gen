@@ -88,13 +88,52 @@ void PrimateAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
 #include "PrimateGenMCPseudoLowering.inc"
 
 void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
-  // Do any auto-generated pseudo lowerings.
-  if (emitPseudoExpansionLowering(*OutStreamer, MI))
-    return;
+  MCInst MCB;
+  MCB.setOpcode(Primate::BUNDLE);
+  MCB.addOperand(MCOperand::createImm(0));
 
-  MCInst TmpInst;
-  if (!lowerPrimateMachineInstrToMCInst(MI, TmpInst, *this))
-    EmitToStreamer(*OutStreamer, TmpInst);
+  if (MI->isBundle()) {
+    const MachineBasicBlock* MBB = MI->getParent();
+    MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
+
+    // FIXME(ahsu):
+    // make this an archgen param
+    unsigned numSlots = 7;
+    unsigned lastSlotIdx = 1;
+    for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
+      if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
+        unsigned slotIdx = MII->getSlotIdx();
+        // ignore instructions without slots
+        if (slotIdx == (unsigned)-1)
+          continue;
+        if (slotIdx > lastSlotIdx) {
+          emitNops(slotIdx - lastSlotIdx);
+          lastSlotIdx = slotIdx;
+        }
+        ++lastSlotIdx;
+
+        // Do any auto-generated pseudo lowerings.
+        if (emitPseudoExpansionLowering(*OutStreamer, &*MII))
+          return;
+
+        MCInst TmpInst;
+        if (!lowerPrimateMachineInstrToMCInst(&*MII, TmpInst, *this))
+          EmitToStreamer(*OutStreamer, TmpInst);
+      }
+    }
+    if (lastSlotIdx < numSlots + 1)
+      emitNops(numSlots - lastSlotIdx + 1);
+  } else {
+    // Do any auto-generated pseudo lowerings.
+    if (emitPseudoExpansionLowering(*OutStreamer, MI))
+      return;
+
+    MCInst TmpInst;
+    if (!lowerPrimateMachineInstrToMCInst(MI, TmpInst, *this))
+      EmitToStreamer(*OutStreamer, TmpInst);
+  }
+
+  // TODO(ahsu): insert post-processing canonicalization a la Hexagon
 }
 
 bool PrimateAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,

@@ -63,10 +63,13 @@ PrimateSubtarget::initializeSubtargetDependencies(const Triple &TT, StringRef CP
     TuneCPU = CPU;
 
   ParseSubtargetFeatures(CPU, TuneCPU, FS);
-  if (Is64Bit) {
-    XLenVT = MVT::i64;
-    XLen = 64;
-  }
+  //FIXME(ahsu)
+  //if (Is64Bit) {
+  //  XLenVT = MVT::i64;
+  //  XLen = 64;
+  //}
+  XLenVT = MVT::i128;
+  XLen = 128;
 
   TargetABI = PrimateABI::computeTargetABI(TT, getFeatureBits(), ABIName);
   PrimateFeatures::validate(TT, getFeatureBits());

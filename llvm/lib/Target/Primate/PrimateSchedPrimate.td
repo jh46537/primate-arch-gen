@@ -10,33 +10,30 @@ def GreenUnit0         : FuncUnit;
 def GreenUnit1         : FuncUnit;
 def BlueUnit0          : FuncUnit;
 def BlueUnit1          : FuncUnit;
-def ExtractUnit        : FuncUnit;
-def InsertUnit         : FuncUnit;
+def ExtractInsertUnit  : FuncUnit;
 def IOUnit             : FuncUnit;
 def BranchUnit         : FuncUnit;
 
 def PrimateItinList {
   list<InstrItinData> ItinList = [
-    InstrItinData<ItinGreen,    [InstrStage<1, [GreenUnit0, GreenUnit1]>]>,
-    InstrItinData<ItinBlue0,    [InstrStage<1, [BlueUnit0]>]>,
-    InstrItinData<ItinBlue1,    [InstrStage<1, [BlueUnit1]>]>,
-    InstrItinData<ItinExtract,  [InstrStage<1, [ExtractUnit]>]>,
-    InstrItinData<ItinInsert,   [InstrStage<1, [InsertUnit]>]>,
-    InstrItinData<ItinIO,       [InstrStage<1, [IOUnit]>]>,
-    InstrItinData<ItinBranch,   [InstrStage<1, [BranchUnit]>]>
+    InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>,
+    InstrItinData<ItinBlue1,         [InstrStage<1, [BlueUnit1]>]>,
+    InstrItinData<ItinBlue0,         [InstrStage<1, [BlueUnit0]>]>,
+    InstrItinData<ItinExtractInsert, [InstrStage<1, [ExtractInsertUnit]>]>,
+    InstrItinData<ItinIO,            [InstrStage<1, [IOUnit]>]>,
+    InstrItinData<ItinGreen,         [InstrStage<1, [GreenUnit0, GreenUnit1]>]>
   ];
 }
 
 def PrimateItineraries :
     ProcessorItineraries<[
-        GreenUnit0,
-        GreenUnit1,
-        BlueUnit0,
+        BranchUnit,
         BlueUnit1,
-        ExtractUnit,
-        InsertUnit,
+        BlueUnit0,
+        ExtractInsertUnit,
         IOUnit,
-        BranchUnit
+        GreenUnit1,
+        GreenUnit0
     ],
     [],
     PrimateItinList.ItinList>;
@@ -83,8 +80,7 @@ def GreenPipe0         : ProcResource<1>;
 def GreenPipe1         : ProcResource<1>;
 def BluePipe0          : ProcResource<1>;
 def BluePipe1          : ProcResource<1>;
-def ExtractPipe        : ProcResource<1>;
-def InsertPipe         : ProcResource<1>;
+def ExtractInsertPipe  : ProcResource<1>;
 def IOPipe             : ProcResource<1>;
 def BranchPipe         : ProcResource<1>;
 }
@@ -94,8 +90,7 @@ def PrimatePipes : ProcResGroup<[
   GreenPipe1,
   BluePipe0,
   BluePipe1,
-  ExtractPipe,
-  InsertPipe,
+  ExtractInsertPipe,
   IOPipe,
   BranchPipe
 ]>;
@@ -137,30 +132,30 @@ def : WriteRes<WriteIDiv32,  [GreenPipes]> {
 
 let Latency = 1000 in {
 // Memory
-def : WriteRes<WriteSTB, [GreenPipes]>;
-def : WriteRes<WriteSTH, [GreenPipes]>;
-def : WriteRes<WriteSTW, [GreenPipes]>;
-def : WriteRes<WriteSTD, [GreenPipes]>;
-def : WriteRes<WriteFST32, [GreenPipes]>;
-def : WriteRes<WriteFST64, [GreenPipes]>;
+def : WriteRes<WriteSTB, [BluePipes]>;
+def : WriteRes<WriteSTH, [BluePipes]>;
+def : WriteRes<WriteSTW, [BluePipes]>;
+def : WriteRes<WriteSTD, [BluePipes]>;
+def : WriteRes<WriteFST32, [BluePipes]>;
+def : WriteRes<WriteFST64, [BluePipes]>;
 
-def : WriteRes<WriteLDB, [GreenPipes]>;
-def : WriteRes<WriteLDH, [GreenPipes]>;
-def : WriteRes<WriteLDW, [GreenPipes]>;
-def : WriteRes<WriteLDWU, [GreenPipes]>;
-def : WriteRes<WriteLDD, [GreenPipes]>;
+def : WriteRes<WriteLDB, [BluePipes]>;
+def : WriteRes<WriteLDH, [BluePipes]>;
+def : WriteRes<WriteLDW, [BluePipes]>;
+def : WriteRes<WriteLDWU, [BluePipes]>;
+def : WriteRes<WriteLDD, [BluePipes]>;
 
-def : WriteRes<WriteFLD32, [GreenPipes]>;
-def : WriteRes<WriteFLD64, [GreenPipes]>;
+def : WriteRes<WriteFLD32, [BluePipes]>;
+def : WriteRes<WriteFLD64, [BluePipes]>;
 
 // Atomic memory
-def : WriteRes<WriteAtomicSTW, [GreenPipes]>;
-def : WriteRes<WriteAtomicSTD, [GreenPipes]>;
+def : WriteRes<WriteAtomicSTW, [BluePipes]>;
+def : WriteRes<WriteAtomicSTD, [BluePipes]>;
 
-def : WriteRes<WriteAtomicW, [GreenPipes]>;
-def : WriteRes<WriteAtomicD, [GreenPipes]>;
-def : WriteRes<WriteAtomicLDW, [GreenPipes]>;
-def : WriteRes<WriteAtomicLDD, [GreenPipes]>;
+def : WriteRes<WriteAtomicW, [BluePipes]>;
+def : WriteRes<WriteAtomicD, [BluePipes]>;
+def : WriteRes<WriteAtomicLDW, [BluePipes]>;
+def : WriteRes<WriteAtomicLDD, [BluePipes]>;
 }
 
 // Single precision.

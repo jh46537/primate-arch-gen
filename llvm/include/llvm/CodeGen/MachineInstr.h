@@ -131,6 +131,9 @@ private:
                                         // anything other than to convey comment
                                         // information to AsmPrinter.
 
+  unsigned SlotIdx = (unsigned)-1;      // VLIW slot this instruction uses.
+                                        // Set when bundle is finalized.
+
   // OperandCapacity has uint8_t size, so it should be next to AsmPrinterFlags
   // to properly pack.
   using OperandCapacity = ArrayRecycler<MachineOperand>::Capacity;
@@ -413,6 +416,18 @@ public:
 
   /// Break bundle below this instruction.
   void unbundleFromSucc();
+
+  /// Get VLIW slot this instruction uses.
+  /// Set when bundle is finalized.
+  unsigned getSlotIdx() const {
+    return SlotIdx;
+  }
+
+  /// Get VLIW slot this instruction uses.
+  /// Set when bundle is finalized.
+  void setSlotIdx(unsigned slotIdx) {
+    SlotIdx = slotIdx;
+  }
 
   /// Returns the debug location id of this MachineInstr.
   const DebugLoc &getDebugLoc() const { return debugLoc; }

@@ -40,8 +40,8 @@ public:
                         const MachineBranchProbabilityInfo *MBPI);
 
   MachineBasicBlock::iterator addToPacket(MachineInstr &MI) override;
-  //void endPacket(MachineBasicBlock *MBB,
-  //               MachineBasicBlock::iterator MI) override;
+  void endPacket(MachineBasicBlock *MBB,
+                 MachineBasicBlock::iterator MI) override;
   void initPacketizerState() override;
   bool ignorePseudoInstruction(const MachineInstr &MI,
                                const MachineBasicBlock *MBB) override;

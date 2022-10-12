@@ -125,6 +125,9 @@ bool llvm::LowerPrimateMachineOperandToMCOperand(const MachineOperand &MO,
   case MachineOperand::MO_JumpTableIndex:
     MCOp = lowerSymbolOperand(MO, AP.GetJTISymbol(MO.getIndex()), AP);
     break;
+  case MachineOperand::MO_CFIIndex:
+    // Primate: ignore
+    break;
   }
   return true;
 }

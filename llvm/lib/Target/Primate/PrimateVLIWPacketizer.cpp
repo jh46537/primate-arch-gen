@@ -135,24 +135,52 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
 
   // Loop over all of the basic blocks.
   for (auto &MB : MF) {
+    // TODO(ahsu): fix scheduling boundary
+    printf("");
     Packetizer.PacketizeMIs(&MB, MB.begin(), MB.end());
+    printf("");
   }
   return true;
 }
 
 MachineBasicBlock::iterator
 PrimatePacketizerList::addToPacket(MachineInstr &MI) {
-  //MachineBasicBlock::iterator MII = MI.getIterator();
+  MachineBasicBlock::iterator MII = MI.getIterator();
   //MachineBasicBlock *MBB = MI.getParent();
-  //return MII;
-  CurrentPacketMIs.push_back(&MI);
+  assert(ResourceTracker->canReserveResources(MI));
   ResourceTracker->reserveResources(MI);
-  return MI;
+  CurrentPacketMIs.push_back(&MI);
+  return MII;
 }
 
-//void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
-//                                      MachineBasicBlock::iterator EndMI) {
-//}
+void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
+                                      MachineBasicBlock::iterator MI) {
+  // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
+  unsigned Idx = 0;
+  for (MachineInstr *MI : CurrentPacketMIs) {
+    unsigned R = ResourceTracker->getUsedResources(Idx++);
+    MI->setSlotIdx(R);
+  }
+  LLVM_DEBUG({
+    if (!CurrentPacketMIs.empty()) {
+      dbgs() << "Finalizing packet:\n";
+      unsigned Idx = 0;
+      for (MachineInstr *MI : CurrentPacketMIs) {
+        unsigned R = ResourceTracker->getUsedResources(Idx++);
+        dbgs() << " * [res:0x" << utohexstr(R) << "] " << *MI;
+      }
+    }
+  });
+  //if (CurrentPacketMIs.size() > 1) {
+  //  MachineInstr &MIFirst = *CurrentPacketMIs.front();
+  //  finalizeBundle(*MBB, MIFirst.getIterator(), MI.getInstrIterator());
+  //}
+  MachineInstr &MIFirst = *CurrentPacketMIs.front();
+  finalizeBundle(*MBB, MIFirst.getIterator(), MI.getInstrIterator());
+  CurrentPacketMIs.clear();
+  ResourceTracker->clearResources();
+  LLVM_DEBUG(dbgs() << "End packet\n");
+}
 
 void PrimatePacketizerList::initPacketizerState() {
 }
@@ -161,7 +189,14 @@ void PrimatePacketizerList::initPacketizerState() {
 bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
                                                     const MachineBasicBlock *) {
   // FIXME: ignore END or maybe in isSoloInstruction?
-  return false;
+  if (MI.isCFIInstruction())
+    return true;
+
+  // We check if MI has any functional units mapped to it. If it doesn't,
+  // we ignore the instruction.
+  const MCInstrDesc& TID = MI.getDesc();
+  auto *IS = ResourceTracker->getInstrItins()->beginStage(TID.getSchedClass());
+  return !IS->getUnits();
 }
 
 bool PrimatePacketizerList::isSoloInstruction(const MachineInstr &MI) {
