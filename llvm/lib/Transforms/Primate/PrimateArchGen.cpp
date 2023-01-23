@@ -81,7 +81,6 @@ namespace {
             ValueMap<Value*, int> *branchLevel;
             std::vector<unsigned> *gatherModes;
             std::map<unsigned, std::vector<unsigned>*> *fieldIndex;
-            std::set<std::string> *blueFunction;
             ValueMap<Value*, ptrInfo_t*> *pointerMap;
             ValueMap<Value*, std::map<Value*, bool>*> dependencyForest;
             ValueMap<Value*, std::map<Value*, bool>*> dependencyForestOp;
@@ -95,14 +94,24 @@ namespace {
             std::map<BasicBlock*, int> bbNumInst;
             std::map<BasicBlock*, int> bbNumVLIWInst;
 
+            int numBFs;
+            std::map<std::string, std::set<Value*>*> bfu2bf;
+            std::map<std::string, int> bfuNumInputs;
+            std::vector<Value*> blueFunctions;
+            ValueMap<Value*, int> bfIdx;
+            int **bfConflictMap;
+            int **bfConflictMap_tmp;
+
             int domainSize;
             int numArgs;
             int numInstr;
+            int numALU_min;
             
             int live[50];
             unsigned int n = 0;
 
             std::ofstream primateCFG;
+            std::ofstream interconnectCFG;
             std::ofstream primateHeader;
             std::ofstream assemblerHeader;
 
@@ -816,10 +825,12 @@ namespace {
                             bool rel = dep->second;
                             // errs() << "start erase\n";
                             // errs() << "erase success\n";
-                            if (rel)
-                                (*(it->second))[new_dep] = rel;
-                            else
-                                it->second->insert({new_dep, rel});
+                            if (new_dep != NULL) {
+                                if (rel)
+                                    (*(it->second))[new_dep] = rel;
+                                else
+                                    it->second->insert({new_dep, rel});
+                            }
                             // errs() << "insert success\n";
                             it->second->erase(dep++);
                         } else {
@@ -1280,14 +1291,79 @@ namespace {
                     float numALUBB = numALUInst*2.0/(maxPriority+2.0);
                     if (ceil(numALUBB) > numALU) numALU = ceil(numALUBB);
                 }
+                if (numALU < numALU_min) numALU = numALU_min;
                 // errs() << "estimated ALUs: " << numALU << "\n";
                 return numALU;
+            }
+
+            void addBFCDependency(Value* bfc, std::map<Value*, std::set<Value*>> &bfcConflict, std::set<Value*> &toScheduleInst) {
+                for (auto dep = dependencyForestOp[bfc]->begin(); dep != dependencyForestOp[bfc]->end(); dep++) {
+                    Instruction* depInst = dyn_cast<Instruction>(dep->first);
+                    if (dep->second) {
+                        if ((!isBlueCall(depInst)) && (toScheduleInst.find(dep->first) != toScheduleInst.end())) {
+                            bfcConflict[&*depInst].insert(bfc);
+                        }
+                    }
+                }
+            }
+
+            void addBFDependency(std::map<Value*, std::set<Value*>> &bfcConflict, std::set<Value*> &bfcSet) {
+                std::map<std::pair<Value*, Value*>, int> bfcConflictCounter;
+                for (auto bfc0 = bfcSet.begin(); bfc0 != bfcSet.end(); bfc0++) {
+                    for (auto bfc1 = bfcSet.begin(); bfc1 != bfc0; bfc1++) {
+                        std::pair<Value*, Value*> bfcPair({*bfc1, *bfc0});
+                        bfcConflictCounter[bfcPair] = 0;
+                    }
+                }
+                for (auto dep = bfcConflict.begin(); dep != bfcConflict.end(); dep++) {
+                    for (auto bfc0 = (dep->second).begin(); bfc0 != (dep->second).end(); bfc0++) {
+                        for (auto bfc1 = (dep->second).begin(); bfc1 != bfc0; bfc1++) {
+                            std::pair<Value*, Value*> bfcPair{*bfc1, *bfc0};
+                            bfcConflictCounter[bfcPair] += 1;
+                        }
+                    }
+                }
+                for (auto bfcPair = bfcConflictCounter.begin(); bfcPair != bfcConflictCounter.end(); bfcPair++) {
+                    auto *tmp0 = dyn_cast<llvm::CallInst>((bfcPair->first).first);
+                    Function *foo = tmp0->getCalledFunction();
+                    int fooIdx;
+                    auto fooIdx_it = bfIdx.find(&*foo);
+                    if (fooIdx_it != bfIdx.end()) {
+                        fooIdx = fooIdx_it->second;
+                    } else {
+                        errs() << "Blue Function not found!\n";
+                        exit(1);
+                    }
+                    auto *tmp1 = dyn_cast<llvm::CallInst>((bfcPair->first).second);
+                    Function *bar = tmp1->getCalledFunction();
+                    int barIdx;
+                    auto barIdx_it = bfIdx.find(&*bar);
+                    if (barIdx_it != bfIdx.end()) {
+                        barIdx = barIdx_it->second;
+                    } else {
+                        errs() << "Blue Function not found!\n";
+                        exit(1);
+                    }
+                    int conflictCount = bfcPair->second;
+                    if (conflictCount == 0) {
+                        bfConflictMap_tmp[fooIdx][barIdx] = 0;
+                        bfConflictMap_tmp[barIdx][fooIdx] = 0;
+                    } else {
+                        bfConflictMap_tmp[fooIdx][barIdx] = conflictCount;
+                        bfConflictMap_tmp[barIdx][fooIdx] = conflictCount;
+                    }
+                }
             }
 
             void VLIWSim(Function &F, int numALU) {
                 annotatePriority(F, true);
                 int totalInst = 0;
                 int totalVLIWInst = 0;
+                for (int i = 0; i < numBFs; i++) {
+                    for (int j = 0; j < numBFs; j++) {
+                        bfConflictMap_tmp[i][j] = -1;
+                    }
+                }
                 for (Function::iterator bi = F.begin(); bi != F.end(); bi++) {
                     BasicBlock *bb = &*bi;
                     std::vector<std::pair<int, Value*>> nonFrontier;
@@ -1334,13 +1410,16 @@ namespace {
                             }
                             bool scheduleable = true;
                             for (auto dep = dependencyForestOp[inst->second]->begin(); dep != dependencyForestOp[inst->second]->end(); dep++) {
+                                // Loop all instructions it depends on
                                 if (dep->second) {
                                     if (scheduledInst.find(dep->first) == scheduledInst.end()) {
+                                        // Someone it strictly depends on hasn't been scheduled yet
                                         scheduleable = false;
                                         break;
                                     }
                                 } else {
                                     if ((scheduledInst.find(dep->first) == scheduledInst.end()) && (toScheduleInst.find(dep->first) == toScheduleInst.end())) {
+                                        // Someone it loosely depends on hasn't been scheduled and is not gonna be scheduled at the same time
                                         scheduleable = false;
                                         break;
                                     }
@@ -1357,14 +1436,34 @@ namespace {
                         }
                         // Then schedule Blue function calls
                         auto binst = blueCalls.begin();
+                        std::map<Value*, std::set<Value*>> bfcConflict;
+                        std::set<Value*> bfcSet;
                         while (binst != blueCalls.end()) {
                             bool scheduleable = true;
+                            int aluNeed = 0;
                             for (auto dep = dependencyForestOp[*binst]->begin(); dep != dependencyForestOp[*binst]->end(); dep++) {
                                 Instruction* depInst = dyn_cast<Instruction>(dep->first);
-                                if (dep->second && isBlueCall(depInst)) {
-                                    if (scheduledInst.find(dep->first) == scheduledInst.end()) {
-                                        scheduleable = false;
-                                        break;
+                                if (dep->second) {
+                                    // BFC inputs
+                                    if (isBlueCall(depInst)) {
+                                        if (scheduledInst.find(dep->first) == scheduledInst.end()) {
+                                            // Someone it strictly depends on is another BFC and hasn't been scheduled yet
+                                            scheduleable = false;
+                                            break;
+                                        }
+                                    } else {
+                                        if (scheduledInst.find(dep->first) != scheduledInst.end()) {
+                                            // Dependency already executed, need ALU to pass operand from regfile
+                                            aluNeed++;
+                                            if (aluLeft - aluNeed < 0) {
+                                                scheduleable = false;
+                                                break;
+                                            }
+                                        } else if (toScheduleInst.find(dep->first) == toScheduleInst.end()) {
+                                            // Dependency not executed and won't be scheduled in the same instruction
+                                            scheduleable = false;
+                                            break;
+                                        }
                                     }
                                 } else {
                                     if ((scheduledInst.find(dep->first) == scheduledInst.end()) && (toScheduleInst.find(dep->first) == toScheduleInst.end())) {
@@ -1374,13 +1473,17 @@ namespace {
                                 }
                             }
                             if (scheduleable) {
+                                addBFCDependency(*binst, bfcConflict, toScheduleInst);
+                                bfcSet.insert(*binst);
                                 toScheduleInst.insert(*binst);
                                 binst = blueCalls.erase(binst);
+                                aluLeft -= aluNeed;
                             } else {
                                 binst++;
                             }
                         }
                         // VLIW instruction scheduled
+                        addBFDependency(bfcConflict, bfcSet);
                         numVLIWInst++;
                         errs() << "VLIW Inst " << n << ":\n";
                         for (auto inst = toScheduleInst.begin(); inst != toScheduleInst.end(); inst++) {
@@ -1501,22 +1604,183 @@ namespace {
                 }
 
                 optimizeDependencyForest(2, numALU);
+
+                VLIWSim(F, numALU);
             }
 
-            unsigned getNumThreads(Module &M, unsigned numALU) {
-                APInt maxVal(64, 0);
-                blueFunction = new std::set<std::string>();
+            void initializeBFCMeta(Module &M) {
+                // Collect info about blue functions
+                numBFs = 0;
+                int numBFUs = 0;
+                numALU_min = 1;
                 for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
                     MDNode *metadata = MI->getMetadata("primate");
                     if (metadata) {
                         if (cast<MDString>(metadata->getOperand(0))->getString() == "blue") {
-                            blueFunction->insert(cast<MDString>(metadata->getOperand(1))->getString().str());
-                            auto *latency = cast<ConstantAsMetadata>(metadata->getOperand(2))->getValue();
-                            auto latency_val = cast<ConstantInt>(latency)->getValue();
-                            if (latency_val.ugt(maxVal)) {
-                                maxVal = latency_val;
+                            blueFunctions.push_back(&*MI);
+                            bfIdx[&*MI] = numBFs;
+                            numBFs++;
+                            auto numIn_i = cast<ConstantInt>(cast<ConstantAsMetadata>(metadata->getOperand(3))->getValue())->getValue();
+                            unsigned numIn = unsigned(numIn_i.getZExtValue());
+                            if (numIn > numALU_min) numALU_min = numIn;
+                            auto bfuName = cast<MDString>(metadata->getOperand(1))->getString().str();
+                            if (bfu2bf.find(bfuName) != bfu2bf.end()) {
+                                (bfu2bf[bfuName])->insert(&*MI);
+                                if (numIn > bfuNumInputs[bfuName]) bfuNumInputs[bfuName] = numIn;
+                            } else {
+                                bfu2bf[bfuName] = new std::set<Value*>();
+                                bfu2bf[bfuName]->insert(&*MI);
+                                bfuNumInputs[bfuName] = numIn;
                             }
                         }
+                    }
+                }
+                bfConflictMap = new int*[numBFs];
+                bfConflictMap_tmp = new int*[numBFs];
+
+                for (int i = 0; i < numBFs; i++) {
+                    bfConflictMap[i] = new int[numBFs];
+                    bfConflictMap_tmp[i] = new int[numBFs];
+                    for (int j = 0; j < numBFs; j++) {
+                        bfConflictMap[i][j] = -1;
+                        bfConflictMap_tmp[i][j] = -1;
+                    }
+                }
+            }
+
+            void generateInterconnect(int numALU) {
+                std::map<std::string, int> bfuIdx;
+                std::map<std::string, std::set<int>> bfuALUassigned;
+                int id;
+                for (int i = 0; i < numBFs; i++) {
+                    blueFunctions[i]->print(errs());
+                    errs() << '\n';
+                }
+                for (int i = 0; i < numBFs; i++) {
+                    for (int j = 0; j < numBFs; j++) {
+                        errs() << bfConflictMap[i][j] << "\t";
+                    }
+                    errs() << '\n';
+                }
+                for (auto bfu = bfu2bf.begin(); bfu != bfu2bf.end(); bfu++) {
+                    int conflictCount = -1;
+                    int numInputs = bfuNumInputs[bfu->first];
+                    bfuIdx[bfu->first] = id++;
+                    std::set<int> conflictIdx;
+                    std::set<int> shareIdx;
+                    for (auto bf = bfu->second->begin(); bf != bfu->second->end(); bf++) {
+                        int idx = bfIdx[*bf];
+                        for (int i = 0; i < numBFs-1; i++) {
+                            if (bfConflictMap[idx][i] > 0) {
+                                conflictCount = 0;
+                                shareIdx.insert(i);
+                            } else if (bfConflictMap[idx][i] == 0) {
+                                conflictCount = 0;
+                                conflictIdx.insert(i);
+                            }
+                        }
+                    }
+                    if (conflictCount == -1) {
+                        interconnectCFG << bfu->first << ": ";
+                        for (int i = 0; i < numInputs; i++) {
+                            bfuALUassigned[bfu->first].insert(i);
+                            interconnectCFG << "1 ";
+                        }
+                        for (int i = numInputs; i < numALU; i++) {
+                            interconnectCFG << "0 ";
+                        }
+                        interconnectCFG << "\n";
+                    } else {
+                        std::set<int> bfuConflictIdx;
+                        std::set<int> bfuShareIdx;
+                        for (auto idx_it = conflictIdx.begin(); idx_it != conflictIdx.end(); idx_it++) {
+                            int idx = *idx_it;
+                            Function* bf = dyn_cast<Function>(blueFunctions[idx]);
+                            MDNode *metadata = bf->getMetadata("primate");
+                            auto bfuName = cast<MDString>(metadata->getOperand(1))->getString().str();
+                            if (bfuALUassigned.find(bfuName) != bfuALUassigned.end()) {
+                                // for (auto tmp_it = bfuALUassigned[bfuName].begin(); tmp_it != bfuALUassigned[bfuName].end(); tmp_it++) {
+                                //     errs() << *tmp_it << " ";
+                                // }
+                                // errs() << "\n";
+                                bfuConflictIdx.insert(bfuALUassigned[bfuName].begin(), bfuALUassigned[bfuName].end());
+                            }
+                        }
+                        for (auto idx_it = shareIdx.begin(); idx_it != shareIdx.end(); idx_it++) {
+                            int idx = *idx_it;
+                            Function* bf = dyn_cast<Function>(blueFunctions[idx]);
+                            MDNode *metadata = bf->getMetadata("primate");
+                            auto bfuName = cast<MDString>(metadata->getOperand(1))->getString().str();
+                            if (bfuALUassigned.find(bfuName) != bfuALUassigned.end()) {
+                                // for (auto tmp_it = bfuALUassigned[bfuName].begin(); tmp_it != bfuALUassigned[bfuName].end(); tmp_it++) {
+                                //     errs() << *tmp_it << " ";
+                                // }
+                                // errs() << "\n";
+                                bfuShareIdx.insert(bfuALUassigned[bfuName].begin(), bfuALUassigned[bfuName].end());
+                            }
+                        }
+                        int numAssigned = 0;
+                        // Try to assign shared ALU first
+                        for (auto idx_it = bfuShareIdx.begin(); idx_it != bfuShareIdx.end(); idx_it++) {
+                            if (bfuConflictIdx.find(*idx_it) == bfuConflictIdx.end()) {
+                                bfuALUassigned[bfu->first].insert(*idx_it);
+                                numAssigned++;
+                            }
+                            if (numAssigned == numInputs) break;
+                        }
+                        if (numAssigned < numInputs) {
+                            for (int i = 0; i < numALU; i++) {
+                                if ((bfuConflictIdx.find(i) == bfuConflictIdx.end()) && (bfuShareIdx.find(i) == bfuShareIdx.end())) {
+                                    bfuALUassigned[bfu->first].insert(i);
+                                    numAssigned++;
+                                }
+                                if (numAssigned == numInputs) break;
+                            }
+                        }
+                        if (numAssigned < numInputs) {
+                            errs() << bfu->first << ": Warning! Unable to assign conflict-free ALUs\n";
+                            interconnectCFG << bfu->first << ": ";
+                            bfuALUassigned[bfu->first].clear();
+                            for (int i = 0; i < numInputs; i++) {
+                                bfuALUassigned[bfu->first].insert(i);
+                                interconnectCFG << "1 ";
+                            }
+                            for (int i = numInputs; i < numALU; i++) {
+                                interconnectCFG << "0 ";
+                            }
+                            interconnectCFG << "\n";
+                        } else {
+                            interconnectCFG << bfu->first << ": ";
+                            for (int i = 0; i < numALU; i++) {
+                                if (bfuALUassigned[bfu->first].find(i) != bfuALUassigned[bfu->first].end()) {
+                                    interconnectCFG << "1 ";
+                                } else {
+                                    interconnectCFG << "0 ";
+                                }
+                            }
+                            interconnectCFG << "\n";
+                        }
+                    }
+                    // else {
+                    //     interconnectCFG << bfu->first << ": ";
+                    //     for (int i = 0; i < numALU; i++) {
+                    //         bfuALUassigned[bfu->first].insert(i);
+                    //         interconnectCFG << "1 ";
+                    //     }
+                    //     interconnectCFG << "\n";
+                    // }
+                }
+            }
+
+            unsigned getNumThreads(Module &M, unsigned numALU) {
+                APInt maxVal(64, 0);
+                for (auto FI = blueFunctions.begin(); FI != blueFunctions.end(); FI++) {
+                    Function* bf = dyn_cast<Function>(*FI);
+                    MDNode *metadata = bf->getMetadata("primate");
+                    auto *latency = cast<ConstantAsMetadata>(metadata->getOperand(2))->getValue();
+                    auto latency_val = cast<ConstantInt>(latency)->getValue();
+                    if (latency_val.ugt(maxVal)) {
+                        maxVal = latency_val;
                     }
                 }
                 return (5 + (4 + numALU) + unsigned(maxVal.getZExtValue()));
@@ -1673,7 +1937,8 @@ namespace {
 
                 buildDependencyForest(F);
 
-                numALU = estimateNumALUs(F);
+                // numALU = estimateNumALUs(F);
+                numALU = 2;
 
                 // printDependencyForest(F);
                 numALUDSE(F, numALU, numInst, BALANCE);
@@ -1720,6 +1985,7 @@ namespace {
             	std::fill_n(live,50,0);
 
                 primateCFG.open("primate.cfg");
+                interconnectCFG.open("interconnect.cfg");
                 primateHeader.open("header.scala");
                 assemblerHeader.open("primate_assembler.h");
 
@@ -1730,7 +1996,8 @@ namespace {
                 int maxNumALU = 0;
                 int maxNumInst = 0;
                 unsigned maxConst = 0;
-            
+
+                initializeBFCMeta(M);
                 for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI)
                 {
                     int numALU = 0, numInst = 0;
@@ -1739,6 +2006,12 @@ namespace {
                     if (numALU > maxNumALU) maxNumALU = numALU;
                     if (numInst > maxNumInst) maxNumInst = numInst;
                     if (constVal > maxConst) maxConst = constVal;
+                    for (int i = 0; i < numBFs; i++) {
+                        for (int j = 0; j < numBFs; j++) {
+                            if (bfConflictMap_tmp[i][j] > bfConflictMap[i][j])
+                                bfConflictMap[i][j] = bfConflictMap_tmp[i][j];
+                        }
+                    }
                 }
                 int numRegs = 0;
                 for(unsigned int i=0;i<n;i++){
@@ -1755,9 +2028,9 @@ namespace {
                 assemblerHeader << "#define NUM_REGS_LG int(ceil(log2(NUM_REGS)))\n";
 
                 primateCFG << "NUM_ALUS=" << maxNumALU << "\n";
-                primateCFG << "NUM_BFUS=" << blueFunction->size() - 1 << "\n";
+                primateCFG << "NUM_BFUS=" << bfu2bf.size() - 1 << "\n";
                 assemblerHeader << "#define NUM_ALUS " << maxNumALU << "\n";
-                assemblerHeader << "#define NUM_FUS " << maxNumALU + blueFunction->size() - 1 << "\n";
+                assemblerHeader << "#define NUM_FUS " << maxNumALU + bfu2bf.size() - 1 << "\n";
                 assemblerHeader << "#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))\n";
 
                 primateCFG << "IP_WIDTH=" << int(ceil(log2(maxNumInst))) << "\n";
@@ -1767,7 +2040,10 @@ namespace {
                 primateCFG << "IMM_WIDTH=" << int(ceil(log2(maxConst))) << "\n";
                 assemblerHeader << "#define IMM_W " << int(ceil(log2(maxConst))) << "\n";
 
+                generateInterconnect(maxNumALU);
+
                 primateCFG.close();
+                interconnectCFG.close();
                 primateHeader.close();
                 assemblerHeader.close();
                 return false;
