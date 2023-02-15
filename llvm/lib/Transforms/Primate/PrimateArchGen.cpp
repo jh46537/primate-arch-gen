@@ -520,7 +520,7 @@ namespace {
 
                 primateCFG << "NUM_DST_POS=" << fieldIndex->size()-1 << "\n";
 
-                primateCFG << "NUM_DST_MODE=" << gatherModes->size()+1 << "\n";
+                primateCFG << "NUM_DST_MODE=" << scatterWbens.size() << "\n";
             }
 
             void generate_header(Module &M) {
