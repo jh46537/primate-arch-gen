@@ -121,8 +121,8 @@ void PrimateTargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__primate");
   bool Is64Bit = getTriple().getArch() == llvm::Triple::primate64;
   //FIXME(ahsu): archgen param!
-  //Builder.defineMacro("__primate_xlen", Is64Bit ? "64" : "32");
-  Builder.defineMacro("__primate_xlen", "256");
+  Builder.defineMacro("__primate_xlen", Is64Bit ? "64" : "32");
+  //Builder.defineMacro("__primate_xlen", "256");
   StringRef CodeModel = getTargetOpts().CodeModel;
   if (CodeModel == "default")
     CodeModel = "small";
