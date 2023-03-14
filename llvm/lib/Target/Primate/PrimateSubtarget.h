@@ -62,10 +62,10 @@ class PrimateSubtarget : public PrimateGenSubtargetInfo {
   bool EnablePRCHintInstrs = true;
   bool EnableSaveRestore = false;
   //FIXME(ahsu)
-  //unsigned XLen = 32;
-  //MVT XLenVT = MVT::i32;
-  unsigned XLen = 128;
-  MVT XLenVT = MVT::i128;
+  unsigned XLen = 32;
+  MVT XLenVT = MVT::i32;
+  //unsigned XLen = 128;
+  //MVT XLenVT = MVT::i128;
   uint8_t MaxInterleaveFactor = 2;
   PrimateABI::ABI TargetABI = PrimateABI::ABI_Unknown;
   BitVector UserReservedRegister;
