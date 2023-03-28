@@ -11619,8 +11619,8 @@ GCCTypeClass EvaluateBuiltinClassifyType(QualType T,
 #include "clang/Basic/RISCVVTypes.def"
 #define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
       return GCCTypeClass::None;
 
     case BuiltinType::Dependent:

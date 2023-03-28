@@ -2425,8 +2425,8 @@ bool Type::isRVVSizelessBuiltinType() const {
     switch (BT->getKind()) {
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
       return true;
     default:
       return false;
@@ -3388,10 +3388,10 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Id:                                                                     \
     return Name;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId)                                        \
-  case Id:                                                                     \
-    return Name;
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId)                                        \
+//  case Id:                                                                     \
+//    return Name;
+//#include "clang/Basic/PrimateVTypes.def"
   }
 
   llvm_unreachable("Invalid builtin type.");
@@ -4558,8 +4558,8 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
 #include "clang/Basic/RISCVVTypes.def"
 #define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
     case BuiltinType::BuiltinFn:
     case BuiltinType::NullPtr:
     case BuiltinType::IncompleteMatrixIdx:

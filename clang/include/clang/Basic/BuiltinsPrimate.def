@@ -15,7 +15,7 @@
 #   define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
 #endif
 
-#include "clang/Basic/primate_vector_builtins.inc"
+//#include "clang/Basic/primate_vector_builtins.inc"
 
 // Zbb extension
 TARGET_BUILTIN(__builtin_primate_orc_b_32, "ZiZi", "nc", "experimental-zbb")

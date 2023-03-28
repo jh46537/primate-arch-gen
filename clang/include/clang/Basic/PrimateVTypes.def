@@ -1,147 +1,147 @@
-//===-- PrimateVTypes.def - Metadata for the Primate V types ---*- C++ -*--===//
+////===-- PrimateVTypes.def - Metadata for the Primate V types ---*- C++ -*--===//
+////
+//// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+//// See https://llvm.org/LICENSE.txt for license information.
+//// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+////
+////===----------------------------------------------------------------------===//
+////
+//// This file defines various Primate V builtin types.  The macros are:
+////
+//// - PRV_TYPE(Name, Id, SingletonId)
+////   A builtin type that has not been covered by any other #define
+////   Defining this macro covers all the builtins.
+////
+//// - PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, IsSigned, IsFP)
+////   A Primate V scalable vector.
+////
+//// - PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)
+////   An Primate V scalable mask.
+////
+//// where:
+////
+//// - Name is the name of the builtin type.
+////
+//// - Id is the enumerator defining the type.
+////
+//// - SingletonId is the global singleton of this type.
+////
+//// - NumEls enumerates the number of the elements.
+////
+//// - ElBits is the size of one element in bits (SEW).
+////
+//// - NF is the number of fields (NFIELDS) used in the Zvlsseg instructions
+////   (TODO).
+////
+//// - IsSigned is true for vectors of signed integer elements and
+////   for vectors of floating-point elements.
+////
+//// - IsFP is true for vectors of floating-point elements.
+////
+////===----------------------------------------------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//#ifndef PRV_VECTOR_TYPE
+//#define PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned, IsFP)\
+//  PRV_TYPE(Name, Id, SingletonId)
+//#endif
 //
-//===----------------------------------------------------------------------===//
+//#ifndef PRV_PREDICATE_TYPE
+//#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)\
+//  PRV_TYPE(Name, Id, SingletonId)
+//#endif
 //
-// This file defines various Primate V builtin types.  The macros are:
+//#ifndef PRV_VECTOR_TYPE_INT
+//#define PRV_VECTOR_TYPE_INT(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned) \
+//  PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned, false)
+//#endif
 //
-// - PRV_TYPE(Name, Id, SingletonId)
-//   A builtin type that has not been covered by any other #define
-//   Defining this macro covers all the builtins.
+//#ifndef PRV_VECTOR_TYPE_FLOAT
+//#define PRV_VECTOR_TYPE_FLOAT(Name, Id, SingletonId, NumEls, ElBits, NF) \
+//  PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, false, true)
+//#endif
 //
-// - PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, IsSigned, IsFP)
-//   A Primate V scalable vector.
+////===- Vector types -------------------------------------------------------===//
 //
-// - PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)
-//   An Primate V scalable mask.
+//PRV_VECTOR_TYPE_INT("__prv_int8mf8_t", PrvInt8mf8, PrvInt8mf8Ty, 1,   8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8mf4_t", PrvInt8mf4, PrvInt8mf4Ty, 2,   8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8mf2_t", PrvInt8mf2, PrvInt8mf2Ty, 4,   8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8m1_t",  PrvInt8m1,  PrvInt8m1Ty,  8,   8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8m2_t",  PrvInt8m2,  PrvInt8m2Ty,  16,  8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8m4_t",  PrvInt8m4,  PrvInt8m4Ty,  32,  8, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int8m8_t",  PrvInt8m8,  PrvInt8m8Ty,  64,  8, 1, true)
 //
-// where:
+//PRV_VECTOR_TYPE_INT("__prv_uint8mf8_t",PrvUint8mf8,PrvUint8mf8Ty,1,   8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8mf4_t",PrvUint8mf4,PrvUint8mf4Ty,2,   8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8mf2_t",PrvUint8mf2,PrvUint8mf2Ty,4,   8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8m1_t", PrvUint8m1, PrvUint8m1Ty, 8,   8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8m2_t", PrvUint8m2, PrvUint8m2Ty, 16,  8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8m4_t", PrvUint8m4, PrvUint8m4Ty, 32,  8, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint8m8_t", PrvUint8m8, PrvUint8m8Ty, 64,  8, 1, false)
 //
-// - Name is the name of the builtin type.
+//PRV_VECTOR_TYPE_INT("__prv_int16mf4_t",PrvInt16mf4,PrvInt16mf4Ty,1,  16, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int16mf2_t",PrvInt16mf2,PrvInt16mf2Ty,2,  16, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int16m1_t", PrvInt16m1, PrvInt16m1Ty, 4,  16, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int16m2_t", PrvInt16m2, PrvInt16m2Ty, 8,  16, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int16m4_t", PrvInt16m4, PrvInt16m4Ty, 16, 16, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int16m8_t", PrvInt16m8, PrvInt16m8Ty, 32, 16, 1, true)
 //
-// - Id is the enumerator defining the type.
+//PRV_VECTOR_TYPE_INT("__prv_uint16mf4_t",PrvUint16mf4,PrvUint16mf4Ty,1,  16, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint16mf2_t",PrvUint16mf2,PrvUint16mf2Ty,2,  16, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint16m1_t", PrvUint16m1, PrvUint16m1Ty, 4,  16, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint16m2_t", PrvUint16m2, PrvUint16m2Ty, 8,  16, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint16m4_t", PrvUint16m4, PrvUint16m4Ty, 16, 16, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint16m8_t", PrvUint16m8, PrvUint16m8Ty, 32, 16, 1, false)
 //
-// - SingletonId is the global singleton of this type.
+//PRV_VECTOR_TYPE_INT("__prv_int32mf2_t",PrvInt32mf2,PrvInt32mf2Ty,1,  32, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int32m1_t", PrvInt32m1, PrvInt32m1Ty, 2,  32, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int32m2_t", PrvInt32m2, PrvInt32m2Ty, 4,  32, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int32m4_t", PrvInt32m4, PrvInt32m4Ty, 8,  32, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int32m8_t", PrvInt32m8, PrvInt32m8Ty, 16, 32, 1, true)
 //
-// - NumEls enumerates the number of the elements.
+//PRV_VECTOR_TYPE_INT("__prv_uint32mf2_t",PrvUint32mf2,PrvUint32mf2Ty,1,  32, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint32m1_t", PrvUint32m1, PrvUint32m1Ty, 2,  32, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint32m2_t", PrvUint32m2, PrvUint32m2Ty, 4,  32, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint32m4_t", PrvUint32m4, PrvUint32m4Ty, 8,  32, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint32m8_t", PrvUint32m8, PrvUint32m8Ty, 16, 32, 1, false)
 //
-// - ElBits is the size of one element in bits (SEW).
+//PRV_VECTOR_TYPE_INT("__prv_int64m1_t", PrvInt64m1, PrvInt64m1Ty, 1,  64, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int64m2_t", PrvInt64m2, PrvInt64m2Ty, 2,  64, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int64m4_t", PrvInt64m4, PrvInt64m4Ty, 4,  64, 1, true)
+//PRV_VECTOR_TYPE_INT("__prv_int64m8_t", PrvInt64m8, PrvInt64m8Ty, 8,  64, 1, true)
 //
-// - NF is the number of fields (NFIELDS) used in the Zvlsseg instructions
-//   (TODO).
+//PRV_VECTOR_TYPE_INT("__prv_uint64m1_t",PrvUint64m1,PrvUint64m1Ty,1,  64, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint64m2_t",PrvUint64m2,PrvUint64m2Ty,2,  64, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint64m4_t",PrvUint64m4,PrvUint64m4Ty,4,  64, 1, false)
+//PRV_VECTOR_TYPE_INT("__prv_uint64m8_t",PrvUint64m8,PrvUint64m8Ty,8,  64, 1, false)
 //
-// - IsSigned is true for vectors of signed integer elements and
-//   for vectors of floating-point elements.
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16mf4_t",PrvFloat16mf4,PrvFloat16mf4Ty,1,  16, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16mf2_t",PrvFloat16mf2,PrvFloat16mf2Ty,2,  16, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16m1_t", PrvFloat16m1, PrvFloat16m1Ty, 4,  16, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16m2_t", PrvFloat16m2, PrvFloat16m2Ty, 8,  16, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16m4_t", PrvFloat16m4, PrvFloat16m4Ty, 16, 16, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float16m8_t", PrvFloat16m8, PrvFloat16m8Ty, 32, 16, 1)
 //
-// - IsFP is true for vectors of floating-point elements.
+//PRV_VECTOR_TYPE_FLOAT("__prv_float32mf2_t",PrvFloat32mf2,PrvFloat32mf2Ty,1,  32, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float32m1_t", PrvFloat32m1, PrvFloat32m1Ty, 2,  32, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float32m2_t", PrvFloat32m2, PrvFloat32m2Ty, 4,  32, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float32m4_t", PrvFloat32m4, PrvFloat32m4Ty, 8,  32, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float32m8_t", PrvFloat32m8, PrvFloat32m8Ty, 16, 32, 1)
 //
-//===----------------------------------------------------------------------===//
-
-#ifndef PRV_VECTOR_TYPE
-#define PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned, IsFP)\
-  PRV_TYPE(Name, Id, SingletonId)
-#endif
-
-#ifndef PRV_PREDICATE_TYPE
-#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)\
-  PRV_TYPE(Name, Id, SingletonId)
-#endif
-
-#ifndef PRV_VECTOR_TYPE_INT
-#define PRV_VECTOR_TYPE_INT(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned) \
-  PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned, false)
-#endif
-
-#ifndef PRV_VECTOR_TYPE_FLOAT
-#define PRV_VECTOR_TYPE_FLOAT(Name, Id, SingletonId, NumEls, ElBits, NF) \
-  PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, false, true)
-#endif
-
-//===- Vector types -------------------------------------------------------===//
-
-PRV_VECTOR_TYPE_INT("__prv_int8mf8_t", PrvInt8mf8, PrvInt8mf8Ty, 1,   8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8mf4_t", PrvInt8mf4, PrvInt8mf4Ty, 2,   8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8mf2_t", PrvInt8mf2, PrvInt8mf2Ty, 4,   8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8m1_t",  PrvInt8m1,  PrvInt8m1Ty,  8,   8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8m2_t",  PrvInt8m2,  PrvInt8m2Ty,  16,  8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8m4_t",  PrvInt8m4,  PrvInt8m4Ty,  32,  8, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int8m8_t",  PrvInt8m8,  PrvInt8m8Ty,  64,  8, 1, true)
-
-PRV_VECTOR_TYPE_INT("__prv_uint8mf8_t",PrvUint8mf8,PrvUint8mf8Ty,1,   8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8mf4_t",PrvUint8mf4,PrvUint8mf4Ty,2,   8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8mf2_t",PrvUint8mf2,PrvUint8mf2Ty,4,   8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8m1_t", PrvUint8m1, PrvUint8m1Ty, 8,   8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8m2_t", PrvUint8m2, PrvUint8m2Ty, 16,  8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8m4_t", PrvUint8m4, PrvUint8m4Ty, 32,  8, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint8m8_t", PrvUint8m8, PrvUint8m8Ty, 64,  8, 1, false)
-
-PRV_VECTOR_TYPE_INT("__prv_int16mf4_t",PrvInt16mf4,PrvInt16mf4Ty,1,  16, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int16mf2_t",PrvInt16mf2,PrvInt16mf2Ty,2,  16, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int16m1_t", PrvInt16m1, PrvInt16m1Ty, 4,  16, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int16m2_t", PrvInt16m2, PrvInt16m2Ty, 8,  16, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int16m4_t", PrvInt16m4, PrvInt16m4Ty, 16, 16, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int16m8_t", PrvInt16m8, PrvInt16m8Ty, 32, 16, 1, true)
-
-PRV_VECTOR_TYPE_INT("__prv_uint16mf4_t",PrvUint16mf4,PrvUint16mf4Ty,1,  16, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint16mf2_t",PrvUint16mf2,PrvUint16mf2Ty,2,  16, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint16m1_t", PrvUint16m1, PrvUint16m1Ty, 4,  16, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint16m2_t", PrvUint16m2, PrvUint16m2Ty, 8,  16, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint16m4_t", PrvUint16m4, PrvUint16m4Ty, 16, 16, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint16m8_t", PrvUint16m8, PrvUint16m8Ty, 32, 16, 1, false)
-
-PRV_VECTOR_TYPE_INT("__prv_int32mf2_t",PrvInt32mf2,PrvInt32mf2Ty,1,  32, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int32m1_t", PrvInt32m1, PrvInt32m1Ty, 2,  32, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int32m2_t", PrvInt32m2, PrvInt32m2Ty, 4,  32, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int32m4_t", PrvInt32m4, PrvInt32m4Ty, 8,  32, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int32m8_t", PrvInt32m8, PrvInt32m8Ty, 16, 32, 1, true)
-
-PRV_VECTOR_TYPE_INT("__prv_uint32mf2_t",PrvUint32mf2,PrvUint32mf2Ty,1,  32, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint32m1_t", PrvUint32m1, PrvUint32m1Ty, 2,  32, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint32m2_t", PrvUint32m2, PrvUint32m2Ty, 4,  32, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint32m4_t", PrvUint32m4, PrvUint32m4Ty, 8,  32, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint32m8_t", PrvUint32m8, PrvUint32m8Ty, 16, 32, 1, false)
-
-PRV_VECTOR_TYPE_INT("__prv_int64m1_t", PrvInt64m1, PrvInt64m1Ty, 1,  64, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int64m2_t", PrvInt64m2, PrvInt64m2Ty, 2,  64, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int64m4_t", PrvInt64m4, PrvInt64m4Ty, 4,  64, 1, true)
-PRV_VECTOR_TYPE_INT("__prv_int64m8_t", PrvInt64m8, PrvInt64m8Ty, 8,  64, 1, true)
-
-PRV_VECTOR_TYPE_INT("__prv_uint64m1_t",PrvUint64m1,PrvUint64m1Ty,1,  64, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint64m2_t",PrvUint64m2,PrvUint64m2Ty,2,  64, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint64m4_t",PrvUint64m4,PrvUint64m4Ty,4,  64, 1, false)
-PRV_VECTOR_TYPE_INT("__prv_uint64m8_t",PrvUint64m8,PrvUint64m8Ty,8,  64, 1, false)
-
-PRV_VECTOR_TYPE_FLOAT("__prv_float16mf4_t",PrvFloat16mf4,PrvFloat16mf4Ty,1,  16, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float16mf2_t",PrvFloat16mf2,PrvFloat16mf2Ty,2,  16, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float16m1_t", PrvFloat16m1, PrvFloat16m1Ty, 4,  16, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float16m2_t", PrvFloat16m2, PrvFloat16m2Ty, 8,  16, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float16m4_t", PrvFloat16m4, PrvFloat16m4Ty, 16, 16, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float16m8_t", PrvFloat16m8, PrvFloat16m8Ty, 32, 16, 1)
-
-PRV_VECTOR_TYPE_FLOAT("__prv_float32mf2_t",PrvFloat32mf2,PrvFloat32mf2Ty,1,  32, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float32m1_t", PrvFloat32m1, PrvFloat32m1Ty, 2,  32, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float32m2_t", PrvFloat32m2, PrvFloat32m2Ty, 4,  32, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float32m4_t", PrvFloat32m4, PrvFloat32m4Ty, 8,  32, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float32m8_t", PrvFloat32m8, PrvFloat32m8Ty, 16, 32, 1)
-
-PRV_VECTOR_TYPE_FLOAT("__prv_float64m1_t", PrvFloat64m1, PrvFloat64m1Ty, 1,  64, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float64m2_t", PrvFloat64m2, PrvFloat64m2Ty, 2,  64, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float64m4_t", PrvFloat64m4, PrvFloat64m4Ty, 4,  64, 1)
-PRV_VECTOR_TYPE_FLOAT("__prv_float64m8_t", PrvFloat64m8, PrvFloat64m8Ty, 8,  64, 1)
-
-PRV_PREDICATE_TYPE("__prv_bool1_t",  PrvBool1,  PrvBool1Ty,  64)
-PRV_PREDICATE_TYPE("__prv_bool2_t",  PrvBool2,  PrvBool2Ty,  32)
-PRV_PREDICATE_TYPE("__prv_bool4_t",  PrvBool4,  PrvBool4Ty,  16)
-PRV_PREDICATE_TYPE("__prv_bool8_t",  PrvBool8,  PrvBool8Ty,  8)
-PRV_PREDICATE_TYPE("__prv_bool16_t", PrvBool16, PrvBool16Ty, 4)
-PRV_PREDICATE_TYPE("__prv_bool32_t", PrvBool32, PrvBool32Ty, 2)
-PRV_PREDICATE_TYPE("__prv_bool64_t", PrvBool64, PrvBool64Ty, 1)
-
-#undef PRV_VECTOR_TYPE_FLOAT
-#undef PRV_VECTOR_TYPE_INT
-#undef PRV_VECTOR_TYPE
-#undef PRV_PREDICATE_TYPE
-#undef PRV_TYPE
+//PRV_VECTOR_TYPE_FLOAT("__prv_float64m1_t", PrvFloat64m1, PrvFloat64m1Ty, 1,  64, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float64m2_t", PrvFloat64m2, PrvFloat64m2Ty, 2,  64, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float64m4_t", PrvFloat64m4, PrvFloat64m4Ty, 4,  64, 1)
+//PRV_VECTOR_TYPE_FLOAT("__prv_float64m8_t", PrvFloat64m8, PrvFloat64m8Ty, 8,  64, 1)
+//
+//PRV_PREDICATE_TYPE("__prv_bool1_t",  PrvBool1,  PrvBool1Ty,  64)
+//PRV_PREDICATE_TYPE("__prv_bool2_t",  PrvBool2,  PrvBool2Ty,  32)
+//PRV_PREDICATE_TYPE("__prv_bool4_t",  PrvBool4,  PrvBool4Ty,  16)
+//PRV_PREDICATE_TYPE("__prv_bool8_t",  PrvBool8,  PrvBool8Ty,  8)
+//PRV_PREDICATE_TYPE("__prv_bool16_t", PrvBool16, PrvBool16Ty, 4)
+//PRV_PREDICATE_TYPE("__prv_bool32_t", PrvBool32, PrvBool32Ty, 2)
+//PRV_PREDICATE_TYPE("__prv_bool64_t", PrvBool64, PrvBool64Ty, 1)
+//
+//#undef PRV_VECTOR_TYPE_FLOAT
+//#undef PRV_VECTOR_TYPE_INT
+//#undef PRV_VECTOR_TYPE
+//#undef PRV_PREDICATE_TYPE
+//#undef PRV_TYPE

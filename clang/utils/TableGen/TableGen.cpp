@@ -105,9 +105,9 @@ enum ActionType {
   GenRISCVSiFiveVectorBuiltins,
   GenRISCVSiFiveVectorBuiltinCG,
   GenRISCVSiFiveVectorBuiltinSema,
-  GenPrimateVectorHeader,
-  GenPrimateVectorBuiltins,
-  GenPrimateVectorBuiltinCG,
+  //GenPrimateVectorHeader,
+  //GenPrimateVectorBuiltins,
+  //GenPrimateVectorBuiltinCG,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -305,13 +305,12 @@ cl::opt<ActionType> Action(
         clEnumValN(GenRISCVSiFiveVectorBuiltinSema,
                    "gen-riscv-sifive-vector-builtin-sema",
                    "Generate riscv_sifive_vector_builtin_sema.inc for clang"),
-        clEnumValN(GenPrimateVectorHeader, "gen-primate-vector-header",
-                   "Generate primate_vector.h for clang"),
-        clEnumValN(GenPrimateVectorBuiltins, "gen-primate-vector-builtins",
-                   "Generate primate_vector_builtins.inc for clang"),
-        clEnumValN(GenPrimateVectorBuiltinCG,
-                   "gen-primate-vector-builtin-codegen",
-                   "Generate primate_vector_builtin_cg.inc for clang"),
+        //clEnumValN(GenPrimateVectorHeader, "gen-primate-vector-header",
+        //           "Generate primate_vector.h for clang"),
+        //clEnumValN(GenPrimateVectorBuiltins, "gen-primate-vector-builtins",
+        //           "Generate primate_vector_builtins.inc for clang"),
+        //clEnumValN(GenPrimateVectorBuiltinCG,
+        //           "gen-primate-vector-builtin-codegen",
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -575,15 +574,15 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenRISCVSiFiveVectorBuiltinSema:
     EmitRVVBuiltinSema(Records, OS);
-  case GenPrimateVectorHeader:
-    EmitPRVHeader(Records, OS);
-    break;
-  case GenPrimateVectorBuiltins:
-    EmitPRVBuiltins(Records, OS);
-    break;
-  case GenPrimateVectorBuiltinCG:
-    EmitPRVBuiltinCG(Records, OS);
-    break;
+  //case GenPrimateVectorHeader:
+  //  EmitPRVHeader(Records, OS);
+  //  break;
+  //case GenPrimateVectorBuiltins:
+  //  EmitPRVBuiltins(Records, OS);
+  //  break;
+  //case GenPrimateVectorBuiltinCG:
+  //  EmitPRVBuiltinCG(Records, OS);
+  //  break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);
     break;

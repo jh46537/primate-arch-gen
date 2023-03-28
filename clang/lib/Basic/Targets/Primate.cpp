@@ -31,13 +31,13 @@ ArrayRef<const char *> PrimateTargetInfo::getGCCRegNames() const {
       "f0",  "f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",
       "f8",  "f9",  "f10", "f11", "f12", "f13", "f14", "f15",
       "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23",
-      "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31",
+      "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31"/*,
 
       // Vector registers
       "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",
       "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",
       "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",
-      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"};
+      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"*/};
   return llvm::makeArrayRef(GCCRegNames);
 }
 
@@ -90,24 +90,24 @@ bool PrimateTargetInfo::validateAsmConstraint(
   case 'S': // A symbolic address
     Info.setAllowsRegister();
     return true;
-  case 'v':
-    // A vector register.
-    if (Name[1] == 'r' || Name[1] == 'm') {
-      Info.setAllowsRegister();
-      Name += 1;
-      return true;
-    }
-    return false;
+  //case 'v':
+  //  // A vector register.
+  //  if (Name[1] == 'r' || Name[1] == 'm') {
+  //    Info.setAllowsRegister();
+  //    Name += 1;
+  //    return true;
+  //  }
+  //  return false;
   }
 }
 
 std::string PrimateTargetInfo::convertConstraint(const char *&Constraint) const {
   std::string R;
   switch (*Constraint) {
-  case 'v':
-    R = std::string("v");
-    Constraint += 1;
-    break;
+  //case 'v':
+  //  R = std::string("v");
+  //  Constraint += 1;
+  //  break;
   default:
     R = TargetInfo::convertConstraint(Constraint);
     break;
@@ -183,10 +183,10 @@ void PrimateTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__primate_bitmanip");
   }
 
-  if (HasV) {
-    Builder.defineMacro("__primate_v", "10000");
-    Builder.defineMacro("__primate_vector");
-  }
+  //if (HasV) {
+  //  Builder.defineMacro("__primate_v", "10000");
+  //  Builder.defineMacro("__primate_vector");
+  //}
 
   if (HasZba)
     Builder.defineMacro("__primate_zba", "93000");
@@ -268,7 +268,7 @@ bool PrimateTargetInfo::hasFeature(StringRef Feature) const {
       .Case("d", HasD)
       .Case("c", HasC)
       .Case("experimental-b", HasB)
-      .Case("experimental-v", HasV)
+      //.Case("experimental-v", HasV)
       .Case("experimental-zba", HasZba)
       .Case("experimental-zbb", HasZbb)
       .Case("experimental-zbc", HasZbc)
@@ -302,8 +302,8 @@ bool PrimateTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasC = true;
     else if (Feature == "+experimental-b")
       HasB = true;
-    else if (Feature == "+experimental-v")
-      HasV = true;
+    //else if (Feature == "+experimental-v")
+    //  HasV = true;
     else if (Feature == "+experimental-zba")
       HasZba = true;
     else if (Feature == "+experimental-zbb")
