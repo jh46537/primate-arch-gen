@@ -90,9 +90,9 @@ clang_tablegen(riscv_vector_builtins.inc -gen-riscv-vector-builtins
 clang_tablegen(riscv_vector_builtin_cg.inc -gen-riscv-vector-builtin-codegen
   SOURCE riscv_vector.td
   TARGET ClangRISCVVectorBuiltinCG)
-clang_tablegen(primate_vector_builtins.inc -gen-primate-vector-builtins
-  SOURCE primate_vector.td
-  TARGET ClangPrimateVectorBuiltins)
-clang_tablegen(primate_vector_builtin_cg.inc -gen-primate-vector-builtin-codegen
-  SOURCE primate_vector.td
-  TARGET ClangPrimateVectorBuiltinCG)
+#clang_tablegen(primate_vector_builtins.inc -gen-primate-vector-builtins
+#  SOURCE primate_vector.td
+#  TARGET ClangPrimateVectorBuiltins)
+#clang_tablegen(primate_vector_builtin_cg.inc -gen-primate-vector-builtin-codegen
+#  SOURCE primate_vector.td
+#  TARGET ClangPrimateVectorBuiltinCG)

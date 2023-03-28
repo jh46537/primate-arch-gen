@@ -421,11 +421,11 @@ void Sema::Initialize() {
 #include "clang/Basic/RISCVVTypes.def"
   }
 
-  if (Context.getTargetInfo().hasPrimateVTypes()) {
-#define PRV_TYPE(Name, Id, SingletonId)                                        \
-  addImplicitTypedef(Name, Context.SingletonId);
-#include "clang/Basic/PrimateVTypes.def"
-  }
+//  if (Context.getTargetInfo().hasPrimateVTypes()) {
+//#define PRV_TYPE(Name, Id, SingletonId)                                        \
+//  addImplicitTypedef(Name, Context.SingletonId);
+//#include "clang/Basic/PrimateVTypes.def"
+//  }
 
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {
     DeclarationName MSVaList = &Context.Idents.get("__builtin_ms_va_list");

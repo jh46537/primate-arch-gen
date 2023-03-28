@@ -734,8 +734,8 @@ void USRGenerator::VisitType(QualType T) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
         case BuiltinType::ShortAccum:
         case BuiltinType::Accum:
         case BuiltinType::LongAccum:

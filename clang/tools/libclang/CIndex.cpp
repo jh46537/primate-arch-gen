@@ -1551,8 +1551,8 @@ bool CursorVisitor::VisitBuiltinTypeLoc(BuiltinTypeLoc TL) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
 #define BUILTIN_TYPE(Id, SingletonId)
 #define SIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:
 #define UNSIGNED_TYPE(Id, SingletonId) case BuiltinType::Id:

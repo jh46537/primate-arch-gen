@@ -11634,6 +11634,18 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
   case llvm::Triple::msp430:
     return SetCGInfo(new MSP430TargetCodeGenInfo(Types));
 
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64: {
+    StringRef ABIStr = getTarget().getABI();
+    unsigned XLen = getTarget().getPointerWidth(0);
+    unsigned ABIFLen = 0;
+    if (ABIStr.endswith("f"))
+      ABIFLen = 32;
+    else if (ABIStr.endswith("d"))
+      ABIFLen = 64;
+    return SetCGInfo(new RISCVTargetCodeGenInfo(Types, XLen, ABIFLen));
+  }
+
   case llvm::Triple::primate32:
   case llvm::Triple::primate64: {
     StringRef ABIStr = getTarget().getABI();

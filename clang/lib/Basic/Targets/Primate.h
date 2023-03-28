@@ -31,7 +31,7 @@ protected:
   bool HasD = false;
   bool HasC = false;
   bool HasB = false;
-  bool HasV = false;
+  //bool HasV = false;
   bool HasZba = false;
   bool HasZbb = false;
   bool HasZbc = false;
@@ -58,7 +58,7 @@ public:
     SuitableAlign = 128;
     WCharType = SignedInt;
     WIntType = UnsignedInt;
-    HasPrimateVTypes = true;
+    //HasPrimateVTypes = true;
     MCountName = "_mcount";
     HasFloat16 = true;
   }

@@ -12579,7 +12579,7 @@ private:
   bool CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum);
   bool CheckRISCVBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                      CallExpr *TheCall);
-  bool CheckPrimateLMUL(CallExpr *TheCall, unsigned ArgNum);
+  //bool CheckPrimateLMUL(CallExpr *TheCall, unsigned ArgNum);
   bool CheckPrimateBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                                        CallExpr *TheCall);
 

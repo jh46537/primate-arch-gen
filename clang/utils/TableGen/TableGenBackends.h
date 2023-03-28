@@ -109,9 +109,9 @@ void EmitMveBuiltinAliases(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitRVVHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitRVVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitRVVBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
-void EmitPRVHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
-void EmitPRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
-void EmitPRVBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+//void EmitPRVHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+//void EmitPRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+//void EmitPRVBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitCdeHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitCdeBuiltinDef(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);

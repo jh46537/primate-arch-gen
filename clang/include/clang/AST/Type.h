@@ -2502,9 +2502,9 @@ public:
 // RVV Types
 #define RVV_TYPE(Name, Id, SingletonId) Id,
 #include "clang/Basic/RISCVVTypes.def"
-// PRV Types
-#define PRV_TYPE(Name, Id, SingletonId) Id,
-#include "clang/Basic/PrimateVTypes.def"
+//// PRV Types
+//#define PRV_TYPE(Name, Id, SingletonId) Id,
+//#include "clang/Basic/PrimateVTypes.def"
 // All other builtin types
 #define BUILTIN_TYPE(Id, SingletonId) Id,
 #define LAST_BUILTIN_TYPE(Id) LastKind = Id

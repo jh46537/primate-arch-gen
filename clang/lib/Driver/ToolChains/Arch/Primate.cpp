@@ -62,8 +62,8 @@ isExperimentalExtension(StringRef Ext) {
       Ext == "zbe" || Ext == "zbf" || Ext == "zbm" || Ext == "zbp" ||
       Ext == "zbr" || Ext == "zbs" || Ext == "zbt" || Ext == "zbproposedc")
     return PrimateExtensionVersion{"0", "93"};
-  if (Ext == "v" || Ext == "zvamo" || Ext == "zvlsseg")
-    return PrimateExtensionVersion{"0", "10"};
+  //if (Ext == "v" || Ext == "zvamo" || Ext == "zvlsseg")
+  //  return PrimateExtensionVersion{"0", "10"};
   if (Ext == "zfh")
     return PrimateExtensionVersion{"0", "1"};
   return None;
@@ -258,14 +258,15 @@ static void getExtensionFeatures(const Driver &D,
         << MArch << Error << Ext;
       return;
     }
-    if (Ext == "zvlsseg") {
-      Features.push_back("+experimental-v");
-      Features.push_back("+experimental-zvlsseg");
-    } else if (Ext == "zvamo") {
-      Features.push_back("+experimental-v");
-      Features.push_back("+experimental-zvlsseg");
-      Features.push_back("+experimental-zvamo");
-    } else if (isExperimentalExtension(Ext))
+    //if (Ext == "zvlsseg") {
+    //  Features.push_back("+experimental-v");
+    //  Features.push_back("+experimental-zvlsseg");
+    //} else if (Ext == "zvamo") {
+    //  Features.push_back("+experimental-v");
+    //  Features.push_back("+experimental-zvlsseg");
+    //  Features.push_back("+experimental-zvamo");
+    //} else if (isExperimentalExtension(Ext))
+    if (isExperimentalExtension(Ext))
       Features.push_back(Args.MakeArgString("+experimental-" + Ext));
     else
       Features.push_back(Args.MakeArgString("+" + Ext));
@@ -433,10 +434,10 @@ static bool getArchFeatures(const Driver &D, StringRef MArch,
       Features.push_back("+experimental-zbs");
       Features.push_back("+experimental-zbt");
       break;
-    case 'v':
-      Features.push_back("+experimental-v");
-      Features.push_back("+experimental-zvlsseg");
-      break;
+    //case 'v':
+    //  Features.push_back("+experimental-v");
+    //  Features.push_back("+experimental-zvlsseg");
+    //  break;
     }
 
     // Consume full extension name and version, including any optional '_'

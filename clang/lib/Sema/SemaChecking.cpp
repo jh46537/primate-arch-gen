@@ -3726,25 +3726,25 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   return false;
 }
 
-bool Sema::CheckPrimateLMUL(CallExpr *TheCall, unsigned ArgNum) {
-  llvm::APSInt Result;
-
-  // We can't check the value of a dependent argument.
-  Expr *Arg = TheCall->getArg(ArgNum);
-  if (Arg->isTypeDependent() || Arg->isValueDependent())
-    return false;
-
-  // Check constant-ness first.
-  if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
-    return true;
-
-  int64_t Val = Result.getSExtValue();
-  if ((Val >= 0 && Val <= 3) || (Val >= 5 && Val <= 7))
-    return false;
-
-  return Diag(TheCall->getBeginLoc(), diag::err_riscv_builtin_invalid_lmul)
-         << Arg->getSourceRange();
-}
+//bool Sema::CheckPrimateLMUL(CallExpr *TheCall, unsigned ArgNum) {
+//  llvm::APSInt Result;
+//
+//  // We can't check the value of a dependent argument.
+//  Expr *Arg = TheCall->getArg(ArgNum);
+//  if (Arg->isTypeDependent() || Arg->isValueDependent())
+//    return false;
+//
+//  // Check constant-ness first.
+//  if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
+//    return true;
+//
+//  int64_t Val = Result.getSExtValue();
+//  if ((Val >= 0 && Val <= 3) || (Val >= 5 && Val <= 7))
+//    return false;
+//
+//  return Diag(TheCall->getBeginLoc(), diag::err_riscv_builtin_invalid_lmul)
+//         << Arg->getSourceRange();
+//}
 
 bool Sema::CheckPrimateBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID,
@@ -3781,138 +3781,138 @@ bool Sema::CheckPrimateBuiltinFunctionCall(const TargetInfo &TI,
     return true;
 
   switch (BuiltinID) {
-  case Primate::BI__builtin_prv_vsetvli:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3) ||
-           CheckPrimateLMUL(TheCall, 2);
-  case Primate::BI__builtin_prv_vsetvlimax:
-    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
-           CheckPrimateLMUL(TheCall, 1);
-  case Primate::BI__builtin_prv_vget_v_i8m2_i8m1:
-  case Primate::BI__builtin_prv_vget_v_i16m2_i16m1:
-  case Primate::BI__builtin_prv_vget_v_i32m2_i32m1:
-  case Primate::BI__builtin_prv_vget_v_i64m2_i64m1:
-  case Primate::BI__builtin_prv_vget_v_f32m2_f32m1:
-  case Primate::BI__builtin_prv_vget_v_f64m2_f64m1:
-  case Primate::BI__builtin_prv_vget_v_u8m2_u8m1:
-  case Primate::BI__builtin_prv_vget_v_u16m2_u16m1:
-  case Primate::BI__builtin_prv_vget_v_u32m2_u32m1:
-  case Primate::BI__builtin_prv_vget_v_u64m2_u64m1:
-  case Primate::BI__builtin_prv_vget_v_i8m4_i8m2:
-  case Primate::BI__builtin_prv_vget_v_i16m4_i16m2:
-  case Primate::BI__builtin_prv_vget_v_i32m4_i32m2:
-  case Primate::BI__builtin_prv_vget_v_i64m4_i64m2:
-  case Primate::BI__builtin_prv_vget_v_f32m4_f32m2:
-  case Primate::BI__builtin_prv_vget_v_f64m4_f64m2:
-  case Primate::BI__builtin_prv_vget_v_u8m4_u8m2:
-  case Primate::BI__builtin_prv_vget_v_u16m4_u16m2:
-  case Primate::BI__builtin_prv_vget_v_u32m4_u32m2:
-  case Primate::BI__builtin_prv_vget_v_u64m4_u64m2:
-  case Primate::BI__builtin_prv_vget_v_i8m8_i8m4:
-  case Primate::BI__builtin_prv_vget_v_i16m8_i16m4:
-  case Primate::BI__builtin_prv_vget_v_i32m8_i32m4:
-  case Primate::BI__builtin_prv_vget_v_i64m8_i64m4:
-  case Primate::BI__builtin_prv_vget_v_f32m8_f32m4:
-  case Primate::BI__builtin_prv_vget_v_f64m8_f64m4:
-  case Primate::BI__builtin_prv_vget_v_u8m8_u8m4:
-  case Primate::BI__builtin_prv_vget_v_u16m8_u16m4:
-  case Primate::BI__builtin_prv_vget_v_u32m8_u32m4:
-  case Primate::BI__builtin_prv_vget_v_u64m8_u64m4:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
-  case Primate::BI__builtin_prv_vget_v_i8m4_i8m1:
-  case Primate::BI__builtin_prv_vget_v_i16m4_i16m1:
-  case Primate::BI__builtin_prv_vget_v_i32m4_i32m1:
-  case Primate::BI__builtin_prv_vget_v_i64m4_i64m1:
-  case Primate::BI__builtin_prv_vget_v_f32m4_f32m1:
-  case Primate::BI__builtin_prv_vget_v_f64m4_f64m1:
-  case Primate::BI__builtin_prv_vget_v_u8m4_u8m1:
-  case Primate::BI__builtin_prv_vget_v_u16m4_u16m1:
-  case Primate::BI__builtin_prv_vget_v_u32m4_u32m1:
-  case Primate::BI__builtin_prv_vget_v_u64m4_u64m1:
-  case Primate::BI__builtin_prv_vget_v_i8m8_i8m2:
-  case Primate::BI__builtin_prv_vget_v_i16m8_i16m2:
-  case Primate::BI__builtin_prv_vget_v_i32m8_i32m2:
-  case Primate::BI__builtin_prv_vget_v_i64m8_i64m2:
-  case Primate::BI__builtin_prv_vget_v_f32m8_f32m2:
-  case Primate::BI__builtin_prv_vget_v_f64m8_f64m2:
-  case Primate::BI__builtin_prv_vget_v_u8m8_u8m2:
-  case Primate::BI__builtin_prv_vget_v_u16m8_u16m2:
-  case Primate::BI__builtin_prv_vget_v_u32m8_u32m2:
-  case Primate::BI__builtin_prv_vget_v_u64m8_u64m2:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3);
-  case Primate::BI__builtin_prv_vget_v_i8m8_i8m1:
-  case Primate::BI__builtin_prv_vget_v_i16m8_i16m1:
-  case Primate::BI__builtin_prv_vget_v_i32m8_i32m1:
-  case Primate::BI__builtin_prv_vget_v_i64m8_i64m1:
-  case Primate::BI__builtin_prv_vget_v_f32m8_f32m1:
-  case Primate::BI__builtin_prv_vget_v_f64m8_f64m1:
-  case Primate::BI__builtin_prv_vget_v_u8m8_u8m1:
-  case Primate::BI__builtin_prv_vget_v_u16m8_u16m1:
-  case Primate::BI__builtin_prv_vget_v_u32m8_u32m1:
-  case Primate::BI__builtin_prv_vget_v_u64m8_u64m1:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 7);
-  case Primate::BI__builtin_prv_vset_v_i8m1_i8m2:
-  case Primate::BI__builtin_prv_vset_v_i16m1_i16m2:
-  case Primate::BI__builtin_prv_vset_v_i32m1_i32m2:
-  case Primate::BI__builtin_prv_vset_v_i64m1_i64m2:
-  case Primate::BI__builtin_prv_vset_v_f32m1_f32m2:
-  case Primate::BI__builtin_prv_vset_v_f64m1_f64m2:
-  case Primate::BI__builtin_prv_vset_v_u8m1_u8m2:
-  case Primate::BI__builtin_prv_vset_v_u16m1_u16m2:
-  case Primate::BI__builtin_prv_vset_v_u32m1_u32m2:
-  case Primate::BI__builtin_prv_vset_v_u64m1_u64m2:
-  case Primate::BI__builtin_prv_vset_v_i8m2_i8m4:
-  case Primate::BI__builtin_prv_vset_v_i16m2_i16m4:
-  case Primate::BI__builtin_prv_vset_v_i32m2_i32m4:
-  case Primate::BI__builtin_prv_vset_v_i64m2_i64m4:
-  case Primate::BI__builtin_prv_vset_v_f32m2_f32m4:
-  case Primate::BI__builtin_prv_vset_v_f64m2_f64m4:
-  case Primate::BI__builtin_prv_vset_v_u8m2_u8m4:
-  case Primate::BI__builtin_prv_vset_v_u16m2_u16m4:
-  case Primate::BI__builtin_prv_vset_v_u32m2_u32m4:
-  case Primate::BI__builtin_prv_vset_v_u64m2_u64m4:
-  case Primate::BI__builtin_prv_vset_v_i8m4_i8m8:
-  case Primate::BI__builtin_prv_vset_v_i16m4_i16m8:
-  case Primate::BI__builtin_prv_vset_v_i32m4_i32m8:
-  case Primate::BI__builtin_prv_vset_v_i64m4_i64m8:
-  case Primate::BI__builtin_prv_vset_v_f32m4_f32m8:
-  case Primate::BI__builtin_prv_vset_v_f64m4_f64m8:
-  case Primate::BI__builtin_prv_vset_v_u8m4_u8m8:
-  case Primate::BI__builtin_prv_vset_v_u16m4_u16m8:
-  case Primate::BI__builtin_prv_vset_v_u32m4_u32m8:
-  case Primate::BI__builtin_prv_vset_v_u64m4_u64m8:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
-  case Primate::BI__builtin_prv_vset_v_i8m1_i8m4:
-  case Primate::BI__builtin_prv_vset_v_i16m1_i16m4:
-  case Primate::BI__builtin_prv_vset_v_i32m1_i32m4:
-  case Primate::BI__builtin_prv_vset_v_i64m1_i64m4:
-  case Primate::BI__builtin_prv_vset_v_f32m1_f32m4:
-  case Primate::BI__builtin_prv_vset_v_f64m1_f64m4:
-  case Primate::BI__builtin_prv_vset_v_u8m1_u8m4:
-  case Primate::BI__builtin_prv_vset_v_u16m1_u16m4:
-  case Primate::BI__builtin_prv_vset_v_u32m1_u32m4:
-  case Primate::BI__builtin_prv_vset_v_u64m1_u64m4:
-  case Primate::BI__builtin_prv_vset_v_i8m2_i8m8:
-  case Primate::BI__builtin_prv_vset_v_i16m2_i16m8:
-  case Primate::BI__builtin_prv_vset_v_i32m2_i32m8:
-  case Primate::BI__builtin_prv_vset_v_i64m2_i64m8:
-  case Primate::BI__builtin_prv_vset_v_f32m2_f32m8:
-  case Primate::BI__builtin_prv_vset_v_f64m2_f64m8:
-  case Primate::BI__builtin_prv_vset_v_u8m2_u8m8:
-  case Primate::BI__builtin_prv_vset_v_u16m2_u16m8:
-  case Primate::BI__builtin_prv_vset_v_u32m2_u32m8:
-  case Primate::BI__builtin_prv_vset_v_u64m2_u64m8:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3);
-  case Primate::BI__builtin_prv_vset_v_i8m1_i8m8:
-  case Primate::BI__builtin_prv_vset_v_i16m1_i16m8:
-  case Primate::BI__builtin_prv_vset_v_i32m1_i32m8:
-  case Primate::BI__builtin_prv_vset_v_i64m1_i64m8:
-  case Primate::BI__builtin_prv_vset_v_f32m1_f32m8:
-  case Primate::BI__builtin_prv_vset_v_f64m1_f64m8:
-  case Primate::BI__builtin_prv_vset_v_u8m1_u8m8:
-  case Primate::BI__builtin_prv_vset_v_u16m1_u16m8:
-  case Primate::BI__builtin_prv_vset_v_u32m1_u32m8:
-  case Primate::BI__builtin_prv_vset_v_u64m1_u64m8:
-    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 7);
+  //case Primate::BI__builtin_prv_vsetvli:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3) ||
+  //         CheckPrimateLMUL(TheCall, 2);
+  //case Primate::BI__builtin_prv_vsetvlimax:
+  //  return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
+  //         CheckPrimateLMUL(TheCall, 1);
+  //case Primate::BI__builtin_prv_vget_v_i8m2_i8m1:
+  //case Primate::BI__builtin_prv_vget_v_i16m2_i16m1:
+  //case Primate::BI__builtin_prv_vget_v_i32m2_i32m1:
+  //case Primate::BI__builtin_prv_vget_v_i64m2_i64m1:
+  //case Primate::BI__builtin_prv_vget_v_f32m2_f32m1:
+  //case Primate::BI__builtin_prv_vget_v_f64m2_f64m1:
+  //case Primate::BI__builtin_prv_vget_v_u8m2_u8m1:
+  //case Primate::BI__builtin_prv_vget_v_u16m2_u16m1:
+  //case Primate::BI__builtin_prv_vget_v_u32m2_u32m1:
+  //case Primate::BI__builtin_prv_vget_v_u64m2_u64m1:
+  //case Primate::BI__builtin_prv_vget_v_i8m4_i8m2:
+  //case Primate::BI__builtin_prv_vget_v_i16m4_i16m2:
+  //case Primate::BI__builtin_prv_vget_v_i32m4_i32m2:
+  //case Primate::BI__builtin_prv_vget_v_i64m4_i64m2:
+  //case Primate::BI__builtin_prv_vget_v_f32m4_f32m2:
+  //case Primate::BI__builtin_prv_vget_v_f64m4_f64m2:
+  //case Primate::BI__builtin_prv_vget_v_u8m4_u8m2:
+  //case Primate::BI__builtin_prv_vget_v_u16m4_u16m2:
+  //case Primate::BI__builtin_prv_vget_v_u32m4_u32m2:
+  //case Primate::BI__builtin_prv_vget_v_u64m4_u64m2:
+  //case Primate::BI__builtin_prv_vget_v_i8m8_i8m4:
+  //case Primate::BI__builtin_prv_vget_v_i16m8_i16m4:
+  //case Primate::BI__builtin_prv_vget_v_i32m8_i32m4:
+  //case Primate::BI__builtin_prv_vget_v_i64m8_i64m4:
+  //case Primate::BI__builtin_prv_vget_v_f32m8_f32m4:
+  //case Primate::BI__builtin_prv_vget_v_f64m8_f64m4:
+  //case Primate::BI__builtin_prv_vget_v_u8m8_u8m4:
+  //case Primate::BI__builtin_prv_vget_v_u16m8_u16m4:
+  //case Primate::BI__builtin_prv_vget_v_u32m8_u32m4:
+  //case Primate::BI__builtin_prv_vget_v_u64m8_u64m4:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
+  //case Primate::BI__builtin_prv_vget_v_i8m4_i8m1:
+  //case Primate::BI__builtin_prv_vget_v_i16m4_i16m1:
+  //case Primate::BI__builtin_prv_vget_v_i32m4_i32m1:
+  //case Primate::BI__builtin_prv_vget_v_i64m4_i64m1:
+  //case Primate::BI__builtin_prv_vget_v_f32m4_f32m1:
+  //case Primate::BI__builtin_prv_vget_v_f64m4_f64m1:
+  //case Primate::BI__builtin_prv_vget_v_u8m4_u8m1:
+  //case Primate::BI__builtin_prv_vget_v_u16m4_u16m1:
+  //case Primate::BI__builtin_prv_vget_v_u32m4_u32m1:
+  //case Primate::BI__builtin_prv_vget_v_u64m4_u64m1:
+  //case Primate::BI__builtin_prv_vget_v_i8m8_i8m2:
+  //case Primate::BI__builtin_prv_vget_v_i16m8_i16m2:
+  //case Primate::BI__builtin_prv_vget_v_i32m8_i32m2:
+  //case Primate::BI__builtin_prv_vget_v_i64m8_i64m2:
+  //case Primate::BI__builtin_prv_vget_v_f32m8_f32m2:
+  //case Primate::BI__builtin_prv_vget_v_f64m8_f64m2:
+  //case Primate::BI__builtin_prv_vget_v_u8m8_u8m2:
+  //case Primate::BI__builtin_prv_vget_v_u16m8_u16m2:
+  //case Primate::BI__builtin_prv_vget_v_u32m8_u32m2:
+  //case Primate::BI__builtin_prv_vget_v_u64m8_u64m2:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3);
+  //case Primate::BI__builtin_prv_vget_v_i8m8_i8m1:
+  //case Primate::BI__builtin_prv_vget_v_i16m8_i16m1:
+  //case Primate::BI__builtin_prv_vget_v_i32m8_i32m1:
+  //case Primate::BI__builtin_prv_vget_v_i64m8_i64m1:
+  //case Primate::BI__builtin_prv_vget_v_f32m8_f32m1:
+  //case Primate::BI__builtin_prv_vget_v_f64m8_f64m1:
+  //case Primate::BI__builtin_prv_vget_v_u8m8_u8m1:
+  //case Primate::BI__builtin_prv_vget_v_u16m8_u16m1:
+  //case Primate::BI__builtin_prv_vget_v_u32m8_u32m1:
+  //case Primate::BI__builtin_prv_vget_v_u64m8_u64m1:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 7);
+  //case Primate::BI__builtin_prv_vset_v_i8m1_i8m2:
+  //case Primate::BI__builtin_prv_vset_v_i16m1_i16m2:
+  //case Primate::BI__builtin_prv_vset_v_i32m1_i32m2:
+  //case Primate::BI__builtin_prv_vset_v_i64m1_i64m2:
+  //case Primate::BI__builtin_prv_vset_v_f32m1_f32m2:
+  //case Primate::BI__builtin_prv_vset_v_f64m1_f64m2:
+  //case Primate::BI__builtin_prv_vset_v_u8m1_u8m2:
+  //case Primate::BI__builtin_prv_vset_v_u16m1_u16m2:
+  //case Primate::BI__builtin_prv_vset_v_u32m1_u32m2:
+  //case Primate::BI__builtin_prv_vset_v_u64m1_u64m2:
+  //case Primate::BI__builtin_prv_vset_v_i8m2_i8m4:
+  //case Primate::BI__builtin_prv_vset_v_i16m2_i16m4:
+  //case Primate::BI__builtin_prv_vset_v_i32m2_i32m4:
+  //case Primate::BI__builtin_prv_vset_v_i64m2_i64m4:
+  //case Primate::BI__builtin_prv_vset_v_f32m2_f32m4:
+  //case Primate::BI__builtin_prv_vset_v_f64m2_f64m4:
+  //case Primate::BI__builtin_prv_vset_v_u8m2_u8m4:
+  //case Primate::BI__builtin_prv_vset_v_u16m2_u16m4:
+  //case Primate::BI__builtin_prv_vset_v_u32m2_u32m4:
+  //case Primate::BI__builtin_prv_vset_v_u64m2_u64m4:
+  //case Primate::BI__builtin_prv_vset_v_i8m4_i8m8:
+  //case Primate::BI__builtin_prv_vset_v_i16m4_i16m8:
+  //case Primate::BI__builtin_prv_vset_v_i32m4_i32m8:
+  //case Primate::BI__builtin_prv_vset_v_i64m4_i64m8:
+  //case Primate::BI__builtin_prv_vset_v_f32m4_f32m8:
+  //case Primate::BI__builtin_prv_vset_v_f64m4_f64m8:
+  //case Primate::BI__builtin_prv_vset_v_u8m4_u8m8:
+  //case Primate::BI__builtin_prv_vset_v_u16m4_u16m8:
+  //case Primate::BI__builtin_prv_vset_v_u32m4_u32m8:
+  //case Primate::BI__builtin_prv_vset_v_u64m4_u64m8:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
+  //case Primate::BI__builtin_prv_vset_v_i8m1_i8m4:
+  //case Primate::BI__builtin_prv_vset_v_i16m1_i16m4:
+  //case Primate::BI__builtin_prv_vset_v_i32m1_i32m4:
+  //case Primate::BI__builtin_prv_vset_v_i64m1_i64m4:
+  //case Primate::BI__builtin_prv_vset_v_f32m1_f32m4:
+  //case Primate::BI__builtin_prv_vset_v_f64m1_f64m4:
+  //case Primate::BI__builtin_prv_vset_v_u8m1_u8m4:
+  //case Primate::BI__builtin_prv_vset_v_u16m1_u16m4:
+  //case Primate::BI__builtin_prv_vset_v_u32m1_u32m4:
+  //case Primate::BI__builtin_prv_vset_v_u64m1_u64m4:
+  //case Primate::BI__builtin_prv_vset_v_i8m2_i8m8:
+  //case Primate::BI__builtin_prv_vset_v_i16m2_i16m8:
+  //case Primate::BI__builtin_prv_vset_v_i32m2_i32m8:
+  //case Primate::BI__builtin_prv_vset_v_i64m2_i64m8:
+  //case Primate::BI__builtin_prv_vset_v_f32m2_f32m8:
+  //case Primate::BI__builtin_prv_vset_v_f64m2_f64m8:
+  //case Primate::BI__builtin_prv_vset_v_u8m2_u8m8:
+  //case Primate::BI__builtin_prv_vset_v_u16m2_u16m8:
+  //case Primate::BI__builtin_prv_vset_v_u32m2_u32m8:
+  //case Primate::BI__builtin_prv_vset_v_u64m2_u64m8:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3);
+  //case Primate::BI__builtin_prv_vset_v_i8m1_i8m8:
+  //case Primate::BI__builtin_prv_vset_v_i16m1_i16m8:
+  //case Primate::BI__builtin_prv_vset_v_i32m1_i32m8:
+  //case Primate::BI__builtin_prv_vset_v_i64m1_i64m8:
+  //case Primate::BI__builtin_prv_vset_v_f32m1_f32m8:
+  //case Primate::BI__builtin_prv_vset_v_f64m1_f64m8:
+  //case Primate::BI__builtin_prv_vset_v_u8m1_u8m8:
+  //case Primate::BI__builtin_prv_vset_v_u16m1_u16m8:
+  //case Primate::BI__builtin_prv_vset_v_u32m1_u32m8:
+  //case Primate::BI__builtin_prv_vset_v_u64m1_u64m8:
+  //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 7);
   }
 
   return false;

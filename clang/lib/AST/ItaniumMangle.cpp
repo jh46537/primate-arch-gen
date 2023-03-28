@@ -3066,12 +3066,12 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     Out << 'u' << type_name.size() << type_name;                               \
     break;
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId)                                        \
-  case BuiltinType::Id:                                                        \
-    type_name = Name;                                                          \
-    Out << 'u' << type_name.size() << type_name;                               \
-    break;
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_TYPE(Name, Id, SingletonId)                                        \
+//  case BuiltinType::Id:                                                        \
+//    type_name = Name;                                                          \
+//    Out << 'u' << type_name.size() << type_name;                               \
+//    break;
+//#include "clang/Basic/PrimateVTypes.def"
   }
 }
 

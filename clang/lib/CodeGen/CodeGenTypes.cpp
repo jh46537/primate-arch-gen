@@ -610,15 +610,15 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                                            Info.EC.getKnownMinValue() *
                                            Info.NumVectors);
     }
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
-    {
-      ASTContext::BuiltinVectorTypeInfo Info =
-          Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
-      return llvm::ScalableVectorType::get(ConvertType(Info.ElementType),
-                                           Info.EC.getKnownMinValue() *
-                                           Info.NumVectors);
-    }
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
+//    {
+//      ASTContext::BuiltinVectorTypeInfo Info =
+//          Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
+//      return llvm::ScalableVectorType::get(ConvertType(Info.ElementType),
+//                                           Info.EC.getKnownMinValue() *
+//                                           Info.NumVectors);
+//    }
    case BuiltinType::Dependent:
 #define BUILTIN_TYPE(Id, SingletonId)
 #define PLACEHOLDER_TYPE(Id, SingletonId) \

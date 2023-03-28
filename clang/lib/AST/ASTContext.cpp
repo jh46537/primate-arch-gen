@@ -1453,11 +1453,11 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 #include "clang/Basic/RISCVVTypes.def"
   }
 
-  if (Target.hasPrimateVTypes()) {
-#define PRV_TYPE(Name, Id, SingletonId)                                        \
-  InitBuiltinType(SingletonId, BuiltinType::Id);
-#include "clang/Basic/PrimateVTypes.def"
-  }
+//  if (Target.hasPrimateVTypes()) {
+//#define PRV_TYPE(Name, Id, SingletonId)                                        \
+//  InitBuiltinType(SingletonId, BuiltinType::Id);
+//#include "clang/Basic/PrimateVTypes.def"
+//  }
 
   // Builtin type for __objc_yes and __objc_no
   ObjCBuiltinBoolTy = (Target.useSignedCharForObjCBool() ?
@@ -2224,18 +2224,18 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 8;                                                                 \
     break;
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_VECTOR_TYPE(Name, Id, SingletonId, ElKind, ElBits, NF, IsSigned,   \
-                        IsFP)                                                  \
-  case BuiltinType::Id:                                                        \
-    Width = 0;                                                                 \
-    Align = ElBits;                                                            \
-    break;
-#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, ElKind)                      \
-  case BuiltinType::Id:                                                        \
-    Width = 0;                                                                 \
-    Align = 8;                                                                 \
-    break;
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_VECTOR_TYPE(Name, Id, SingletonId, ElKind, ElBits, NF, IsSigned,   \
+//                        IsFP)                                                  \
+//  case BuiltinType::Id:                                                        \
+//    Width = 0;                                                                 \
+//    Align = ElBits;                                                            \
+//    break;
+//#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, ElKind)                      \
+//  case BuiltinType::Id:                                                        \
+//    Width = 0;                                                                 \
+//    Align = 8;                                                                 \
+//    break;
+//#include "clang/Basic/PrimateVTypes.def"
     }
     break;
   case Type::ObjCObjectPointer:
@@ -3893,19 +3893,19 @@ ASTContext::getBuiltinVectorTypeInfo(const BuiltinType *Ty) const {
   case BuiltinType::Id:                                                        \
     return {BoolTy, llvm::ElementCount::getScalable(NumEls), 1};
 #include "clang/Basic/RISCVVTypes.def"
-#define PRV_VECTOR_TYPE_INT(Name, Id, SingletonId, NumEls, ElBits, NF,         \
-                            IsSigned)                                          \
-  case BuiltinType::Id:                                                        \
-    return {getIntTypeForBitwidth(ElBits, IsSigned),                           \
-            llvm::ElementCount::getScalable(NumEls), NF};
-#define PRV_VECTOR_TYPE_FLOAT(Name, Id, SingletonId, NumEls, ElBits, NF)       \
-  case BuiltinType::Id:                                                        \
-    return {ElBits == 16 ? Float16Ty : (ElBits == 32 ? FloatTy : DoubleTy),    \
-            llvm::ElementCount::getScalable(NumEls), NF};
-#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
-  case BuiltinType::Id:                                                        \
-    return {BoolTy, llvm::ElementCount::getScalable(NumEls), 1};
-#include "clang/Basic/PrimateVTypes.def"
+//#define PRV_VECTOR_TYPE_INT(Name, Id, SingletonId, NumEls, ElBits, NF,         \
+//                            IsSigned)                                          \
+//  case BuiltinType::Id:                                                        \
+//    return {getIntTypeForBitwidth(ElBits, IsSigned),                           \
+//            llvm::ElementCount::getScalable(NumEls), NF};
+//#define PRV_VECTOR_TYPE_FLOAT(Name, Id, SingletonId, NumEls, ElBits, NF)       \
+//  case BuiltinType::Id:                                                        \
+//    return {ElBits == 16 ? Float16Ty : (ElBits == 32 ? FloatTy : DoubleTy),    \
+//            llvm::ElementCount::getScalable(NumEls), NF};
+//#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
+//  case BuiltinType::Id:                                                        \
+//    return {BoolTy, llvm::ElementCount::getScalable(NumEls), 1};
+//#include "clang/Basic/PrimateVTypes.def"
   }
 }
 
@@ -3946,20 +3946,20 @@ QualType ASTContext::getScalableVectorType(QualType EltTy,
     if (EltTy->isBooleanType() && NumElts == NumEls)                           \
       return SingletonId;
 #include "clang/Basic/RISCVVTypes.def"
-  } else if (Target->hasPrimateVTypes()) {
-    uint64_t EltTySize = getTypeSize(EltTy);
-#define PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned,   \
-                        IsFP)                                                  \
-    if (!EltTy->isBooleanType() &&                                             \
-        ((EltTy->hasIntegerRepresentation() &&                                 \
-          EltTy->hasSignedIntegerRepresentation() == IsSigned) ||              \
-         (EltTy->hasFloatingRepresentation() && IsFP)) &&                      \
-        EltTySize == ElBits && NumElts == NumEls)                              \
-      return SingletonId;
-#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
-    if (EltTy->isBooleanType() && NumElts == NumEls)                           \
-      return SingletonId;
-#include "clang/Basic/PrimateVTypes.def"
+//  } else if (Target->hasPrimateVTypes()) {
+//    uint64_t EltTySize = getTypeSize(EltTy);
+//#define PRV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned,   \
+//                        IsFP)                                                  \
+//    if (!EltTy->isBooleanType() &&                                             \
+//        ((EltTy->hasIntegerRepresentation() &&                                 \
+//          EltTy->hasSignedIntegerRepresentation() == IsSigned) ||              \
+//         (EltTy->hasFloatingRepresentation() && IsFP)) &&                      \
+//        EltTySize == ElBits && NumElts == NumEls)                              \
+//      return SingletonId;
+//#define PRV_PREDICATE_TYPE(Name, Id, SingletonId, NumEls)                      \
+//    if (EltTy->isBooleanType() && NumElts == NumEls)                           \
+//      return SingletonId;
+//#include "clang/Basic/PrimateVTypes.def"
   }
   return QualType();
 }
@@ -7348,15 +7348,15 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
         Diags.Report(DiagID) << BT->getName(C->getPrintingPolicy());
         return ' ';
       }
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
-      {
-        DiagnosticsEngine &Diags = C->getDiagnostics();
-        unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                                "cannot yet @encode type %0");
-        Diags.Report(DiagID) << BT->getName(C->getPrintingPolicy());
-        return ' ';
-      }
+//#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+//#include "clang/Basic/PrimateVTypes.def"
+//      {
+//        DiagnosticsEngine &Diags = C->getDiagnostics();
+//        unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+//                                                "cannot yet @encode type %0");
+//        Diags.Report(DiagID) << BT->getName(C->getPrintingPolicy());
+//        return ' ';
+//      }
 
     case BuiltinType::ObjCId:
     case BuiltinType::ObjCClass:

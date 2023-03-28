@@ -1080,9 +1080,9 @@ enum PredefinedTypeIDs {
 // \brief RISC-V V types with auto numeration
 #define RVV_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/RISCVVTypes.def"
-// \brief Primate V types with auto numeration
-#define PRV_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
-#include "clang/Basic/PrimateVTypes.def"
+//// \brief Primate V types with auto numeration
+//#define PRV_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
+//#include "clang/Basic/PrimateVTypes.def"
 };
 
 /// The number of predefined type IDs that are reserved for

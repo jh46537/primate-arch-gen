@@ -18566,8 +18566,8 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
   }
-  // Vector builtins are handled from here.
-#include "clang/Basic/primate_vector_builtin_cg.inc"
+//  // Vector builtins are handled from here.
+//#include "clang/Basic/primate_vector_builtin_cg.inc"
   }
 
   assert(ID != Intrinsic::not_intrinsic);
