@@ -99,7 +99,7 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
     // FIXME(ahsu):
     // make this an archgen param
     unsigned numSlots = 7;
-    unsigned lastSlotIdx = 1;
+    unsigned lastSlotIdx = 0;
     for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
       if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
         unsigned slotIdx = MII->getSlotIdx();
@@ -121,8 +121,8 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
           EmitToStreamer(*OutStreamer, TmpInst);
       }
     }
-    if (lastSlotIdx < numSlots + 1)
-      emitNops(numSlots - lastSlotIdx + 1);
+    if (lastSlotIdx < numSlots)
+      emitNops(numSlots - lastSlotIdx);
   } else {
     // Do any auto-generated pseudo lowerings.
     if (emitPseudoExpansionLowering(*OutStreamer, MI))
