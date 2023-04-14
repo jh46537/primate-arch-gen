@@ -162,7 +162,8 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   unsigned Idx = 0;
   for (MachineInstr *MI : CurrentPacketMIs) {
     unsigned R = ResourceTracker->getUsedResources(Idx++);
-    MI->setSlotIdx(R);
+    unsigned slotIdx = llvm::countTrailingZeros(R);  // convert bitvector to ID; assume single bit set
+    MI->setSlotIdx(slotIdx);
   }
   LLVM_DEBUG({
     if (!CurrentPacketMIs.empty()) {
