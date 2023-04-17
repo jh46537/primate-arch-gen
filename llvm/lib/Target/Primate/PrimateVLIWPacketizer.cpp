@@ -217,6 +217,11 @@ bool PrimatePacketizerList::shouldAddToPacket(const MachineInstr &MI) {
 bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   // There no dependency between a prolog instruction and its successor.
 
+  // Need to read in a representation of the uArch and then do it.
+  if(SUI->getInstr()->isBranch()) {
+    return true;
+  }
+  
   // if SUI is not a successor to SUJ then we are good always
   if (!SUJ->isSucc(SUI)) {
     dbgs() << "Legal to packetize:\n\t";
@@ -233,15 +238,24 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     if (SUJ->Succs[i].getSUnit() != SUI)
       continue;
 
+    dbgs() << "Illegal to packetize:\n\t";
+    SUI->getInstr()->print(dbgs());
+    dbgs() << "\t";
+    SUJ->getInstr()->print(dbgs());
+    
     SDep::Kind DepType = SUJ->Succs[i].getKind();
     switch(DepType) {
     case SDep::Kind::Data:
-    default:
-      dbgs() << "Illegal to packetize:\n\t";
-      SUI->getInstr()->print(dbgs());
-      dbgs() << "\t";
-      SUJ->getInstr()->print(dbgs());
-      dbgs() << "\tDue to control dep\n";
+      dbgs() << "\tDue to data dep\n";
+      return false;
+    case SDep::Kind::Anti:
+      dbgs() << "\tDue to anti dep\n";
+      return false;
+    case SDep::Kind::Output:
+      dbgs() << "\tDue to output dep\n";
+      return false;
+    case SDep::Kind::Order:
+      dbgs() << "\tDue to other ordering dep\n";
       return false;
     }
   }
@@ -249,7 +263,7 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   SUI->getInstr()->print(dbgs());
   dbgs() << "\t";
   SUJ->getInstr()->print(dbgs());
-  dbgs() << "\tDue to data dep only\n";
+  dbgs() << "\tDue to no deps\n";
   return true;
 }
 
