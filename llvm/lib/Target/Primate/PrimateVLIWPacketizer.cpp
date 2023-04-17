@@ -137,6 +137,9 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   for (auto &MB : MF) {
     // TODO(ahsu): fix scheduling boundary
     printf("");
+    dbgs() << "starting packetizing on MB:\n ";
+    MB.print(dbgs());
+    dbgs() << "===========================\n ";
     Packetizer.PacketizeMIs(&MB, MB.begin(), MB.end());
     printf("");
   }
@@ -212,19 +215,40 @@ bool PrimatePacketizerList::shouldAddToPacket(const MachineInstr &MI) {
 // SUI will be packetized
 bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   // There no dependency between a prolog instruction and its successor.
-  if (!SUJ->isSucc(SUI))
-    return true;
 
+  // if SUI is not a successor to SUJ then we are good always
+  if (!SUJ->isSucc(SUI)) {
+    dbgs() << "Legal to packetize:\n\t";
+    SUI->getInstr()->print(dbgs());
+    dbgs() << "\t";
+    SUJ->getInstr()->print(dbgs());
+    dbgs() << "\t due to unrelated instrs\n";
+    return true;
+  }
+
+  // if SUI IS a successor to SUJ, then we should check the kind of successor
+  // if the dependency between SUI and SUJ is a data then we can packetize. otherwise we cannot.
   for (unsigned i = 0; i < SUJ->Succs.size(); ++i) {
     if (SUJ->Succs[i].getSUnit() != SUI)
       continue;
 
     SDep::Kind DepType = SUJ->Succs[i].getKind();
-    if (DepType) {
+    switch(DepType) {
+    case SDep::Kind::Data:
+    default:
+      dbgs() << "Illegal to packetize:\n\t";
+      SUI->getInstr()->print(dbgs());
+      dbgs() << "\t";
+      SUJ->getInstr()->print(dbgs());
+      dbgs() << "\tDue to control dep\n";
       return false;
     }
   }
-
+  dbgs() << "Legal to packetize:\n\t";
+  SUI->getInstr()->print(dbgs());
+  dbgs() << "\t";
+  SUJ->getInstr()->print(dbgs());
+  dbgs() << "\tDue to data dep only\n";
   return true;
 }
 
