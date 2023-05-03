@@ -474,7 +474,7 @@ let Predicates = [HasFullI] in
 let isCall = 1 in
 def JALR : PRInstI<0b000, OPC_JALR, (outs GPR:$rd),
                    (ins GPR:$rs1, simm12:$imm12),
-                   "jalr", "$rd, ${imm12}(${rs1})">,
+                   "jalr", "$rd, ${imm12}(${rs1})", ItinBranch>,
            Sched<[WriteJalr, ReadJalr]>;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
