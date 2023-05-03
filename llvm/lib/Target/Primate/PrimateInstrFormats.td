@@ -186,8 +186,9 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
 }
 
 // Pseudo instructions
-class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
-    : PRInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo, ItinGreen>,
+class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "",
+             InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo, itin>,
       Sched<[]> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -227,8 +228,8 @@ class PseudoStore<string opcodestr, RegisterClass rsty = GPR>
 // PRInstRAtomic) sorted alphabetically.
 
 class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
-              dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
+              dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {
   bits<5> rs2;
   bits<5> rs1;
   bits<5> rd;
@@ -242,8 +243,8 @@ class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
 }
 
 class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
-               dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, ItinGreen> {
+               dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {
   bits<5> rs3;
   bits<5> rs2;
   bits<5> rs1;
@@ -259,8 +260,8 @@ class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
 }
 
 class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
-                  string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, ItinGreen> {
+                  string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {
   bits<5> rs3;
   bits<5> rs2;
   bits<5> rs1;
@@ -278,8 +279,8 @@ class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
 
 class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
                     PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
-                    string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
+                    string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {
   bits<5> rs2;
   bits<5> rs1;
   bits<5> rd;
@@ -295,8 +296,8 @@ class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
 }
 
 class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
-                 string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, ItinGreen> {
+                 string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {
   bits<5> rs2;
   bits<5> rs1;
   bits<3> funct3;
@@ -311,8 +312,8 @@ class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
 }
 
 class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
-              string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
+              string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {
   bits<12> imm12;
   bits<5> rs1;
   bits<5> rd;
@@ -325,8 +326,9 @@ class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
 }
 
 class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
-                   dag outs, dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
+                   dag outs, dag ins, string opcodestr, string argstr,
+                   InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {
   bits<6> shamt;
   bits<5> rs1;
   bits<5> rd;
@@ -341,8 +343,9 @@ class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
 }
 
 class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
-                    dag outs, dag ins, string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, ItinGreen> {
+                    dag outs, dag ins, string opcodestr, string argstr,
+                    InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {
   bits<5> shamt;
   bits<5> rs1;
   bits<5> rd;
@@ -356,8 +359,8 @@ class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
 }
 
 class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
-              string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, ItinGreen> {
+              string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, itin> {
   bits<12> imm12;
   bits<5> rs2;
   bits<5> rs1;
@@ -371,8 +374,8 @@ class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
 }
 
 class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
-              string opcodestr, string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB, ItinBranch> {
+              string opcodestr, string argstr, InstrItinClass itin = ItinBranch>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB, itin> {
   bits<12> imm12;
   bits<5> rs2;
   bits<5> rs1;
@@ -385,13 +388,11 @@ class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
   let Inst{11-8} = imm12{3-0};
   let Inst{7} = imm12{10};
   let Opcode = opcode.Value;
-
-  let Itinerary = ItinBranch;
 }
 
 class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
-              string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU, ItinGreen> {
+              string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU, itin> {
   bits<20> imm20;
   bits<5> rd;
 
@@ -401,8 +402,8 @@ class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
 }
 
 class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
-              string argstr>
-    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ, ItinBranch> {
+              string argstr, InstrItinClass itin = ItinBranch>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ, itin> {
   bits<20> imm20;
   bits<5> rd;
 
@@ -412,6 +413,4 @@ class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
   let Inst{19-12} = imm20{18-11};
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
-
-  let Itinerary = ItinBranch;
 }
