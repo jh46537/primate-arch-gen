@@ -200,6 +200,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
         if (found_producer)
           break;
       }
+      // FIXME(ahsu): assert on no producers found
     }
   }
   LLVM_DEBUG({
