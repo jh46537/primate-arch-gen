@@ -39,9 +39,11 @@
 #include "llvm/CodeGen/ScheduleDAG.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/MCInstrDesc.h"
+#include "llvm/MC/MCInstBuilder.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -146,6 +148,66 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
+bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 6>& generated_bypass_instrs) {
+  
+  for (auto& operand : br_inst->uses()) {
+    // skip non-reg
+    if (!operand.isReg())
+      continue;
+    
+    // check if someone already generates this operand
+    bool operand_generated = false;
+    for (auto& otherMI : CurrentPacketMIs) {
+      // skip the branch subinstruction itself
+      if (otherMI == br_inst)
+        continue;
+      for (auto& otherOperand : otherMI->defs()) {
+        // skip non-reg
+        if (!otherOperand.isReg())
+          continue;
+        // if the reg indices match, the producer has been found
+        if (otherOperand.getReg() == operand.getReg()) {
+          operand_generated = true;
+        }
+      }
+    }
+    if(operand_generated) {
+      LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket found gernerator for "; operand.dump();});
+      continue;
+    }
+
+    // no one generated this operand. attempt to a bypass op.
+    LLVM_DEBUG(dbgs() << "PrimatePacketizerList::endPacket No producer op for branch instr. Attempt bypass op.\n");
+    MachineInstr* bypass_op = BuildMI(*br_inst->getParent(), br_inst, llvm::DebugLoc(), PII->get(Primate::ADDI), operand.getReg())
+              .addReg(operand.getReg())
+              .addImm(0);
+    bool ResourceAvail = ResourceTracker->canReserveResources(*bypass_op);
+    if (!ResourceAvail) {
+      // no room. set up packet for next iterations. 
+      // 1) Need to put all the bypass ops into the BB above the Branch.
+      // 2) Move the end of packet pointer to before the bypass.
+      // 3) end packet as normal WITHOUT the branch 
+      // 4) insert the bypasses into the current packet.
+      // 5) return to main loop
+      
+      // bypass_op->print(dbgs());
+      // LLVM_DEBUG(dbgs() << "============ Current Packet ============\n");
+      // br_inst->getParent()->dump();
+      // LLVM_DEBUG(dbgs() << "============ Bypass Op Basic Block ============\n");
+      // bypass_op->getParent()->dump();
+      LLVM_DEBUG(dbgs() << "PrimatePacketizerList::endPacket cannot insert bypass_instr! no resources!\n");
+      generated_bypass_instrs.push_back(bypass_op);
+      return true; // push the br and bypasses to the next packet.
+    }
+    else {
+      LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket Bypass instr inserted for operand: ";  operand.dump(); });
+      ResourceTracker->reserveResources(*bypass_op);
+      generated_bypass_instrs.push_back(bypass_op);
+    }
+  }
+  return false;
+}
+
 MachineBasicBlock::iterator
 PrimatePacketizerList::addToPacket(MachineInstr &MI) {
   MachineBasicBlock::iterator MII = MI.getIterator();
@@ -158,6 +220,41 @@ PrimatePacketizerList::addToPacket(MachineInstr &MI) {
 
 void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
                                       MachineBasicBlock::iterator MI) {
+
+  // need to first generate the needed bypass ops
+  // generating bypass ops allows the fix up to x0 out the bypasses for free :>
+  MachineInstr* packet_breaking_instr = CurrentPacketMIs.back();
+  llvm::SmallVector<MachineInstr*, 6> generated_bypass_instrs;
+  MachineBasicBlock::iterator old_end_instr = MI;
+  bool push_branch_to_next_packet = false;
+  if(packet_breaking_instr->isBranch()) {
+    push_branch_to_next_packet = insertBypassOps(packet_breaking_instr, generated_bypass_instrs);
+  }
+
+  // if we push to the next packet then pop the branch from the back && set the isntr pointer back.
+  if(push_branch_to_next_packet) {
+    dbgs() << "pushing branch to a new packet.\n";
+    CurrentPacketMIs.pop_back();
+    --MI;
+    for(auto& _: generated_bypass_instrs){
+      --MI;
+      dbgs() << "reversing the MI iterator.\n";
+    }
+    MI->dump();
+  }
+  else if(packet_breaking_instr->isBranch() && generated_bypass_instrs.size() > 0) { // add bypass ops to the current packet MIs if we haven't pushed it off
+    CurrentPacketMIs.pop_back();
+    for(auto& bypass_op: generated_bypass_instrs) {
+      CurrentPacketMIs.push_back(bypass_op);
+    }
+    CurrentPacketMIs.push_back(packet_breaking_instr);
+    // really???
+    ResourceTracker->clearResources();
+    for(auto& ordered_instrs: CurrentPacketMIs) {
+      ResourceTracker->reserveResources(*ordered_instrs);
+    }
+  }
+
   // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
   unsigned Idx = 0;
   for (MachineInstr *MI : CurrentPacketMIs) {
@@ -165,6 +262,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
     unsigned slotIdx = llvm::countTrailingZeros(R);  // convert bitvector to ID; assume single bit set
     MI->setSlotIdx(slotIdx);
   }
+
   // in-place fixup for packetized dependent branches
   // there must only be 1 branch per packet
   for (auto& MI : CurrentPacketMIs) {
@@ -178,11 +276,11 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
         continue;
       // this is a branch reg operand; the producer needs to be in this packet
       // find producer; there must be only 1 producer
+      bool found_producer = false;
       for (auto& otherMI : CurrentPacketMIs) {
         // skip the branch subinstruction itself
         if (otherMI == MI)
           continue;
-        bool found_producer = false;
         for (auto& otherOperand : otherMI->defs()) {
           // skip non-reg
           if (!otherOperand.isReg())
@@ -197,8 +295,16 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
             break;
           }
         }
-        if (found_producer)
+        if (found_producer) {
           break;
+        }
+      }
+      if (!found_producer) {
+          dbgs() << "no gen instr for: "; operand.dump(); dbgs() << ". Packet looks like:\n"; 
+          for(auto& temp: CurrentPacketMIs){
+            temp->dump(); 
+          }
+          assert(0 && "No generating instr found. Should NEVER happen as failure to add bypasses triggers a packet push.");
       }
       // FIXME(ahsu): assert on no producers found
     }
@@ -217,10 +323,37 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   //  MachineInstr &MIFirst = *CurrentPacketMIs.front();
   //  finalizeBundle(*MBB, MIFirst.getIterator(), MI.getInstrIterator());
   //}
+  if (CurrentPacketMIs.size() < 1) {
+    if(push_branch_to_next_packet) {
+      dbgs() << "attempted to packetize an empty packet due to pushing a branch. Should NEVER happen.\n";
+      assert(0);
+    }
+    dbgs() << "attempted to packetize an empty packet.\n";
+    assert(0);
+  }
+
   MachineInstr &MIFirst = *CurrentPacketMIs.front();
   finalizeBundle(*MBB, MIFirst.getIterator(), MI.getInstrIterator());
   CurrentPacketMIs.clear();
   ResourceTracker->clearResources();
+
+  dbgs() << "BB after packetizing\n";
+  packet_breaking_instr->getParent()->dump();
+
+  // FIXME(amans)
+  // if pushing we need to goto a new packet.
+  // that packet has to be ended immedietly since bypass ops have no scheduling information.
+  if(push_branch_to_next_packet) {
+    for(auto& bypasser: generated_bypass_instrs) {
+      CurrentPacketMIs.push_back(bypasser);
+      ResourceTracker->reserveResources(*bypasser);
+    }
+    CurrentPacketMIs.push_back(packet_breaking_instr);
+    ResourceTracker->reserveResources(*packet_breaking_instr);
+
+    endPacket(MBB, old_end_instr); // bad hack. prevents packing with bypassed branchs. 
+  }
+
   LLVM_DEBUG(dbgs() << "End packet\n");
 }
 
