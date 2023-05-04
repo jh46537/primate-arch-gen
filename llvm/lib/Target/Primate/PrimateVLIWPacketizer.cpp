@@ -165,6 +165,43 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
     unsigned slotIdx = llvm::countTrailingZeros(R);  // convert bitvector to ID; assume single bit set
     MI->setSlotIdx(slotIdx);
   }
+  // in-place fixup for packetized dependent branches
+  // there must only be 1 branch per packet
+  for (auto& MI : CurrentPacketMIs) {
+    // skip non-branches
+    if (!MI->isBranch())
+      continue;
+    // fixup branch operands and potentially kill producer operand defs
+    for (auto& operand : MI->uses()) {
+      // skip non-reg
+      if (!operand.isReg())
+        continue;
+      // this is a branch reg operand; the producer needs to be in this packet
+      // find producer; there must be only 1 producer
+      for (auto& otherMI : CurrentPacketMIs) {
+        // skip the branch subinstruction itself
+        if (otherMI == MI)
+          continue;
+        bool found_producer = false;
+        for (auto& otherOperand : otherMI->defs()) {
+          // skip non-reg
+          if (!otherOperand.isReg())
+            continue;
+          // if the reg indices match, the producer has been found
+          if (otherOperand.getReg() == operand.getReg()) {
+            operand.setReg(Primate::X0 + otherMI->getSlotIdx());
+            if (operand.isKill()) {
+              otherOperand.setReg(Primate::X0);
+            }
+            found_producer = true;
+            break;
+          }
+        }
+        if (found_producer)
+          break;
+      }
+    }
+  }
   LLVM_DEBUG({
     if (!CurrentPacketMIs.empty()) {
       dbgs() << "Finalizing packet:\n";
