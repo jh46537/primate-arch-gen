@@ -34,6 +34,8 @@ private:
   const PrimateInstrInfo *PII;
   const PrimateRegisterInfo *PRI;
 
+  bool insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 6>& generated_bypass_ops);
+
 public:
   PrimatePacketizerList(MachineFunction &MF, MachineLoopInfo &MLI,
                         AAResults *AA,
