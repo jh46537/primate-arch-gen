@@ -238,25 +238,39 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     if (SUJ->Succs[i].getSUnit() != SUI)
       continue;
 
-    dbgs() << "Illegal to packetize:\n\t";
-    SUI->getInstr()->print(dbgs());
-    dbgs() << "\t";
-    SUJ->getInstr()->print(dbgs());
-    
     SDep::Kind DepType = SUJ->Succs[i].getKind();
     switch(DepType) {
     case SDep::Kind::Data:
-      dbgs() << "\tDue to data dep\n";
+      dbgs() << "Illegal to packetize:\n\t";
+      SUI->getInstr()->print(dbgs());
+      dbgs() << "\t";
+      SUJ->getInstr()->print(dbgs());
+      dbgs() << "\tDue to RAW hazard\n";
       return false;
-    case SDep::Kind::Anti:
-      dbgs() << "\tDue to anti dep\n";
-      return false;
+    // WAR hazards are okay to packetize together since all operands are read before the packet
+    //case SDep::Kind::Anti:
+    //  dbgs() << "Illegal to packetize:\n\t";
+    //  SUI->getInstr()->print(dbgs());
+    //  dbgs() << "\t";
+    //  SUJ->getInstr()->print(dbgs());
+    //  dbgs() << "\tDue to WAR hazard\n";
+    //  return false;
     case SDep::Kind::Output:
-      dbgs() << "\tDue to output dep\n";
+      dbgs() << "Illegal to packetize:\n\t";
+      SUI->getInstr()->print(dbgs());
+      dbgs() << "\t";
+      SUJ->getInstr()->print(dbgs());
+      dbgs() << "\tDue to WAW hazard\n";
       return false;
     case SDep::Kind::Order:
-      dbgs() << "\tDue to other ordering dep\n";
+      dbgs() << "Illegal to packetize:\n\t";
+      SUI->getInstr()->print(dbgs());
+      dbgs() << "\t";
+      SUJ->getInstr()->print(dbgs());
+      dbgs() << "\tDue to other ordering requirement\n";
       return false;
+    default:
+      ; // do nothing
     }
   }
   dbgs() << "Legal to packetize:\n\t";
