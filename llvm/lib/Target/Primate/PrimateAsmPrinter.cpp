@@ -88,6 +88,12 @@ void PrimateAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
 #include "PrimateGenMCPseudoLowering.inc"
 
 void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // last resource group contains count of all units (PrimatePipes)
+  // scheduler file must be defined accordingly
+  unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;
+  auto const& lastResourceGroup = STI->getSchedModel().ProcResourceTable[numResourceGroups-1];
+  unsigned const numSlots = lastResourceGroup.NumUnits;
+
   MCInst MCB;
   MCB.setOpcode(Primate::BUNDLE);
   MCB.addOperand(MCOperand::createImm(0));
@@ -96,9 +102,6 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
     const MachineBasicBlock* MBB = MI->getParent();
     MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
 
-    // FIXME(ahsu):
-    // make this an archgen param
-    unsigned numSlots = 7;
     unsigned lastSlotIdx = 0;
     for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
       if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
