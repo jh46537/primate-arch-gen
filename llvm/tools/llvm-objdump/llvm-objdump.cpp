@@ -495,6 +495,11 @@ public:
     } else
       OS << "\t<unknown>";
   }
+
+  virtual void startNewSection() {
+    return; //base does nothing
+  }
+
 };
 PrettyPrinter PrettyPrinterInst;
 
@@ -655,10 +660,67 @@ public:
 };
 BPFPrettyPrinter BPFPrettyPrinterInst;
 
+class PrimatePrettyPrinter : public PrettyPrinter {
+  int printed_instrs = 0;
+public:
+  void printInst(MCInstPrinter &IP, const MCInst *MI, ArrayRef<uint8_t> Bytes,
+            object::SectionedAddress Address, formatted_raw_ostream &OS,
+            StringRef Annot, MCSubtargetInfo const &STI, SourcePrinter *SP,
+            StringRef ObjectFilename, std::vector<RelocationRef> *Rels,
+            LiveVariablePrinter &LVP) override {
+    
+    // add a packet break every n instructions
+    unsigned const numResourceGroups = STI.getSchedModel().NumProcResourceKinds;
+    auto const& lastResourceGroup = STI.getSchedModel().ProcResourceTable[numResourceGroups-1];
+    unsigned const numSlots = lastResourceGroup.NumUnits;
+    if((printed_instrs % numSlots) == 0) {
+      OS << "--------\n";
+    }
+    printed_instrs++;
+    
+    if (SP && (PrintSource || PrintLines))
+      SP->printSourceLine(OS, Address, ObjectFilename, LVP);
+    LVP.printBetweenInsts(OS, false);
+
+    size_t Start = OS.tell();
+    if (LeadingAddr)
+      OS << format("%8" PRIx64 ":", Address.Address);
+    if (ShowRawInsn) {
+      OS << ' ';
+      dumpBytes(Bytes, OS);
+    }
+
+    // The output of printInst starts with a tab. Print some spaces so that
+    // the tab has 1 column and advances to the target tab stop.
+    unsigned TabStop = getInstStartColumn(STI);
+    unsigned Column = OS.tell() - Start;
+    OS.indent(Column < TabStop - 1 ? TabStop - 1 - Column : 7 - Column % 8);
+
+    if (MI) {
+      // See MCInstPrinter::printInst. On targets where a PC relative immediate
+      // is relative to the next instruction and the length of a MCInst is
+      // difficult to measure (x86), this is the address of the next
+      // instruction.
+      uint64_t Addr =
+          Address.Address + (STI.getTargetTriple().isX86() ? Bytes.size() : 0);
+      IP.printInst(MI, Addr, "", STI, OS);
+    } else
+      OS << "\t<unknown>";
+  }
+
+  virtual void startNewSection() override {
+    printed_instrs = 0;
+  }
+};
+PrimatePrettyPrinter PrimatePrettyPrinterInst;
+
 PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
   switch(Triple.getArch()) {
   default:
     return PrettyPrinterInst;
+  case Triple::primate32:
+  case Triple::primate64:
+    return PrimatePrettyPrinterInst;
   case Triple::hexagon:
     return HexagonPrettyPrinterInst;
   case Triple::amdgcn:
@@ -1339,6 +1401,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
         outs() << getXCOFFSymbolDescription(Symbols[SI], SymbolName) << ":\n";
       } else
         outs() << '<' << SymbolName << ">:\n";
+
+      PIP.startNewSection();
 
       // Don't print raw contents of a virtual section. A virtual section
       // doesn't have any contents in the file.
