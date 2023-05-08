@@ -150,7 +150,7 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
-bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 6>& generated_bypass_instrs) {
+bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 2>& generated_bypass_instrs) {
   
   for (auto& operand : br_inst->uses()) {
     // skip non-reg
@@ -225,31 +225,31 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   // need to first generate the needed bypass ops
   // generating bypass ops allows the fix up to x0 out the bypasses for free :>
   MachineInstr* packet_breaking_instr = CurrentPacketMIs.back();
-  llvm::SmallVector<MachineInstr*, 6> generated_bypass_instrs;
+  llvm::SmallVector<MachineInstr*, 2> generated_bypass_instrs;
   MachineBasicBlock::iterator old_end_instr = MI;
   bool push_branch_to_next_packet = false;
   if(packet_breaking_instr->isBranch()) {
     push_branch_to_next_packet = insertBypassOps(packet_breaking_instr, generated_bypass_instrs);
-  }
 
-  // if we push to the next packet then pop the branch from the back && set the isntr pointer back.
-  if(push_branch_to_next_packet) {
-    LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
-    CurrentPacketMIs.pop_back();
-    --MI;
-    for(auto& _: generated_bypass_instrs){
+    // if we push to the next packet then pop the branch from the back && set the isntr pointer back.
+    if(push_branch_to_next_packet) {
+      LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
+      CurrentPacketMIs.pop_back();
       --MI;
+      for(auto& _: generated_bypass_instrs){
+        --MI;
+      }
+      MI->dump();
     }
-    MI->dump();
-  }
-  else if(packet_breaking_instr->isBranch() && generated_bypass_instrs.size() > 0) { 
-    LLVM_DEBUG({dbgs() << "Bypasses fit into same packet.\n";});
-    CurrentPacketMIs.pop_back();
-    for(auto& bypass_op: generated_bypass_instrs) {
-      ResourceTracker->reserveResources(*bypass_op);
-      CurrentPacketMIs.push_back(bypass_op);
+    else if(generated_bypass_instrs.size() > 0) { 
+      LLVM_DEBUG({dbgs() << "Bypasses fit into same packet.\n";});
+      CurrentPacketMIs.pop_back();
+      for(auto& bypass_op: generated_bypass_instrs) {
+        ResourceTracker->reserveResources(*bypass_op);
+        CurrentPacketMIs.push_back(bypass_op);
+      }
+      CurrentPacketMIs.push_back(packet_breaking_instr);
     }
-    CurrentPacketMIs.push_back(packet_breaking_instr);
   }
 
   // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
