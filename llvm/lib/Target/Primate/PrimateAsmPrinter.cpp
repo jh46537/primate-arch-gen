@@ -29,6 +29,7 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+#include <vector>
 using namespace llvm;
 
 #define DEBUG_TYPE "asm-printer"
@@ -101,14 +102,42 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
   if (MI->isBundle()) {
     const MachineBasicBlock* MBB = MI->getParent();
     MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
-
+    LLVM_DEBUG(dbgs() << "========== Bundle ===========\n");
     unsigned lastSlotIdx = 0;
+    std::vector<const MachineInstr*> ordered_machine_instrs;
     for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
+      ordered_machine_instrs.push_back(&(*MII));
+    }
+    std::sort(ordered_machine_instrs.begin(), ordered_machine_instrs.end(),
+      [](const MachineInstr* a, const MachineInstr* b) -> bool {
+        return a->getSlotIdx() < b->getSlotIdx();
+      }
+    );
+    for(auto& MII: ordered_machine_instrs) {
       if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
         unsigned slotIdx = MII->getSlotIdx();
         // ignore instructions without slots
-        if (slotIdx == (unsigned)-1)
+        if (slotIdx == (unsigned)-1) {
+          LLVM_DEBUG({
+            dbgs() << "no slot!\n";
+            MI->dump();
+          });
           continue;
+        }
+        if(slotIdx > numSlots) {
+          LLVM_DEBUG(
+            {
+              dbgs() << "Instruction slot higher than number of lanes!\n";
+              MI->dump();
+            }
+          );
+        }
+
+        LLVM_DEBUG({
+          dbgs() << "slot " << slotIdx << " last slot " << lastSlotIdx;
+          MII->dump();
+        });
+
         if (slotIdx > lastSlotIdx) {
           emitNops(slotIdx - lastSlotIdx);
           lastSlotIdx = slotIdx;
@@ -135,6 +164,8 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (!lowerPrimateMachineInstrToMCInst(MI, TmpInst, *this))
       EmitToStreamer(*OutStreamer, TmpInst);
   }
+
+  
 
   // TODO(ahsu): insert post-processing canonicalization a la Hexagon
 }

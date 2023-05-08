@@ -139,9 +139,11 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   for (auto &MB : MF) {
     // TODO(ahsu): fix scheduling boundary
     printf("");
-    dbgs() << "starting packetizing on MB:\n ";
-    MB.print(dbgs());
-    dbgs() << "===========================\n ";
+    LLVM_DEBUG({
+      dbgs() << "starting packetizing on MB:\n ";
+      MB.print(dbgs());
+      dbgs() << "===========================\n ";
+    });
     Packetizer.PacketizeMIs(&MB, MB.begin(), MB.end());
     printf("");
   }
@@ -201,7 +203,6 @@ bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVe
     }
     else {
       LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket Bypass instr inserted for operand: ";  operand.dump(); });
-      ResourceTracker->reserveResources(*bypass_op);
       generated_bypass_instrs.push_back(bypass_op);
     }
   }
@@ -233,26 +234,22 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
 
   // if we push to the next packet then pop the branch from the back && set the isntr pointer back.
   if(push_branch_to_next_packet) {
-    dbgs() << "pushing branch to a new packet.\n";
+    LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
     CurrentPacketMIs.pop_back();
     --MI;
     for(auto& _: generated_bypass_instrs){
       --MI;
-      dbgs() << "reversing the MI iterator.\n";
     }
     MI->dump();
   }
-  else if(packet_breaking_instr->isBranch() && generated_bypass_instrs.size() > 0) { // add bypass ops to the current packet MIs if we haven't pushed it off
+  else if(packet_breaking_instr->isBranch() && generated_bypass_instrs.size() > 0) { 
+    LLVM_DEBUG({dbgs() << "Bypasses fit into same packet.\n";});
     CurrentPacketMIs.pop_back();
     for(auto& bypass_op: generated_bypass_instrs) {
+      ResourceTracker->reserveResources(*bypass_op);
       CurrentPacketMIs.push_back(bypass_op);
     }
     CurrentPacketMIs.push_back(packet_breaking_instr);
-    // really???
-    ResourceTracker->clearResources();
-    for(auto& ordered_instrs: CurrentPacketMIs) {
-      ResourceTracker->reserveResources(*ordered_instrs);
-    }
   }
 
   // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
@@ -300,11 +297,13 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
         }
       }
       if (!found_producer) {
-          dbgs() << "no gen instr for: "; operand.dump(); dbgs() << ". Packet looks like:\n"; 
-          for(auto& temp: CurrentPacketMIs){
-            temp->dump(); 
-          }
-          assert(0 && "No generating instr found. Should NEVER happen as failure to add bypasses triggers a packet push.");
+          LLVM_DEBUG({
+            dbgs() << "no gen instr for: "; operand.dump(); dbgs() << ". Packet looks like:\n"; 
+            for(auto& temp: CurrentPacketMIs){
+              temp->dump(); 
+            }
+          });
+          llvm_unreachable("No generating instr found. Should NEVER happen as failure to add bypasses triggers a packet push.");
       }
       // FIXME(ahsu): assert on no producers found
     }
@@ -315,7 +314,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
       unsigned Idx = 0;
       for (MachineInstr *MI : CurrentPacketMIs) {
         unsigned R = ResourceTracker->getUsedResources(Idx++);
-        dbgs() << " * [res:0x" << utohexstr(R) << "] " << *MI;
+          dbgs() << " * [res:0x" << utohexstr(R) << "] " << *MI;
       }
     }
   });
@@ -325,11 +324,9 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   //}
   if (CurrentPacketMIs.size() < 1) {
     if(push_branch_to_next_packet) {
-      dbgs() << "attempted to packetize an empty packet due to pushing a branch. Should NEVER happen.\n";
-      assert(0);
+      llvm_unreachable("attempted to packetize an empty packet due to pushing a branch. Should NEVER happen.");
     }
-    dbgs() << "attempted to packetize an empty packet.\n";
-    assert(0);
+    llvm_unreachable("attempted to packetize an empty packet.");
   }
 
   MachineInstr &MIFirst = *CurrentPacketMIs.front();
@@ -337,7 +334,9 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   CurrentPacketMIs.clear();
   ResourceTracker->clearResources();
 
-  dbgs() << "BB after packetizing\n";
+  LLVM_DEBUG({
+    dbgs() << "BB after packetizing\n";
+  });
   packet_breaking_instr->getParent()->dump();
 
   // FIXME(amans)
@@ -395,11 +394,13 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   
   // if SUI is not a successor to SUJ then we are good always
   if (!SUJ->isSucc(SUI)) {
-    dbgs() << "Legal to packetize:\n\t";
-    SUI->getInstr()->print(dbgs());
-    dbgs() << "\t";
-    SUJ->getInstr()->print(dbgs());
-    dbgs() << "\t due to unrelated instrs\n";
+    LLVM_DEBUG({
+      dbgs() << "Legal to packetize:\n\t";
+      SUI->getInstr()->print(dbgs());
+      dbgs() << "\t";
+      SUJ->getInstr()->print(dbgs());
+      dbgs() << "\t due to unrelated instrs\n";
+    });
     return true;
   }
 
@@ -412,11 +413,13 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     SDep::Kind DepType = SUJ->Succs[i].getKind();
     switch(DepType) {
     case SDep::Kind::Data:
-      dbgs() << "Illegal to packetize:\n\t";
-      SUI->getInstr()->print(dbgs());
-      dbgs() << "\t";
-      SUJ->getInstr()->print(dbgs());
-      dbgs() << "\tDue to RAW hazard\n";
+      LLVM_DEBUG({
+        dbgs() << "Illegal to packetize:\n\t";
+        SUI->getInstr()->print(dbgs());
+        dbgs() << "\t";
+        SUJ->getInstr()->print(dbgs());
+        dbgs() << "\tDue to RAW hazard\n";
+      });
       return false;
     // WAR hazards are okay to packetize together since all operands are read before the packet
     //case SDep::Kind::Anti:
@@ -427,28 +430,34 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     //  dbgs() << "\tDue to WAR hazard\n";
     //  return false;
     case SDep::Kind::Output:
-      dbgs() << "Illegal to packetize:\n\t";
-      SUI->getInstr()->print(dbgs());
-      dbgs() << "\t";
-      SUJ->getInstr()->print(dbgs());
-      dbgs() << "\tDue to WAW hazard\n";
+      LLVM_DEBUG({
+        dbgs() << "Illegal to packetize:\n\t";
+        SUI->getInstr()->print(dbgs());
+        dbgs() << "\t";
+        SUJ->getInstr()->print(dbgs());
+        dbgs() << "\tDue to WAW hazard\n";
+      });
       return false;
     case SDep::Kind::Order:
-      dbgs() << "Illegal to packetize:\n\t";
-      SUI->getInstr()->print(dbgs());
-      dbgs() << "\t";
-      SUJ->getInstr()->print(dbgs());
-      dbgs() << "\tDue to other ordering requirement\n";
+      LLVM_DEBUG({
+        dbgs() << "Illegal to packetize:\n\t";
+        SUI->getInstr()->print(dbgs());
+        dbgs() << "\t";
+        SUJ->getInstr()->print(dbgs());
+        dbgs() << "\tDue to other ordering requirement\n";
+      });
       return false;
     default:
       ; // do nothing
     }
   }
-  dbgs() << "Legal to packetize:\n\t";
-  SUI->getInstr()->print(dbgs());
-  dbgs() << "\t";
-  SUJ->getInstr()->print(dbgs());
-  dbgs() << "\tDue to no deps\n";
+  LLVM_DEBUG({
+    dbgs() << "Legal to packetize:\n\t";
+    SUI->getInstr()->print(dbgs());
+    dbgs() << "\t";
+    SUJ->getInstr()->print(dbgs());
+    dbgs() << "\tDue to no deps\n";
+  });
   return true;
 }
 
