@@ -520,7 +520,7 @@ namespace {
 
                 primateCFG << "NUM_DST_POS=" << fieldIndex->size()-1 << "\n";
 
-                primateCFG << "NUM_DST_MODE=" << scatterWbens.size() << "\n";
+                primateCFG << "NUM_WB_ENS=" << scatterWbens.size() << "\n";
             }
 
             void generate_header(Module &M) {
@@ -533,11 +533,13 @@ namespace {
                     if ((*it)->getName().contains("input_t")) {
                         unsigned elemWidth = getStructWidth((**it), 0, false);
                         primateHeader << "class input_t extends Bundle {\n";
+                        primateHeader << "    val empty = UInt(" << (elemWidth+7)/8 << ".W)\n";
                         primateHeader << "    val data = UInt(" << elemWidth << ".W)\n";
                         primateHeader << "}\n";
                     } else if ((*it)->getName().contains("output_t")) {
                         unsigned elemWidth = getStructWidth((**it), 0, false);
                         primateHeader << "class output_t extends Bundle {\n";
+                        primateHeader << "    val empty = UInt(" << (elemWidth+7)/8 << ".W)\n";
                         primateHeader << "    val data = UInt(" << elemWidth << ".W)\n";
                         primateHeader << "}\n";
                     }
@@ -2027,8 +2029,11 @@ namespace {
                 assemblerHeader << "#define NUM_REGS " << int(pow(2, ceil(log2(numRegs)))) << "\n";
                 assemblerHeader << "#define NUM_REGS_LG int(ceil(log2(NUM_REGS)))\n";
 
-                primateCFG << "NUM_ALUS=" << maxNumALU << "\n";
-                primateCFG << "NUM_BFUS=" << bfu2bf.size() - 1 << "\n";
+                if (bfu2bf.size() > maxNumALU)
+                    primateCFG << "NUM_ALUS=" << bfu2bf.size() << "\n";
+                else
+                    primateCFG << "NUM_ALUS=" << maxNumALU << "\n";
+                primateCFG << "NUM_BFUS=" << bfu2bf.size()<< "\n";
                 assemblerHeader << "#define NUM_ALUS " << maxNumALU << "\n";
                 assemblerHeader << "#define NUM_FUS " << maxNumALU + bfu2bf.size() - 1 << "\n";
                 assemblerHeader << "#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))\n";
