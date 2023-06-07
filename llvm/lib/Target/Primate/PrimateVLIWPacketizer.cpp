@@ -151,7 +151,9 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
 }
 
 bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 2>& generated_bypass_instrs) {
-  
+  // Create copy of ResourceTracker to try insertion
+  DFAPacketizer TryResourceTracker{ *ResourceTracker };
+
   for (auto& operand : br_inst->uses()) {
     // skip non-reg
     if (!operand.isReg())
@@ -183,7 +185,7 @@ bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVe
     MachineInstr* bypass_op = BuildMI(*br_inst->getParent(), br_inst, llvm::DebugLoc(), PII->get(Primate::ADDI), operand.getReg())
               .addReg(operand.getReg())
               .addImm(0);
-    bool ResourceAvail = ResourceTracker->canReserveResources(*bypass_op);
+    bool ResourceAvail = TryResourceTracker.canReserveResources(*bypass_op);
     if (!ResourceAvail) {
       // no room. set up packet for next iterations. 
       // 1) Need to put all the bypass ops into the BB above the Branch.
@@ -203,6 +205,7 @@ bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVe
     }
     else {
       LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket Bypass instr inserted for operand: ";  operand.dump(); });
+      TryResourceTracker.reserveResources(*bypass_op);
       generated_bypass_instrs.push_back(bypass_op);
     }
   }
@@ -221,6 +224,7 @@ PrimatePacketizerList::addToPacket(MachineInstr &MI) {
 
 void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
                                       MachineBasicBlock::iterator MI) {
+  // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
 
   // need to first generate the needed bypass ops
   // generating bypass ops allows the fix up to x0 out the bypasses for free :>
@@ -242,7 +246,8 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
       MI->dump();
     }
     else if(generated_bypass_instrs.size() > 0) { 
-      LLVM_DEBUG({dbgs() << "Bypasses fit into same packet.\n";});
+      LLVM_DEBUG({dbgs() << "Bypasses fit into same packet: "
+          << generated_bypass_instrs.size() << " ops\n";});
       CurrentPacketMIs.pop_back();
       for(auto& bypass_op: generated_bypass_instrs) {
         ResourceTracker->reserveResources(*bypass_op);
@@ -252,7 +257,6 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
     }
   }
 
-  // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
   unsigned Idx = 0;
   for (MachineInstr *MI : CurrentPacketMIs) {
     unsigned R = ResourceTracker->getUsedResources(Idx++);
@@ -305,7 +309,6 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
           });
           llvm_unreachable("No generating instr found. Should NEVER happen as failure to add bypasses triggers a packet push.");
       }
-      // FIXME(ahsu): assert on no producers found
     }
   }
   LLVM_DEBUG({
