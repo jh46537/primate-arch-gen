@@ -1,3 +1,44 @@
+# Primate Build Process
+
+### Requires:
+
+ - Clang >= 14
+ - LLVM requirements
+ - 32-bit libc
+
+### Checkout branch 'primate'
+
+        git checkout primate
+
+### Some useful env vars
+
+        export CC=/usr/bin/clang
+        export CXX=/usr/bin/clang++
+        export LLVM_ROOT=<path to this repo>
+
+### CMake with proper targets. This will make the backend with RISCV and Primate useful for comparisons.
+
+        cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS='clang;libc;libcxx;libcxxabi' -DLLVM_TARGETS_TO_BUILD='Primate;RISCV' -DLLVM_BUILD_TESTS=False -DCMAKE_INSTALL_PREFIX="${LLVM_ROOT}/build" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Primate
+
+### Ninja to actually compile
+
+        ninja -C {LLVM_ROOT}/build
+    
+Note: may get some odd compile fails. This is potentially caused by OOM. just retry the build again.
+Note: if you fail due to some inline asm related to fsqrt or similar, ensure you are using clang
+
+### Finally you can compile cpp into primate insts:
+
+        export PATH="${LLVM_ROOT}/build/bin:$PATH"``
+        export LD_LIBRARY_PATH="${LLVM_ROOT}/build/lib:$LD_LIBRARY_PATH"``
+        clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -c -o <output-file> <cpp>``
+
+### Useful commands:
+
+dump the compile results:
+
+        llvm-objdump –arch-name=primate32 -d -t <obj-file> > debug.dsm
+
 # The LLVM Compiler Infrastructure
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/llvm/llvm-project/badge)](https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project)
