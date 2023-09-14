@@ -22,7 +22,7 @@
 
 ### Ninja to actually compile
 
-        ninja -C {LLVM_ROOT}/build
+        ninja -C ${LLVM_ROOT}/build
     
 Note: may get some odd compile fails. This is potentially caused by OOM. just retry the build again.
 Note: if you fail due to some inline asm related to fsqrt or similar, ensure you are using clang
