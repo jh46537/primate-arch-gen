@@ -40,6 +40,8 @@ add_llvm_target(PrimateCodeGen
   PrimateTargetObjectFile.cpp
   PrimateTargetTransformInfo.cpp
   PrimateVLIWPacketizer.cpp
+  PrimateStructToRegPass.cpp
+  PrimateGEPFilter.cpp
 
   LINK_COMPONENTS
   Analysis
