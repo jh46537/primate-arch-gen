@@ -29,15 +29,15 @@ Note: if you fail due to some inline asm related to fsqrt or similar, ensure you
 
 ### Finally you can compile cpp into primate insts:
 
-        export PATH="${LLVM_ROOT}/build/bin:$PATH"``
-        export LD_LIBRARY_PATH="${LLVM_ROOT}/build/lib:$LD_LIBRARY_PATH"``
-        clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -c -o <output-file> <cpp>``
+        export PATH="${LLVM_ROOT}/build/bin:$PATH"
+        export LD_LIBRARY_PATH="${LLVM_ROOT}/build/lib:$LD_LIBRARY_PATH"
+        clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -mno-relax -c -o <output-file> <cpp>
 
 ### Useful commands:
 
 dump the compile results:
 
-        llvm-objdump –arch-name=primate32 -d -t <obj-file> > debug.dsm
+        llvm-objdump –-arch-name=primate32 -d -t <obj-file> > debug.dsm
 
 # The LLVM Compiler Infrastructure
 
