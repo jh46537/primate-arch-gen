@@ -81,6 +81,15 @@ let TargetPrefix = "primate" in {
                   [LLVMMatchType<0>, LLVMMatchType<0>],
                   [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
 
+  class PrimateStructMaipIntrinsics
+      : Intrinsic<[llvm_any_ty], // return val
+                  [llvm_any_ty, llvm_anyint_ty, llvm_anyint_ty], // Params: gpr w/ struct, start, end
+		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
+
+  // primate ops
+  def int_primate_extract :  PrimateStructMaipIntrinsics;
+  def int_primate_insert  :  PrimateStructMaipIntrinsics;	
+
   // Zbb
   def int_primate_orc_b : PrimateBitManipGPRIntrinsics;
 
@@ -112,6 +121,7 @@ let TargetPrefix = "primate" in {
   def int_primate_crc32c_h : PrimateBitManipGPRIntrinsics;
   def int_primate_crc32c_w : PrimateBitManipGPRIntrinsics;
   def int_primate_crc32c_d : PrimateBitManipGPRIntrinsics;
+
 } // TargetPrefix = "primate"
 
 //===----------------------------------------------------------------------===//
