@@ -52,6 +52,9 @@ void initializePrimateInsertVSETVLIPass(PassRegistry &);
 FunctionPass *createPrimatePacketizer();
 void initializePrimatePacketizerPass(PassRegistry &);
 
+FunctionPass *createPrimateStructToRegPass();
+void initializePrimateStructToRegPassPass(PassRegistry &);
+
 InstructionSelector *createPrimateInstructionSelector(const PrimateTargetMachine &,
                                                     PrimateSubtarget &,
                                                     PrimateRegisterBankInfo &);

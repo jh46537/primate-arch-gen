@@ -38,6 +38,8 @@ public:
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
+  void registerPassBuilderCallbacks(PassBuilder &PB) override;
+
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }

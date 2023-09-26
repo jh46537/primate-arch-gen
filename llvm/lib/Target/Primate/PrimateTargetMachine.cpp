@@ -15,6 +15,7 @@
 #include "Primate.h"
 #include "PrimateTargetObjectFile.h"
 #include "PrimateTargetTransformInfo.h"
+#include "PrimateGEPFilter.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -26,6 +27,8 @@
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -36,6 +39,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePrimateTarget() {
   RegisterTargetMachine<PrimateTargetMachine> X(getThePrimate32Target());
   RegisterTargetMachine<PrimateTargetMachine> Y(getThePrimate64Target());
   auto *PR = PassRegistry::getPassRegistry();
+  initializePrimateStructToRegPassPass(*PR); // needs to run on IR with struct information
   initializeGlobalISel(*PR);
   initializePrimateMergeBaseOffsetOptPass(*PR);
   initializePrimateExpandPseudoPass(*PR);
@@ -149,6 +153,7 @@ TargetPassConfig *PrimateTargetMachine::createPassConfig(PassManagerBase &PM) {
 }
 
 void PrimatePassConfig::addIRPasses() {
+  addPass(createPrimateStructToRegPass());
   addPass(createAtomicExpandPass());
   TargetPassConfig::addIRPasses();
 }
@@ -174,6 +179,13 @@ bool PrimatePassConfig::addRegBankSelect() {
   return false;
 }
 
+void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
+  PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
+    FPM.addPass(llvm::PrimateGEPFilterPass());
+    FPM.addPass(llvm::PrimateStructLoadCombinerPass());
+  });
+}
+
 bool PrimatePassConfig::addGlobalInstructionSelect() {
   addPass(new InstructionSelect(getOptLevel()));
   return false;
@@ -197,5 +209,7 @@ void PrimatePassConfig::addPreEmitPass2() {
 void PrimatePassConfig::addPreRegAlloc() {
   if (TM->getOptLevel() != CodeGenOpt::None)
     addPass(createPrimateMergeBaseOffsetOptPass());
+
+  // Convert structs to registers before any other reg alloc
   addPass(createPrimateInsertVSETVLIPass());
 }
