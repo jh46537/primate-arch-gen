@@ -105,6 +105,13 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     ++I;
     CurDAG->DeleteNode(N);
   }
+
+  // second iteration of DAG to find GEP instrs
+  auto dagEnd = CurDAG->allnodes_end();
+  for (auto curNode = CurDAG->allnodes_begin(); dagEnd != curNode; curNode++) {
+    errs() << "Kayvan loop\n";
+    curNode->dump();
+  }
 }
 
 void PrimateDAGToDAGISel::PostprocessISelDAG() {
