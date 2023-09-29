@@ -907,9 +907,7 @@ let Itinerary = ItinExtractInsert in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def EXTRACT :
     PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {
-	let Pattern = [(int_primate_extract GPR:$rs1, i32:$imm12)];
-}
+        "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
@@ -988,6 +986,8 @@ def : PatGprSimm12<xor, XORI>;
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
+
+def : PatGprSimm12<int_primate_extract, EXTRACT>;
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and

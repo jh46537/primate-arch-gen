@@ -156,6 +156,8 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
         if (usePRVForFixedLengthVectorVT(VT))
           addRegClassForFixedVectors(VT);
     }
+
+    setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, LegalizeAction::Promote); // promote intrinsics which have i8 return types? I think that's fair. 
   }
 
   // Compute derived properties from the register classes.
