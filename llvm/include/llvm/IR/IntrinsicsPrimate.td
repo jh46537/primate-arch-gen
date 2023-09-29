@@ -82,8 +82,8 @@ let TargetPrefix = "primate" in {
                   [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
 
   class PrimateStructMaipIntrinsics
-      : Intrinsic<[llvm_any_ty], // return val
-                  [llvm_any_ty, llvm_anyint_ty, llvm_anyint_ty], // Params: gpr w/ struct, start, end
+      : Intrinsic<[llvm_anyint_ty], // return val
+                  [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
 		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
 
   // primate ops
