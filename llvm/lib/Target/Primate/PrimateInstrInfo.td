@@ -32,6 +32,10 @@ def SDT_PrimateReadCSR  : SDTypeProfile<1, 1, [SDTCisInt<0>, SDTCisInt<1>]>;
 def SDT_PrimateWriteCSR : SDTypeProfile<0, 2, [SDTCisInt<0>, SDTCisInt<1>]>;
 def SDT_PrimateSwapCSR  : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>,
                                              SDTCisInt<2>]>;
+
+def SDT_PrimateExtract  : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>,
+                                             SDTCisInt<2>]>;
+                                             
 def SDT_PrimateReadCycleWide : SDTypeProfile<2, 0, [SDTCisVT<0, i32>,
                                                   SDTCisVT<1, i32>]>;
 def SDT_PrimateIntUnaryOpW : SDTypeProfile<1, 1, [
@@ -77,6 +81,9 @@ def primate_write_csr : SDNode<"PrimateISD::WRITE_CSR", SDT_PrimateWriteCSR,
                              [SDNPHasChain]>;
 def primate_swap_csr  : SDNode<"PrimateISD::SWAP_CSR", SDT_PrimateSwapCSR,
                              [SDNPHasChain]>;
+
+def primate_extract   : SDNode<"PrimateISD::EXTRACT", SDT_PrimateExtract, 
+                                []>;
 
 def primate_read_cycle_wide : SDNode<"PrimateISD::READ_CYCLE_WIDE",
                                    SDT_PrimateReadCycleWide,
