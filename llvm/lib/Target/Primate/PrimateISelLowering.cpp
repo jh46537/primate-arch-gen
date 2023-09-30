@@ -48,6 +48,10 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.isPR32E())
     report_fatal_error("Codegen not yet implemented for PR32E");
+  
+  // custom promote intrinsics which have 
+  // i8 return types I think that's fair.
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, LegalizeAction::Custom);                                          
 
   PrimateABI::ABI ABI = Subtarget.getTargetABI();
   assert(ABI != PrimateABI::ABI_Unknown && "Improperly initialised target ABI");
@@ -156,8 +160,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
         if (usePRVForFixedLengthVectorVT(VT))
           addRegClassForFixedVectors(VT);
     }
-
-    setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, LegalizeAction::Promote); // promote intrinsics which have i8 return types? I think that's fair. 
+ 
   }
 
   // Compute derived properties from the register classes.
@@ -5245,6 +5248,31 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
+    case Intrinsic::primate_extract: {
+      // check and replace ops
+      
+      SDValue op1 = N->getOperand(0);
+      SDValue op2 = N->getOperand(1);
+      SDValue op3 = N->getOperand(2);
+
+      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::i32, op1, op2, op3); // simply replace with an i32
+      Results.push_back(Res);
+      LLVM_DEBUG({
+        dbgs() << "Num ops: " << N->getNumOperands() << "\n";
+        op1.dump();
+        op2.dump();
+        op3.dump();
+        dbgs() << "Lowered op: ";
+        N->dump();
+        dbgs() << " to: ";
+        Res->dump();
+      });
+      return;
+    }
+    case Intrinsic::primate_insert: {
+      N->dump();
+      return;
+    }
     case Intrinsic::primate_orc_b: {
       // Lower to the GORCI encoding for orc.b with the operand extended.
       SDValue NewOp =
@@ -8450,6 +8478,8 @@ const char *PrimateTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(READ_CSR)
   NODE_NAME_CASE(WRITE_CSR)
   NODE_NAME_CASE(SWAP_CSR)
+  NODE_NAME_CASE(EXTRACT)
+  NODE_NAME_CASE(INSERT)
   }
   // clang-format on
   return nullptr;
