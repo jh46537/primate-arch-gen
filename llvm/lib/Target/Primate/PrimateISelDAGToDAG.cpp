@@ -105,13 +105,6 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     ++I;
     CurDAG->DeleteNode(N);
   }
-
-  // second iteration of DAG to find GEP instrs
-  auto dagEnd = CurDAG->allnodes_end();
-  for (auto curNode = CurDAG->allnodes_begin(); dagEnd != curNode; curNode++) {
-    errs() << "Kayvan loop\n";
-    curNode->dump();
-  }
 }
 
 void PrimateDAGToDAGISel::PostprocessISelDAG() {
@@ -450,6 +443,10 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     return;
   }
 
+  dbgs() << "Selecting nodes for: ";
+  Node->dump();
+  dbgs() << "\n";
+
   // Instruction Selection not handled by the auto-generated tablegen selection
   // should be handled here.
   unsigned Opcode = Node->getOpcode();
@@ -631,6 +628,8 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     break;
   }
   case ISD::INTRINSIC_WO_CHAIN: {
+    dbgs() << "Select for Intrinsic_wo_chain\n";
+
     unsigned IntNo = Node->getConstantOperandVal(0);
     switch (IntNo) {
       // By default we do not custom select any intrinsic.
@@ -1096,6 +1095,14 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     }
     }
     break;
+  }
+  case PrimateISD::EXTRACT: {
+    LLVM_DEBUG(dbgs() << "ISel for extract sdnode\n");
+    return;
+  }
+  case Intrinsic::primate_extract: {
+    LLVM_DEBUG(dbgs() << "ISel for extract intrinsic sdnode\n");
+    return;
   }
   case ISD::INTRINSIC_VOID: {
     unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();

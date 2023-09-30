@@ -25,6 +25,10 @@ struct PrimateRegisterInfo;
 namespace PrimateISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
+
+  EXTRACT,
+  INSERT,
+
   RET_FLAG,
   URET_FLAG,
   SRET_FLAG,
