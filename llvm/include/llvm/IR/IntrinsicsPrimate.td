@@ -82,13 +82,18 @@ let TargetPrefix = "primate" in {
                   [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
 
   class PrimateStructMaipIntrinsics
-      : Intrinsic<[llvm_anyint_ty], // return val
+      : Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
 		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
 
   // primate ops
-  def int_primate_extract :  PrimateStructMaipIntrinsics;
-  def int_primate_insert  :  PrimateStructMaipIntrinsics;	
+  def int_primate_extract :  Intrinsic<[llvm_any_ty], // return val
+                  [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
+		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;
+                  
+  def int_primate_insert  :  Intrinsic<[llvm_any_ty], // return val
+                  [llvm_any_ty, llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, res, imm12
+		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;	
 
   // Zbb
   def int_primate_orc_b : PrimateBitManipGPRIntrinsics;
