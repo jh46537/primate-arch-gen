@@ -163,6 +163,9 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
  
   }
 
+
+  addRegisterClass(MVT::Other, &Primate::WIDEREGRegClass);
+
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
 
@@ -5271,6 +5274,8 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     }
     case Intrinsic::primate_insert: {
       N->dump();
+      errs() << N->getValueType(0).getEVTString() << "\n";
+      errs() << "FUCK\n";
       return;
     }
     case Intrinsic::primate_orc_b: {
