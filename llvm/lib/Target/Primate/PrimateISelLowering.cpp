@@ -86,6 +86,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 
   // Set up the register classes.
   addRegisterClass(XLenVT, &Primate::GPRRegClass);
+  addRegisterClass(MVT::primate_aggre_1, &Primate::WIDEREGRegClass);
 
   if (Subtarget.hasStdExtZfh())
     addRegisterClass(MVT::f16, &Primate::FPR16RegClass);
@@ -5274,8 +5275,17 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     }
     case Intrinsic::primate_insert: {
       N->dump();
+
+      SDValue op1 = N->getOperand(0);
+      SDValue op2 = N->getOperand(1);
+      SDValue op3 = N->getOperand(2);
+
+      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::primate_aggre_1, op1, op2, op3);
+
+      Res.dump();
       errs() << N->getValueType(0).getEVTString() << "\n";
       errs() << "FUCK\n";
+      Results.push_back(Res);
       return;
     }
     case Intrinsic::primate_orc_b: {

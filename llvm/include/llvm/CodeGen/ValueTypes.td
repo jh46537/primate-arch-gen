@@ -18,6 +18,8 @@ class ValueType<int size, int value> {
   int Value = value;
 }
 
+def PrimateAGGTy : ValueType<80, 179>;  // "primate" aggregate type
+
 def OtherVT : ValueType<0,   1>;  // "Other" value
 def i1      : ValueType<1,   2>;  // One bit boolean value
 def i8      : ValueType<8,   3>;  // 8-bit integer value
