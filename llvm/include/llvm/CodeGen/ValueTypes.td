@@ -30,6 +30,8 @@ class VTAny<int value> : ValueType<0, value> {
   let isOverloaded = true;
 }
 
+def PrimateAGGTy : ValueType<80, 198>;  // "primate" aggregate type
+
 class VTInt<int size, int value>
     : ValueType<size, value> {
   let isInteger = true;

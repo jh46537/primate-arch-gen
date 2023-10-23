@@ -186,6 +186,7 @@ std::string EVT::getEVTString() const {
     return "aarch64svcount";
   case MVT::spirvbuiltin:
     return "spirvbuiltin";
+  case MVT::primate_aggre_1: return "primate_aggre"; 
   }
 }
 
