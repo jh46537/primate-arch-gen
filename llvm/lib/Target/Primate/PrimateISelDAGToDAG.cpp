@@ -628,13 +628,38 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     break;
   }
   case ISD::INTRINSIC_WO_CHAIN: {
-    dbgs() << "Select for Intrinsic_wo_chain\n";
-
+    dbgs() << "Select for Intrinsic_wo_chain number: ";
+    
     unsigned IntNo = Node->getConstantOperandVal(0);
+    dbgs() << IntNo << "\n";
     switch (IntNo) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    case Intrinsic::primate_forward_exact: {
+      dbgs() << "forward exact\n";
+      unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::ASCII, DL, 
+                                            XLenVT, MVT::Other,   // int and chain out
+                                            // operands
+                                            Node->getOperand(2), 
+                                            CurDAG->getTargetConstant(0, DL, MVT::i32),
+                                            Node->getOperand(0)); // const field in
+
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
     case Intrinsic::primate_vmsgeu:
     case Intrinsic::primate_vmsge: {
       SDValue Src1 = Node->getOperand(1);
@@ -838,11 +863,81 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     break;
   }
   case ISD::INTRINSIC_W_CHAIN: {
+    dbgs() << "chain intrinsic\n";
     unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
     switch (IntNo) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    case Intrinsic::primate_insert: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(Node->getOperand(4)); // val
+//      operands.push_back(Node->getOperand(2)); // reg in
+      operands.push_back(Node->getOperand(3)); // field
+      operands.push_back(Node->getOperand(0)); // chain
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::INSERT, DL, 
+                                            XLenVT, MVT::Other, // val and chain
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
+    case Intrinsic::primate_forward_exact: {
+      dbgs() << "Forward Extract\n";
+      unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::ASCII, DL, 
+                                            XLenVT, MVT::Other,   // int and chain out
+                                            // operands
+                                            Node->getOperand(2),  // reg in
+                                            CurDAG->getTargetConstant(0, DL, MVT::i32),
+                                            Node->getOperand(0) /*chain*/ ); //
+
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+    case Intrinsic::primate_Input_header: {
+      dbgs() << "Input Header\n";
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::INPUT_EXTRACT, DL, 
+                                            XLenVT, MVT::Other, // output reg, chain
+                                            // operands
+                                            CurDAG->getTargetConstant(0, DL, XLenVT),
+                                            Node->getOperand(2),
+                                            /* Chain */ Node->getOperand(0));  // chain in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
 
     case Intrinsic::primate_vsetvli:
     case Intrinsic::primate_vsetvlimax: {
@@ -1104,9 +1199,140 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     LLVM_DEBUG(dbgs() << "ISel for extract intrinsic sdnode\n");
     return;
   }
+  case Intrinsic::primate_Input_header: {
+    LLVM_DEBUG(dbgs() << "ISel for input_header sdnode\n");
+    return;
+  }
   case ISD::INTRINSIC_VOID: {
+    dbgs() << "void intrinsic\n";
     unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
     switch (IntNo) {
+    // I am an evil person unworthy of love
+    case Intrinsic::primate_Input_done: {
+      dbgs() << "Input Done\n";
+      SmallVector<llvm::SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      if(Node->getOperand(0)->getValueType(0) == MVT::Other) {
+        operands.push_back(Node->getOperand(0));
+      }
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::INPUT_DONE, DL, 
+                                            MVT::Other, // chain out only
+                                            // operands
+                                            operands
+                                            );
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
+    case Intrinsic::primate_Output_header: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(Node->getOperand(2));
+      operands.push_back(Node->getOperand(3));
+      operands.push_back(Node->getOperand(0)); // capture the chain
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::OUTPUTHEADER, DL, 
+                                            MVT::Other, // chain out only
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
+    case Intrinsic::primate_Output_meta: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(Node->getOperand(2));
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      operands.push_back(Node->getOperand(0)); // capture the chain
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::OUTPUTMETA, DL, 
+                                            MVT::Other, // chain out only
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
+    case Intrinsic::primate_Output_done: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+      operands.push_back(Node->getOperand(0)); // capture the chain
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::OUTPUTMETA, DL, 
+                                            MVT::Other, // chain out only
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
+    case Intrinsic::primate_insert: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(Node->getOperand(2));
+      operands.push_back(Node->getOperand(3));
+      operands.push_back(Node->getOperand(4));
+      operands.push_back(Node->getOperand(0));
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::INSERT, DL, 
+                                            MVT::Other, // chain out only
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+
     case Intrinsic::primate_vsseg2:
     case Intrinsic::primate_vsseg3:
     case Intrinsic::primate_vsseg4:

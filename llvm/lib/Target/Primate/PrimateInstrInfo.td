@@ -895,19 +895,25 @@ def INPUT_READ :
         "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INPUT_EXTRACT :
+    PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
     PRInstI<0b001, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INPUT_DONE :
+    PRInstI<0b111, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputdone", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def OUTPUT_WRITE :
     PRInstI<0b010, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "outputwrite", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def OUTPUT_SEEK :
-    PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 }
 
 let Itinerary = ItinExtractInsert in {
@@ -924,9 +930,34 @@ def INSERT :
 
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def MSPM :
-    PRInstI<0b000, OPC_PR_MPSM, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "mspm", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+def OUTPUTMETA :
+    PRInstI<0b000, OPC_PR_MPSM, (outs), (ins GPR:$rs1, simm12:$imm12),
+        "outputMeta", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUTHEADER :
+    PRInstI<0b111, OPC_PR_MPSM, (outs), (ins GPR:$rs1, simm12:$imm12),
+        "outputMeta", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUTEMITI :
+    PRInstI<0b001, OPC_PR_MPSM, (outs), (ins GPR:$rs1, simm12:$imm12),
+        "outputEmit", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUTEMITIDONE :
+    PRInstI<0b011, OPC_PR_MPSM, (outs), (ins GPR:$rs1, simm12:$imm12),
+        "outputEDone", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+let Itinerary = ItinBlue0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def OUTPUTDONE :
+    PRInstI<0b010, OPC_PR_MPSM, (outs), (ins GPR:$rs1, simm12:$imm12), 
+        "outputDone", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
 
 let Itinerary = ItinBlue1 in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in

@@ -51,6 +51,9 @@ public:
   bool shouldAddToPacket(const MachineInstr &MI) override;
   bool isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) override;
   bool isLegalToPruneDependencies(SUnit *SUI, SUnit *SUJ) override;
+  bool ignoreInstruction(const MachineInstr &I, const MachineBasicBlock *MBB) override;
+  void tryToPullBitmanip(MachineInstr *I);
+
 
 protected:
 };

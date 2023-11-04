@@ -24,26 +24,7 @@
 
 namespace llvm {
   struct PrimateGEPFilterPass : public PassInfoMixin<PrimateGEPFilterPass> {
-    PreservedAnalyses run(Function& F, FunctionAnalysisManager& PA);
-  };
-
-  struct PrimateStructLoadCombinerPass : public PassInfoMixin<PrimateStructLoadCombinerPass> {
-    PreservedAnalyses run(Function& F, FunctionAnalysisManager& PA) {
-      dbgs() << "weeee" << F.getName() << "\n";
-      for(auto& bb: F) {
-	for(auto& inst: bb) {
-	  if (llvm::isa<llvm::GetElementPtrInst>(inst)) {
-	    dbgs() << "inspecting instr: ";
-	    inst.dump();
-	    for(auto u = inst.user_begin(); u != inst.user_end(); u++) {
-	      u->dump();
-	    }
-	    dbgs() << "end users\n";
-	  }
-	}
-      }
-      return PreservedAnalyses::all();
-    }
+    PreservedAnalyses run(Module& F, ModuleAnalysisManager& PA);
   };
 }
 

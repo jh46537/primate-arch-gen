@@ -221,8 +221,16 @@ void VLIWPacketizerList::PacketizeMIs(MachineBasicBlock *MBB,
     }
 
     // Ignore pseudo instructions.
-    if (ignorePseudoInstruction(MI, MBB))
+    if (ignorePseudoInstruction(MI, MBB)) {
+      LLVM_DEBUG(dbgs() << "skipping psuedoInst " << MI);
       continue;
+    }
+
+    // skip ops if the target wants to special packet
+    if(ignoreInstruction(MI, MBB)) {
+      LLVM_DEBUG(dbgs() << "Skipping regular inst " << MI << "\n");
+      continue;
+    }
 
     SUnit *SUI = MIToSUnit[&MI];
     assert(SUI && "Missing SUnit Info!");

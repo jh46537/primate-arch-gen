@@ -93,7 +93,28 @@ let TargetPrefix = "primate" in {
                   
   def int_primate_insert  :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, res, imm12
-		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;	
+		              [IntrWillReturn]>; // properties;	
+
+  def int_primate_Input_header :  Intrinsic<[llvm_i32_ty], // return val
+                  [llvm_i32_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
+  def int_primate_Input_done :  Intrinsic<[], // return val
+                  [], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
+
+  def int_primate_forward_exact :  Intrinsic<[llvm_any_ty], // return val
+                  [llvm_any_ty], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
+
+  def int_primate_Output_meta :  Intrinsic<[], // return val
+                  [llvm_any_ty], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
+  def int_primate_Output_header :  Intrinsic<[], // return val
+                  [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
+  def int_primate_Output_done :  Intrinsic<[], // return val
+                  [], // Params: gpr w/ struct, imm12
+		              [IntrWillReturn]>; // properties;
 
   // Zbb
   def int_primate_orc_b : PrimateBitManipGPRIntrinsics;

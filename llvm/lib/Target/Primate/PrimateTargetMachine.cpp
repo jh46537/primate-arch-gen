@@ -180,9 +180,8 @@ bool PrimatePassConfig::addRegBankSelect() {
 }
 
 void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
-  PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
+  PB.registerOptimizerLastEPCallback([](llvm::ModulePassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
     FPM.addPass(llvm::PrimateGEPFilterPass());
-    FPM.addPass(llvm::PrimateStructLoadCombinerPass());
   });
 }
 

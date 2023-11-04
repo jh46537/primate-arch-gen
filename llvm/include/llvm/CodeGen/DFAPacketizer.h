@@ -156,6 +156,14 @@ public:
   // function is supposed to be overrided by the target dependent packetizer.
   virtual void initPacketizerState() {}
 
+  // check if an instruction has special packetization rules the target wants to handle.
+  // return true for all such instructions and then packetize them in another place
+  // for example in endPacket()
+  virtual bool ignoreInstruction(const MachineInstr &I,
+                                 const MachineBasicBlock *MBB) {
+    return false;
+  }
+
   // Check if the given instruction I should be ignored by the packetizer.
   virtual bool ignorePseudoInstruction(const MachineInstr &I,
                                        const MachineBasicBlock *MBB) {
