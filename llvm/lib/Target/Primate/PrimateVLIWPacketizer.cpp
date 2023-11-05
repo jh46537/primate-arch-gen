@@ -454,7 +454,7 @@ bool PrimatePacketizerList::isSoloInstruction(const MachineInstr &MI) {
 
 bool PrimatePacketizerList::ignoreInstruction(const MachineInstr &I, const MachineBasicBlock *MBB) {
   if(I.getOpcode() == Primate::EXTRACT) {
-    return true;
+    return false;
   }
 
   return false;
@@ -471,13 +471,40 @@ bool PrimatePacketizerList::shouldAddToPacket(const MachineInstr &MI) {
 bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   // There no dependency between a prolog instruction and its successor.
 
+  if (SUI->getInstr()->getOpcode() == Primate::EXTRACT) {
+    return false;
+  }
+
   // Need to read in a representation of the uArch and then do it.
   if(SUI->getInstr()->isBranch()) {
+    // can't packet with BFU insts
+    switch (SUJ->getInstr()->getOpcode())
+    {
+    case Primate::INPUT_READ:
+    case Primate::INPUT_SEEK:
+    case Primate::INPUT_EXTRACT:
+      dbgs() << "boooooooooo\n";
+      return false; // TODO: actually check
+    default:
+      break;
+    }
     return true;
   }
 
-  // deps need to be tracked through he extract/insert chains. can sinply go one level up the graph
+  // deps need to be tracked through the extract/insert chains. can simply go one level up the graph
 
+  // if there is an extract in the preds of SUI then use
+  bool useExtracts = false;
+  SmallVector<SUnit*> deps;
+  for(const SDep& dep: SUI->Preds) {
+    if(dep.getSUnit()->getInstr()->getOpcode() == Primate::EXTRACT) {
+      LLVM_DEBUG(dbgs() << "extract contains the dep information\n");
+      useExtracts = true;
+      deps.push_back(dep.getSUnit());
+    }
+  }
+
+  // if there is an insert in the succ of SUJ then use
 
   
   // if SUI is not a successor to SUJ then we are good always

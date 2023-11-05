@@ -926,11 +926,12 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
+      uint64_t const_value = Node->getConstantOperandVal(3); // BROTHER WHY 
       auto newNode = CurDAG->getMachineNode(Primate::INPUT_EXTRACT, DL, 
                                             XLenVT, MVT::Other, // output reg, chain
                                             // operands
-                                            CurDAG->getTargetConstant(0, DL, XLenVT),
                                             Node->getOperand(2),
+                                            CurDAG->getTargetConstant(const_value, DL, XLenVT),
                                             /* Chain */ Node->getOperand(0));  // chain in
       newNode->dump();
       dbgs() << "-------\n";
