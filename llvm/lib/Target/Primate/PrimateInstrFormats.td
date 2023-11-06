@@ -132,10 +132,10 @@ def OPC_BRANCH    : PrimateOpcode<0b1100011>;
 def OPC_JALR      : PrimateOpcode<0b1100111>;
 def OPC_JAL       : PrimateOpcode<0b1101111>;
 def OPC_SYSTEM    : PrimateOpcode<0b1110011>;
-def OPC_PR_IO     : PrimateOpcode<0b0001011>;
-def OPC_PR_REG    : PrimateOpcode<0b0101011>;
-def OPC_PR_MPSM   : PrimateOpcode<0b1011011>;
-def OPC_PR_ASCII  : PrimateOpcode<0b1111011>;
+def OPC_PR_INPUT           : PrimateOpcode<0b0001011>;
+def OPC_PR_OUTPUT          : PrimateOpcode<0b1011011>;
+def OPC_PR_EXTRACT_INSERT  : PrimateOpcode<0b0101011>;
+def OPC_PR_MATCH           : PrimateOpcode<0b1111011>;
 
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>

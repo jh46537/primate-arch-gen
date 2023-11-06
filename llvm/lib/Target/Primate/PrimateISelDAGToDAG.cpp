@@ -646,7 +646,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::ASCII, DL, 
+      auto newNode = CurDAG->getMachineNode(Primate::MATCH, DL, 
                                             XLenVT, MVT::Other,   // int and chain out
                                             // operands
                                             Node->getOperand(2), 
@@ -904,7 +904,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::ASCII, DL, 
+      auto newNode = CurDAG->getMachineNode(Primate::MATCH, DL, 
                                             XLenVT, MVT::Other,   // int and chain out
                                             // operands
                                             Node->getOperand(2),  // reg in
