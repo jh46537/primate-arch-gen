@@ -52,7 +52,11 @@ public:
   bool isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) override;
   bool isLegalToPruneDependencies(SUnit *SUI, SUnit *SUJ) override;
   bool ignoreInstruction(const MachineInstr &I, const MachineBasicBlock *MBB) override;
+  void fixBitManip(MachineBasicBlock& MBB);
+  void relocateMI(MachineInstr* MI, MachineInstr *POS);
   void tryToPullBitmanip(MachineInstr *I);
+  MachineInstr* getFirstPacketMI();
+  MachineInstr* getLastPacketMI();
 
 
 protected:

@@ -114,13 +114,16 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
       }
     );
     for(auto& MII: ordered_machine_instrs) {
+      if(MII->isBranch()) {
+        dbgs() << "branch\n";
+      }
       if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
         unsigned slotIdx = MII->getSlotIdx();
         // ignore instructions without slots
         if (slotIdx == (unsigned)-1) {
           LLVM_DEBUG({
             dbgs() << "no slot!\n";
-            MI->dump();
+            MII->dump();
           });
           continue;
         }
@@ -145,8 +148,9 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
         ++lastSlotIdx;
 
         // Do any auto-generated pseudo lowerings.
-        if (emitPseudoExpansionLowering(*OutStreamer, &*MII))
-          return;
+        if (emitPseudoExpansionLowering(*OutStreamer, &*MII)) {
+          continue;
+        }
 
         MCInst TmpInst;
         if (!lowerPrimateMachineInstrToMCInst(&*MII, TmpInst, *this))
@@ -157,8 +161,9 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
       emitNops(numSlots - lastSlotIdx);
   } else {
     // Do any auto-generated pseudo lowerings.
-    if (emitPseudoExpansionLowering(*OutStreamer, MI))
+    if (emitPseudoExpansionLowering(*OutStreamer, MI)) {
       return;
+    }
 
     MCInst TmpInst;
     if (!lowerPrimateMachineInstrToMCInst(MI, TmpInst, *this))

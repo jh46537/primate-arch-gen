@@ -889,70 +889,70 @@ def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
 def : InstAlias<"end", (JAL X0, -1)>;
 
 let Itinerary = ItinIO in {
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
     PRInstI<0b000, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_EXTRACT :
     PRInstI<0b011, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
     PRInstI<0b001, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_DONE :
     PRInstI<0b111, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputdone", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUTMETA :
     PRInstI<0b000, OPC_PR_OUTPUT, (outs), (ins GPR:$rs1, simm12:$imm12),
         "outputMeta", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUTHEADER :
     PRInstI<0b111, OPC_PR_OUTPUT, (outs), (ins GPR:$rs1, simm12:$imm12),
-        "outputMeta", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+        "outputHeader", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUTEMITI :
     PRInstI<0b001, OPC_PR_OUTPUT, (outs), (ins GPR:$rs1, simm12:$imm12),
         "outputEmit", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUTEMITIDONE :
     PRInstI<0b011, OPC_PR_OUTPUT, (outs), (ins GPR:$rs1, simm12:$imm12),
         "outputEDone", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUTDONE :
     PRInstI<0b010, OPC_PR_OUTPUT, (outs), (ins GPR:$rs1, simm12:$imm12), 
         "outputDone", "X0, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 }
 
 let Itinerary = ItinExtract in
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def EXTRACT :
     PRInstI<0b000, OPC_PR_EXTRACT_INSERT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let Itinerary = ItinInsert in
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INSERT :
     PRInstI<0b001, OPC_PR_EXTRACT_INSERT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 
 let Itinerary = ItinBlue0 in
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def MATCH :
     PRInstI<0b000, OPC_PR_MATCH, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "ascii", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+        "match", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -1014,8 +1014,6 @@ def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
 
-def : PatGprSimm12<int_primate_extract, EXTRACT>;
-
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and
 // zero-extends it). For Primate, the mask is unnecessary as shifts in the base
@@ -1042,6 +1040,19 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0 in
 def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
                             (ins GPR:$rs1, GPR:$rs2, tprel_add_symbol:$src), [],
                             "add", "$rd, $rs1, $rs2, $src">;
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0, Constraints = "$rd = $rs1", Itinerary = ItinInsert in
+def PseudoInsert : Pseudo<(outs GPR:$rd),
+                            (ins GPR:$rs1, GPR:$rs2, simm12:$imm), [],
+                            "pInsert", "$rd, $rs1, $rs2, $imm">, 
+                            PseudoInstExpansion<(INSERT GPR:$rd, GPR:$rs2, simm12:$imm)>
+                            ;
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0, Itinerary = ItinIO in
+def PseudoInputDone : Pseudo<(outs),
+                            (ins), [],
+                            "pInsert", "">;
+
 
 /// FrameIndex calculations
 
@@ -1098,7 +1109,7 @@ def : BccPat<SETGE, BGE>;
 def : BccPat<SETULT, BLTU>;
 def : BccPat<SETUGE, BGEU>;
 
-let isBarrier = 1, isBranch = 1, isTerminator = 1 in
+let isBarrier = 1, isBranch = 1, isTerminator = 1, Itinerary = ItinBranch in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
                PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>;
 

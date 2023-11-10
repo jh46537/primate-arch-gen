@@ -42,6 +42,7 @@ add_llvm_target(PrimateCodeGen
   PrimateVLIWPacketizer.cpp
   PrimateStructToRegPass.cpp
   PrimateGEPFilter.cpp
+  PrimatePacketPostProc.cpp
 
   LINK_COMPONENTS
   Analysis

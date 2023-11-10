@@ -679,6 +679,27 @@ unsigned PrimateInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   return 8;
 }
 
+bool PrimateInstrInfo::expandPostRAPseudo(MachineInstr& MI) const {
+  if (MI.getOpcode() == Primate::PseudoInputDone) {
+    MachineBasicBlock *MBB = MI.getParent();
+    BuildMI(*MBB, MI.getIterator(), MI.getDebugLoc(), get(Primate::INPUT_DONE), Primate::X0)
+            .addReg(Primate::X0)
+            .addImm(0);
+    MI.eraseFromBundle();
+    return true;
+  }
+  // if (MI.getOpcode() == Primate::PseudoInsert) {
+  //   MachineBasicBlock *MBB = MI.getParent();
+  // //  MachineInstrBuilder builder(&MI);
+  //   BuildMI(*MBB, MI.getIterator(), MI.getDebugLoc(), get(Primate::INSERT), MI.getOperand(0).getReg())
+  //           .addReg(MI.getOperand(2).getReg())
+  //           .addImm(MI.getOperand(3).getImm());
+  //   MI.eraseFromBundle();
+  //   return true;
+  // }
+  return false;
+}
+
 bool PrimateInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
@@ -734,6 +755,8 @@ unsigned PrimateInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     }
     return get(Opcode).getSize();
   }
+  case Primate::BUNDLE:
+    llvm_unreachable("got a bundle");
   case TargetOpcode::EH_LABEL:
   case TargetOpcode::IMPLICIT_DEF:
   case TargetOpcode::KILL:

@@ -869,20 +869,45 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
-    case Intrinsic::primate_insert: {
+    case Intrinsic::primate_extract: {
       SmallVector<SDValue> operands;
       for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
         Node->getOperand(i)->dump();
       }
-      operands.push_back(Node->getOperand(4)); // val
-//      operands.push_back(Node->getOperand(2)); // reg in
-      operands.push_back(Node->getOperand(3)); // field
+      operands.push_back(Node->getOperand(2)); // reg in
+      uint64_t const_value = Node->getConstantOperandVal(3);
+      operands.push_back(CurDAG->getTargetConstant(const_value, DL, XLenVT)); // field
       operands.push_back(Node->getOperand(0)); // chain
       dbgs() << "-------\n";
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::INSERT, DL, 
+      auto newNode = CurDAG->getMachineNode(Primate::EXTRACT, DL, 
+                                            XLenVT, MVT::Other, // val and chain
+                                            // operands
+                                            operands
+                                            ); // value in
+      newNode->dump();
+      dbgs() << "-------\n";
+      ReplaceNode(Node, newNode);
+      CurDAG->dumpDotGraph("/tmp/kayvan.dot", "temp");
+      return;
+    }
+    case Intrinsic::primate_insert: {
+      SmallVector<SDValue> operands;
+      for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
+        Node->getOperand(i)->dump();
+      }
+      operands.push_back(Node->getOperand(2)); // reg in
+      operands.push_back(Node->getOperand(3)); // val
+      uint64_t const_value = Node->getConstantOperandVal(4);
+      operands.push_back(CurDAG->getTargetConstant(const_value, DL, XLenVT)); // field
+      operands.push_back(Node->getOperand(0)); // chain
+      dbgs() << "-------\n";
+                                            // opcode, location, return type(s), operand(s)
+      Node->dump();
+      dbgs() << "-------\n";
+      auto newNode = CurDAG->getMachineNode(Primate::PseudoInsert, DL, 
                                             XLenVT, MVT::Other, // val and chain
                                             // operands
                                             operands
@@ -1215,17 +1240,14 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
         Node->getOperand(i)->dump();
       }
-      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
-      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
-      operands.push_back(CurDAG->getTargetConstant(0, DL, MVT::i32));
+
       if(Node->getOperand(0)->getValueType(0) == MVT::Other) {
         operands.push_back(Node->getOperand(0));
       }
       dbgs() << "-------\n";
-                                            // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::INPUT_DONE, DL, 
+      auto newNode = CurDAG->getMachineNode(Primate::PseudoInputDone, DL, 
                                             MVT::Other, // chain out only
                                             // operands
                                             operands
@@ -1243,7 +1265,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
         Node->getOperand(i)->dump();
       }
       operands.push_back(Node->getOperand(2));
-      operands.push_back(Node->getOperand(3));
+      operands.push_back(CurDAG->getTargetConstant(Node->getConstantOperandVal(3), DL, MVT::i32)); // targetconstant
       operands.push_back(Node->getOperand(0)); // capture the chain
       dbgs() << "-------\n";
                                             // opcode, location, return type(s), operand(s)
@@ -1314,15 +1336,17 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       for(unsigned int i = 0; i < Node->getNumOperands(); i++) {
         Node->getOperand(i)->dump();
       }
-      operands.push_back(Node->getOperand(2));
-      operands.push_back(Node->getOperand(3));
-      operands.push_back(Node->getOperand(4));
+      operands.push_back(Node->getOperand(2)); // reg in
+      operands.push_back(Node->getOperand(3)); // field
+      uint64_t const_value = Node->getConstantOperandVal(4);
+      operands.push_back(CurDAG->getTargetConstant(const_value, DL, XLenVT)); // field
       operands.push_back(Node->getOperand(0));
       dbgs() << "-------\n";
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::INSERT, DL, 
+      llvm_unreachable("void insert");
+      auto newNode = CurDAG->getMachineNode(Primate::PseudoInsert, DL, 
                                             MVT::Other, // chain out only
                                             // operands
                                             operands

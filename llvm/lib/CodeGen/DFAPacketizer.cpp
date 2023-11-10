@@ -211,6 +211,7 @@ void VLIWPacketizerList::PacketizeMIs(MachineBasicBlock *MBB,
       }
       InstrCount++;
     }
+    LLVM_DEBUG(dbgs() << "Attempt to packetize: "; BeginItr->dump());
     MachineInstr &MI = *BeginItr;
     initPacketizerState();
 

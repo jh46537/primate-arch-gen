@@ -150,6 +150,15 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
+// maybe looking at entire blocks is better
+void PrimatePacketizerList::fixBitManip(MachineBasicBlock& MBB) {
+  dbgs() << "FIX BIT MANIP\n";
+  for(MachineInstr &I : MBB) {
+    I.dump();
+  }
+  dbgs() << "-------------\n";
+}
+
 bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 2>& generated_bypass_instrs) {
   // Create copy of ResourceTracker to try insertion
   DFAPacketizer TryResourceTracker{ *ResourceTracker };
@@ -158,12 +167,12 @@ bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVe
     // skip non-reg
     if (!operand.isReg())
       continue;
-    
+    MachineInstr *genInstr = nullptr;  
     // check if someone already generates this operand
     bool operand_generated = false;
     for (auto& otherMI : CurrentPacketMIs) {
       // skip the branch subinstruction itself
-      if (otherMI == br_inst)
+      if (otherMI == br_inst || otherMI->getOpcode() == Primate::EXTRACT)
         continue;
       for (auto& otherOperand : otherMI->defs()) {
         // skip non-reg
@@ -172,11 +181,14 @@ bool PrimatePacketizerList::insertBypassOps(MachineInstr* br_inst, llvm::SmallVe
         // if the reg indices match, the producer has been found
         if (otherOperand.getReg() == operand.getReg()) {
           operand_generated = true;
+          genInstr = otherMI;
         }
       }
     }
     if(operand_generated) {
-      LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket found gernerator for "; operand.dump();});
+      LLVM_DEBUG({dbgs() << "PrimatePacketizerList::endPacket found gernerator for "; 
+                  operand.dump();
+                  genInstr->dump();});
       continue;
     }
 
@@ -223,6 +235,10 @@ PrimatePacketizerList::addToPacket(MachineInstr &MI) {
 }
 
 void PrimatePacketizerList::tryToPullBitmanip(MachineInstr *I) {
+  if(I->getOpcode() == Primate::EXTRACT || 
+     I->getOpcode() == Primate::PseudoInsert) {
+    return;
+  }
   // get the SUnit for the MI passed in
   SUnit *curSUnit = MIToSUnit[I];
   // if no scheduling information then its a bypass node. skip
@@ -240,7 +256,7 @@ void PrimatePacketizerList::tryToPullBitmanip(MachineInstr *I) {
 
     LLVM_DEBUG(dep.getSUnit()->getInstr()->dump());
     if(dep.getSUnit()->getInstr()->getOpcode() == Primate::EXTRACT) {
-      LLVM_DEBUG(dbgs() << "found extract to pull!: ");
+      LLVM_DEBUG(dbgs() << "found extract to pull!: ptr: " << dep.getSUnit()->getInstr() << " isntr: ");
       LLVM_DEBUG(dep.getSUnit()->getInstr()->dump());
       dep.getSUnit()->getInstr()->isBundled();
       bool alreadyBundled = std::find(CurrentPacketMIs.begin(), 
@@ -250,9 +266,19 @@ void PrimatePacketizerList::tryToPullBitmanip(MachineInstr *I) {
         continue;
       // TODO: HACK. PULLED ADD TO PACKET CODE HERE TO AVOID ITERATOR CREATION
       MachineInstr* instr = dep.getSUnit()->getInstr();
+      if (instr->isBundled()) {
+        dbgs() << "Bundled pull: " << instr << "\n"; 
+        instr->removeFromBundle();
+      }
+      else {
+        instr->removeFromParent();
+      }
+      
+      I->getParent()->insertAfter(--I->getIterator(), instr);
       assert(ResourceTracker->canReserveResources(*instr));
       ResourceTracker->reserveResources(*instr);
       CurrentPacketMIs.push_back(instr);
+      I->getParent()->dump();
     }
   }
   LLVM_DEBUG(dbgs() << "---- Succs -----\n");
@@ -261,28 +287,81 @@ void PrimatePacketizerList::tryToPullBitmanip(MachineInstr *I) {
       continue;
     }
     LLVM_DEBUG(dep.getSUnit()->getInstr()->dump());
-    // if(dep.getSUnit()->getInstr()->getOpcode() == Primate::INSERT) {
-    //   LLVM_DEBUG(dbgs() << "found insert to pull!: ");
-    //   LLVM_DEBUG(dep.getSUnit()->getInstr()->dump());
-    //   bool alreadyBundled = std::find(CurrentPacketMIs.begin(), 
-    //                                   CurrentPacketMIs.end(),
-    //                                   dep.getSUnit()->getInstr()) != CurrentPacketMIs.end();
-    //   if (alreadyBundled)
-    //     continue;
-    //   // TODO: HACK. PULLED ADD TO PACKET CODE HERE TO AVOID ITERATOR CREATION
-    //   MachineInstr* instr = dep.getSUnit()->getInstr();
-    //   assert(ResourceTracker->canReserveResources(*instr));
-    //   ResourceTracker->reserveResources(*instr);
-    //   CurrentPacketMIs.push_back(instr);
-    // }
+    if(dep.getSUnit()->getInstr()->getOpcode() == Primate::PseudoInsert) {
+      LLVM_DEBUG(dbgs() << "found insert to pull!: ptr: " << dep.getSUnit()->getInstr() << " isntr: ");
+      LLVM_DEBUG(dep.getSUnit()->getInstr()->dump());
+      bool alreadyBundled = std::find(CurrentPacketMIs.begin(), 
+                                      CurrentPacketMIs.end(),
+                                      dep.getSUnit()->getInstr()) != CurrentPacketMIs.end();
+      if (alreadyBundled)
+        continue;
+      // TODO: HACK. PULLED ADD TO PACKET CODE HERE TO AVOID ITERATOR CREATION
+      MachineInstr* instr = dep.getSUnit()->getInstr();
+      if (instr->isBundled()) {
+        dbgs() << "Bundled pull: " << instr << "\n"; 
+        instr->removeFromBundle();
+      }
+      else {
+        instr->removeFromParent();
+      }
+      I->getParent()->insertAfter(--I->getIterator(), instr);
+      assert(ResourceTracker->canReserveResources(*instr));
+      ResourceTracker->reserveResources(*instr);
+      CurrentPacketMIs.push_back(instr);
+      I->getParent()->dump();
+    }
   }
   LLVM_DEBUG(dbgs() << "-----------\n");
 }
 
+MachineInstr* PrimatePacketizerList::getFirstPacketMI() {
+  MachineBasicBlock &MBB = *CurrentPacketMIs.at(0)->getParent();
+  dbgs() << "looking for start in BB: \n";
+  MBB.dump();
+  dbgs() << "--------------\n";
+  for(MachineInstr* I: CurrentPacketMIs) {
+    I->dump();
+  }  
+  dbgs() << "--------------\n";
+  for(MachineInstr &I: MBB) {
+    bool inst_in_packet = std::find(CurrentPacketMIs.begin(), 
+                                    CurrentPacketMIs.end(), 
+                                    &I) != CurrentPacketMIs.end();
+    if(inst_in_packet) {
+      return &I;
+    }
+  }
+  llvm_unreachable("no packet instrs in the basic block?");
+}
+
+MachineInstr* PrimatePacketizerList::getLastPacketMI() {
+  MachineBasicBlock &MBB = *CurrentPacketMIs.at(0)->getParent();
+  bool entered_packet = false;
+  for(MachineInstr& I: MBB) {
+    bool inst_in_packet = std::find(CurrentPacketMIs.begin(), 
+                                    CurrentPacketMIs.end(), 
+                                    &I) != CurrentPacketMIs.end();
+    if(inst_in_packet && !entered_packet) {
+      entered_packet = true;
+    }
+    else if (!inst_in_packet && entered_packet) {
+      return &I;
+    }
+  }
+  llvm_unreachable("no packet instrs in the basic block?");
+}
+
+void PrimatePacketizerList::relocateMI(MachineInstr* MI, MachineInstr *POS) {
+  if(MI->isBundled())
+    MI->removeFromBundle();
+  else 
+    MI->removeFromParent();
+  
+  POS->getParent()->insert(POS->getIterator(), MI);
+}
+
 void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
                                       MachineBasicBlock::iterator MI) {
-  // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
-
   // need to first generate the needed bypass ops
   // generating bypass ops allows the fix up to x0 out the bypasses for free :>
   if(CurrentPacketMIs.size() == 0) {
@@ -303,36 +382,158 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
       LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
       CurrentPacketMIs.pop_back();
       --MI;
-      for(auto& _: generated_bypass_instrs){
-        --MI;
-      }
+      // for(auto& _: generated_bypass_instrs){
+      //   --MI;
+      // }
       MI->dump();
     }
     else if(generated_bypass_instrs.size() > 0) { 
       LLVM_DEBUG({dbgs() << "Bypasses fit into same packet: "
           << generated_bypass_instrs.size() << " ops\n";});
-      CurrentPacketMIs.pop_back();
       for(auto& bypass_op: generated_bypass_instrs) {
         ResourceTracker->reserveResources(*bypass_op);
         CurrentPacketMIs.push_back(bypass_op);
       }
-      CurrentPacketMIs.push_back(packet_breaking_instr);
     }
   }
 
-  // fix up extract and insert  
-  for(unsigned int i = 0; i < CurrentPacketMIs.size(); i++) {
-    tryToPullBitmanip(CurrentPacketMIs.at(i));
-  }
-
   unsigned Idx = 0;
+  SmallVector<MachineInstr*> generatedOps;
   for (MachineInstr *MI : CurrentPacketMIs) {
     unsigned R = ResourceTracker->getUsedResources(Idx++);
     unsigned slotIdx = llvm::countTrailingZeros(R);  // convert bitvector to ID; assume single bit set
     LLVM_DEBUG({dbgs() << "Instruction number " << Idx-1 << " aka: "; 
                 MI->dump();
                 dbgs() << "used resource: 0x" << R << " Turned to slotIdx: " << slotIdx << "\n";});
-    MI->setSlotIdx(slotIdx);
+    //slot index fixup for ext and ins
+    if(MI->getOpcode() != Primate::EXTRACT &&
+       MI->getOpcode() != Primate::PseudoInsert) {
+      MI->setSlotIdx(slotIdx);
+      // if(MI->isBranch()) {
+      //   continue;
+      // }
+      SUnit *curSUnit = MIToSUnit[MI];
+      if(!curSUnit) {
+        MI->dump();
+        dbgs() << "has no scheduling info. Better be a bypass.\n";
+        continue;
+      }
+
+      // find extracts
+      int offset = 1;
+      for(SDep& dep: curSUnit->Preds) {
+        if(dep.getKind() != SDep::Data) {
+          continue;
+        }
+        MachineInstr* dep_instr = dep.getSUnit()->getInstr();
+        if(!dep_instr)
+          dep.dump();
+        assert(dep_instr);
+        if(dep_instr->getOpcode() == Primate::EXTRACT) {
+          if(std::find(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), dep_instr) != CurrentPacketMIs.end()) {
+            continue;
+          }
+          if(dep_instr->isBundled())
+            dep_instr->removeFromBundle();
+          else
+            dep_instr->removeFromParent();
+          auto index = std::find(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), MI); 
+          generatedOps.push_back(dep_instr); // insert (index, dep_instr)
+          MI->getParent()->insert(MI->getIterator(), dep_instr);
+          ResourceTracker->reserveResources(*dep_instr);
+          if (!MI->isBranch())
+            dep_instr->setSlotIdx(slotIdx + offset);
+          offset += 1;
+        }
+      }
+      // find inserts
+      for(SDep& dep: curSUnit->Succs) {
+        if(dep.getKind() != SDep::Data) {
+          continue;
+        }
+        MachineInstr* dep_instr = dep.getSUnit()->getInstr();
+        if(!dep_instr)
+          dep.dump();
+        assert(dep_instr);
+        if(dep_instr->getOpcode() == Primate::PseudoInsert) {
+          if(std::find(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), dep_instr) != CurrentPacketMIs.end()) {
+            continue;
+          }
+          if(dep_instr->isBundled())
+            dep_instr->removeFromBundle();
+          else
+            dep_instr->removeFromParent();
+          auto index = std::find(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), MI); 
+          generatedOps.push_back(dep_instr); //insert idx + 1
+          MI->getParent()->insertAfter(MI->getIterator(), dep_instr);
+          ResourceTracker->reserveResources(*dep_instr);
+          if (MI->isBranch())
+            llvm_unreachable("branch produces a value for and insert?");
+          dep_instr->setSlotIdx(slotIdx - 1);
+        }
+      }
+    }
+    else if(MI->getOpcode() == Primate::EXTRACT) {
+      SUnit *curSUnit = MIToSUnit[MI];
+      if(!curSUnit) {
+        MI->dump();
+        dbgs() << "has no scheduling info. Better be a bypass.\n";
+        continue;
+      }
+      bool consumerInBlock = false;
+      // no deps in mbbb. Is a live out...      
+      for (auto& dep: curSUnit->Succs) {
+        if(dep.getKind() == SDep::Data) {
+          consumerInBlock = true;
+        }
+      }
+
+      // if the consumer is in the block then that op will pull the extract down. 
+      // if the comsumer is not in the block then we should allocate this instruction to a free "lane"
+      auto resultingReg = MI->defs().begin();
+      if(!consumerInBlock) {
+        MachineInstr* bypass_op = BuildMI(*(MI->getParent()), MI, llvm::DebugLoc(), PII->get(Primate::ADDI), resultingReg->getReg())
+              .addReg(resultingReg->getReg())
+              .addImm(0);
+        bool ResourceAvail = ResourceTracker->canReserveResources(*bypass_op);
+        assert(ResourceAvail && "unsure how to packetize this extract");
+        // (MI->getParent()->insert(MI->getIterator(), bypass_op));
+        ResourceTracker->reserveResources(*bypass_op);
+        unsigned R = ResourceTracker->getUsedResources(CurrentPacketMIs.size() + generatedOps.size());
+        unsigned bypassSlotIdx = llvm::countTrailingZeros(R);
+        generatedOps.push_back(bypass_op);
+        bypass_op->setSlotIdx(bypassSlotIdx);
+      }
+    }
+  }
+  CurrentPacketMIs.insert(CurrentPacketMIs.end(), generatedOps.begin(), generatedOps.end());
+
+  for (unsigned i = 0; i < CurrentPacketMIs.size(); i++) {
+    MachineInstr* MI = CurrentPacketMIs.at(i);
+    if(MI->getOpcode() == Primate::PseudoInsert && MI->getSlotIdx() == (unsigned)-1) {
+      dbgs() << "found an insert without slot index\n";
+      auto otherIns = std::find_if(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), [&](MachineInstr* a) -> bool {
+        return a->getOpcode() == Primate::PseudoInsert && a != MI;
+      });
+      // no other ins. go with the rec tracker and query off that
+      if(otherIns == CurrentPacketMIs.end()) {
+        unsigned R = ResourceTracker->getUsedResources(i);
+        unsigned slotIdx = llvm::countTrailingZeros(R); 
+        unsigned opSlot = slotIdx + 1;
+        auto op = std::find_if(CurrentPacketMIs.begin(), CurrentPacketMIs.end(), [&](MachineInstr* a) -> bool {
+          return a->getSlotIdx() == opSlot;
+        });
+        if (op == CurrentPacketMIs.end()) {
+          dbgs() << "no op in slot " << opSlot << ". placeing in slot " << slotIdx << "\n";
+          MI->setSlotIdx(slotIdx);
+        }
+        else {
+          dbgs() << "op in slot " << opSlot << ". placeing in slot " << slotIdx + 4 << "\n";
+          MI->setSlotIdx(slotIdx + 4);
+        }
+      }
+
+    }
   }
 
   // in-place fixup for packetized deps. 
@@ -360,10 +561,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
             continue;
           // if the reg indices match, the producer has been found
           if (otherOperand.getReg() == operand.getReg()) {
-            operand.setReg(Primate::X0 + otherMI->getSlotIdx());
-            if (operand.isKill()) {
-              otherOperand.setReg(Primate::X0);
-            }
+            // reg will be killed in the packet post proc
             found_producer = true;
             break;
           }
@@ -404,7 +602,8 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
     llvm_unreachable("attempted to packetize an empty packet.");
   }
 
-  MachineInstr &MIFirst = *CurrentPacketMIs.front();
+  //MachineInstr &MIFirst = *CurrentPacketMIs.front();
+  MachineInstr &MIFirst = *getFirstPacketMI();
   finalizeBundle(*MBB, MIFirst.getIterator(), MI.getInstrIterator());
   CurrentPacketMIs.clear();
   ResourceTracker->clearResources();
@@ -453,10 +652,6 @@ bool PrimatePacketizerList::isSoloInstruction(const MachineInstr &MI) {
 }
 
 bool PrimatePacketizerList::ignoreInstruction(const MachineInstr &I, const MachineBasicBlock *MBB) {
-  if(I.getOpcode() == Primate::EXTRACT) {
-    return false;
-  }
-
   return false;
 }
 
@@ -470,10 +665,6 @@ bool PrimatePacketizerList::shouldAddToPacket(const MachineInstr &MI) {
 // SUI will be packetized
 bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
   // There no dependency between a prolog instruction and its successor.
-
-  if (SUI->getInstr()->getOpcode() == Primate::EXTRACT) {
-    return false;
-  }
 
   // Need to read in a representation of the uArch and then do it.
   if(SUI->getInstr()->isBranch()) {

@@ -27,6 +27,7 @@ class PrimateSubtarget;
 class PrimateInstrInfo : public PrimateGenInstrInfo {
 
 public:
+  virtual bool expandPostRAPseudo(MachineInstr& MI) const override;
   explicit PrimateInstrInfo(PrimateSubtarget &STI);
 
   MCInst getNop() const override;

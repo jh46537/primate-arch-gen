@@ -195,6 +195,7 @@ void PrimatePassConfig::addPreSched2() {}
 void PrimatePassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
   addPass(createPrimatePacketizer(), false);
+  addPass(createPrimatePacketPostProc(), false);
 }
 
 void PrimatePassConfig::addPreEmitPass2() {

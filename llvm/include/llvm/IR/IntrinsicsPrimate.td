@@ -84,12 +84,12 @@ let TargetPrefix = "primate" in {
   class PrimateStructMaipIntrinsics
       : Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
-		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
+		              [IntrSpeculatable, IntrWillReturn]>; // properties
 
   // primate ops
   def int_primate_extract :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
-		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;
+		              [IntrSpeculatable, IntrWillReturn]>; // properties;
                   
   def int_primate_insert  :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, res, imm12
