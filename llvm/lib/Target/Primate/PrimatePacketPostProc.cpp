@@ -75,17 +75,18 @@ bool PrimatePacketPostProc::fixDanglingExt(MachineFunction* MF, MachineInstr* MI
     return ret;
 }
 
-bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder) {
+bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder, SmallVector<MachineInstr*>& outInstrs) {
     bool ret = false;
-    dbgs() << "checking op to materialize result ";
-    MI->dump();
 
     auto reg = (MI->defs().begin());
     reg->dump();
     // killed. idc
-    if(!reg->isReg() || reg->isKill() || reg->getReg() == Primate::X0){
+    if(!reg->isReg() || reg->isKill() || reg->getReg() == Primate::X0 || MI->isBranch()){
         return ret;
     }
+
+    dbgs() << "checking op to materialize result ";
+    MI->dump();
 
     // not killed. check the consumer for killed.
     auto foundExtItr = std::find_if(ins.begin(), ins.end(), [&](MachineInstr *a) -> bool{
@@ -99,6 +100,7 @@ bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr
 
     // no one consumes. Need to put it in a reg
     bool materialize = false;
+    bool newPacket = false;
     if (foundExtItr == ins.end()) {
         dbgs() << "op is not consumed in packet. materialize it using insert.\n";
         materialize = true;
@@ -114,14 +116,26 @@ bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr
         });
         assert(consReg != consInstrUses.end() && "instr suddenly doesn't use a reg...");
         if(!consReg->isKill()) {
-            dbgs() << "found a consumer but its not killed";
-            if((*foundExtItr)->getOpcode() == Primate::INSERT) {
-                dbgs() << "!!!!!!PLEASE GO FIX THE INSERT LIVE OUT!!!!!!";
-            }
+            dbgs() << "found a consumer but its not killed\n";
             materialize = true;
+            auto insertProd = (*foundExtItr)->defs().begin();
+            // insert is there but doesn't write the register D: 
+            if((*foundExtItr)->getOpcode() == Primate::PseudoInsert && insertProd->getReg() != reg->getReg()) {
+                dbgs() << "!!!!!!PLEASE GO FIX THE INSERT LIVE OUT!!!!!!";
+                newPacket = true;
+                materialize = false;
+                auto insertfield = (*foundExtItr)->getOperand(3).getImm();
+                MachineInstr* bypass_op = BuildMI(*MF, llvm::DebugLoc(), 
+                                            PII->get(Primate::EXTRACT), 
+                                            reg->getReg()) 
+                
+                .addReg(insertProd->getReg())
+                .addImm(insertfield); // TODO: SCALAR
+                outInstrs.push_back(bypass_op);
+            }
         }
     }
-    if(materialize) {
+    if (materialize) {
         MachineInstr* bypass_op = BuildMI(*MF, llvm::DebugLoc(), 
                                             PII->get(Primate::INSERT), 
                                             reg->getReg())
@@ -352,7 +366,37 @@ bool PrimatePacketPostProc::runOnMachineFunction(MachineFunction& MF) {
                    op->getOpcode() == Primate::MATCH) {
                     continue;
                 }
-                ret = fixMaterializedReg(&MF, op, builder) || ret;
+                SmallVector<MachineInstr*> newBundleOps;
+                ret = fixMaterializedReg(&MF, op, builder, newBundleOps) || ret;
+                // materialized reg needs to be added to the bb, in its own packet.
+                if (newBundleOps.size() > 0) {
+                    for(MachineInstr* newOp: newBundleOps) {
+                        auto dest = (newOp->defs().begin())->getReg();
+                        auto source = (newOp->uses().begin())->getReg();
+                        newOp->setSlotIdx(4);
+
+                        MachineInstr* addiInstr = BuildMI(MF, llvm::DebugLoc(), 
+                                                PII->get(Primate::ADDI), 
+                                                dest)
+                            .addReg(source)
+                            .addImm(0); // TODO: SCALAR
+                        addiInstr->setSlotIdx(3);
+                        MachineInstr* insert = BuildMI(MF, llvm::DebugLoc(), 
+                                                PII->get(Primate::PseudoInsert), 
+                                                dest)
+                            .addReg(dest)
+                            .addReg(dest)
+                            .addImm(0); // TODO: SCALAR
+                        insert->getOperand(1).setIsKill();
+                        insert->getOperand(2).setIsKill();
+                        insert->setSlotIdx(2);
+                        MBB.insertAfterBundle(machineBundle.getIterator(), newOp);
+                        MBB.insertAfterBundle(machineBundle.getIterator(), addiInstr);
+                        MBB.insertAfterBundle(machineBundle.getIterator(), insert);
+                        MBB.dump();
+                        finalizeBundle(MBB, insert->getIterator(), newOp->getIterator());
+                    }
+                }
             }
 
             // register to slot id

@@ -43,7 +43,7 @@ private:
     bool addOpForInsert(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder);
     bool addExtractForOp(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder);
     bool fixDanglingExt(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder);
-    bool fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder);
+    bool fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder, SmallVector<MachineInstr*>&);
     bool fixBranchOperandIndexes(MachineInstr* BranchInstr, MachineInstr* Bundle);
     bool addNOPs(MachineFunction* MF, MachineInstr& bundle, MIBundleBuilder& builder);
   

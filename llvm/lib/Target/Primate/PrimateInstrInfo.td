@@ -1041,7 +1041,8 @@ def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
                             (ins GPR:$rs1, GPR:$rs2, tprel_add_symbol:$src), [],
                             "add", "$rd, $rs1, $rs2, $src">;
 
-let hasSideEffects = 1, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0, Constraints = "$rd = $rs1", Itinerary = ItinInsert in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0, 
+Constraints = "$rd = $rs1", Itinerary = ItinInsert in
 def PseudoInsert : Pseudo<(outs GPR:$rd),
                             (ins GPR:$rs1, GPR:$rs2, simm12:$imm), [],
                             "pInsert", "$rd, $rs1, $rs2, $imm">, 
