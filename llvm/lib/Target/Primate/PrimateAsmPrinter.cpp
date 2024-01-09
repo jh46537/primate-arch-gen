@@ -117,6 +117,9 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
       if(MII->isBranch()) {
         dbgs() << "branch\n";
       }
+      if(MII->getOpcode() == Primate::LW || MII->getOpcode() == Primate::SW) {
+        continue;
+      }
       if (!MII->isDebugInstr() && !MII->isImplicitDef()) {
         unsigned slotIdx = MII->getSlotIdx();
         // ignore instructions without slots
@@ -161,6 +164,7 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
       emitNops(numSlots - lastSlotIdx);
   } else {
     // Do any auto-generated pseudo lowerings.
+    llvm_unreachable("unbundled isntr\n");
     if (emitPseudoExpansionLowering(*OutStreamer, MI)) {
       return;
     }

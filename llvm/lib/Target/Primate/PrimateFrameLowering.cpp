@@ -30,6 +30,7 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
                             const DebugLoc &DL) {
   if (!MF.getFunction().hasFnAttribute(Attribute::ShadowCallStack))
     return;
+  return;
 
   const auto &STI = MF.getSubtarget<PrimateSubtarget>();
   Register RAReg = STI.getRegisterInfo()->getRARegister();
@@ -81,6 +82,7 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
                             const DebugLoc &DL) {
   if (!MF.getFunction().hasFnAttribute(Attribute::ShadowCallStack))
     return;
+  return;
 
   const auto &STI = MF.getSubtarget<PrimateSubtarget>();
   Register RAReg = STI.getRegisterInfo()->getRARegister();
@@ -333,6 +335,7 @@ void PrimateFrameLowering::adjustStackForPRV(MachineFunction &MF,
 
 void PrimateFrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
+  return;
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *PRFI = MF.getInfo<PrimateMachineFunctionInfo>();
   const PrimateRegisterInfo *RI = STI.getRegisterInfo();
@@ -534,6 +537,7 @@ void PrimateFrameLowering::emitPrologue(MachineFunction &MF,
 
 void PrimateFrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
+  return;
   const PrimateRegisterInfo *RI = STI.getRegisterInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *PRFI = MF.getInfo<PrimateMachineFunctionInfo>();

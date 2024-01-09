@@ -69,13 +69,40 @@ bool PrimatePacketPostProc::fixDanglingExt(MachineFunction* MF, MachineInstr* MI
     MI->dump();
 
     auto reg = (MI->defs().begin())->getReg();
-    
 
+    // look for consumer
+    auto foundExtItr = std::find_if(ops.begin(), ops.end(), [&](MachineInstr *a) -> bool{
+        auto temp = a->uses();
+        return std::find_if(temp.begin(), temp.end(), [&](MachineOperand& b) { 
+            if(!b.isReg()) 
+                return false;
+            return b.getReg() == reg;
+        }) != temp.end();
+    });
+    
+    bool found = foundExtItr != ops.end();
+    assert(found && "ext not slotted, or bundled with dep");
+    if(found) {
+        unsigned attemptedSlotIdx = (*foundExtItr)->getSlotIdx() + 1;
+        bool slotTaken = std::find_if(exts.begin(), exts.end(), [=](MachineInstr* a) -> bool {
+            return a->getSlotIdx() == attemptedSlotIdx;
+        }) != exts.end();
+        if (slotTaken)
+            attemptedSlotIdx++;
+        slotTaken = std::find_if(exts.begin(), exts.end(), [=](MachineInstr* a) -> bool {
+            return a->getSlotIdx() == attemptedSlotIdx;
+        }) != exts.end();
+        if(slotTaken)
+            llvm_unreachable("no slot for required extract...");
+        MI->setSlotIdx(attemptedSlotIdx);
+        ret = true;
+        dbgs() << "set to slot " << attemptedSlotIdx << "\n";
+    }
 
     return ret;
 }
 
-bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder, SmallVector<MachineInstr*>& outInstrs) {
+bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr* MI, MIBundleBuilder& builder, SmallVector<MachineInstr*>& outInstrs, int& newSlotIdx) {
     bool ret = false;
 
     auto reg = (MI->defs().begin());
@@ -97,11 +124,27 @@ bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr
             return b.getReg() == reg->getReg();
         }) != temp.end();
     });
+    // could also be the branch so check that
+    auto foundBranchItr = std::find_if(ops.begin(), ops.end(), [&](MachineInstr *a) -> bool{
+        if(!a->isBranch()) {
+            return false;
+        }
+        auto temp = a->uses();
+        return std::find_if(temp.begin(), temp.end(), [&](MachineOperand& b) { 
+            if(!b.isReg()) 
+                return false;
+            return b.getReg() == reg->getReg();
+        }) != temp.end();
+    });
 
     // no one consumes. Need to put it in a reg
     bool materialize = false;
     bool newPacket = false;
-    if (foundExtItr == ins.end()) {
+    if (foundExtItr == ins.end() && foundBranchItr != ops.end()) {
+        foundExtItr = foundBranchItr;
+        dbgs() << "No consuming insert, but a consuming branch\n";
+    }
+    if (foundExtItr == ins.end() || foundExtItr == ops.end()) {
         dbgs() << "op is not consumed in packet. materialize it using insert.\n";
         materialize = true;
     }
@@ -132,6 +175,7 @@ bool PrimatePacketPostProc::fixMaterializedReg(MachineFunction* MF, MachineInstr
                 .addReg(insertProd->getReg())
                 .addImm(insertfield); // TODO: SCALAR
                 outInstrs.push_back(bypass_op);
+                newSlotIdx = (*foundExtItr)->getSlotIdx();
             }
         }
     }
@@ -164,18 +208,21 @@ bool PrimatePacketPostProc::addExtractForOp(MachineFunction* MF, MachineInstr* M
         if(reg.getReg() == Primate::X0)
             found = true;
         
+        // generator
         auto foundExtItr = std::find_if(exts.begin(), exts.end(), [=](MachineInstr *a) -> bool{
             auto temp = a->defs();
-            return std::find_if(temp.begin(), temp.end(), [=](MachineOperand& b) { 
+            bool isInSameLane = a->getSlotIdx() == (MI->getSlotIdx()+1) || 
+                                a->getSlotIdx() == (MI->getSlotIdx()+2);
+            return (isInSameLane) && (std::find_if(temp.begin(), temp.end(), [=](MachineOperand& b) { 
                 return b.getReg() == reg.getReg();
-            }) != temp.end();
+            }) != temp.end());
         });
 
         found = (foundExtItr != exts.end());
 
         if(!found) {
             reg.dump();
-            dbgs() << " NOT FOUND!!!! adding op:\n";
+            dbgs() << "NOT FOUND!!!! adding op:\n";
             MachineInstr* bypass_op = BuildMI(*MF, llvm::DebugLoc(), 
                                                 PII->get(Primate::EXTRACT), 
                                                 reg.getReg())
@@ -193,6 +240,7 @@ bool PrimatePacketPostProc::addExtractForOp(MachineFunction* MF, MachineInstr* M
             if(slotTaken)
                 llvm_unreachable("no slot for required extract...");
             bypass_op->setSlotIdx(attemptedSlotIdx);//op->getSlotIdx()+1);
+            exts.push_back(bypass_op);
             builder.insert(MI->getIterator(), bypass_op);
             //builder.append(bypass_op);
             bypass_op->dump();
@@ -322,7 +370,9 @@ bool PrimatePacketPostProc::runOnMachineFunction(MachineFunction& MF) {
                     curInst->dump();
                     ins.push_back(&(*curInst));
                 }
-                else if(curInst->getOpcode() != Primate::BUNDLE && curInst->getOpcode() != Primate::IMPLICIT_DEF) {
+                else if(curInst->getOpcode() != Primate::BUNDLE && 
+                        curInst->getOpcode() != Primate::IMPLICIT_DEF &&
+                        curInst->getOpcode() != Primate::PseudoRET) {
                     dbgs() << "adding operation to work list: ";
                     curInst->dump();
                     ops.push_back(&(*curInst));
@@ -354,7 +404,6 @@ bool PrimatePacketPostProc::runOnMachineFunction(MachineFunction& MF) {
             for(MachineInstr* op: exts) {
                 if (op->getSlotIdx() == (unsigned)-1) {
                     ret = fixDanglingExt(&MF, op, builder) || ret;
-                    llvm_unreachable("unsloted extract....");
                 }
             }
 
@@ -367,20 +416,22 @@ bool PrimatePacketPostProc::runOnMachineFunction(MachineFunction& MF) {
                     continue;
                 }
                 SmallVector<MachineInstr*> newBundleOps;
-                ret = fixMaterializedReg(&MF, op, builder, newBundleOps) || ret;
+                int insertSlotIdx = 0; 
+                ret = fixMaterializedReg(&MF, op, builder, newBundleOps, insertSlotIdx) || ret;
                 // materialized reg needs to be added to the bb, in its own packet.
                 if (newBundleOps.size() > 0) {
                     for(MachineInstr* newOp: newBundleOps) {
+                        dbgs() << "new packet to materialize a reg....\n";
                         auto dest = (newOp->defs().begin())->getReg();
                         auto source = (newOp->uses().begin())->getReg();
-                        newOp->setSlotIdx(4);
+                        newOp->setSlotIdx(insertSlotIdx+2);
 
                         MachineInstr* addiInstr = BuildMI(MF, llvm::DebugLoc(), 
                                                 PII->get(Primate::ADDI), 
                                                 dest)
-                            .addReg(source)
+                            .addReg(dest)
                             .addImm(0); // TODO: SCALAR
-                        addiInstr->setSlotIdx(3);
+                        addiInstr->setSlotIdx(insertSlotIdx+1);
                         MachineInstr* insert = BuildMI(MF, llvm::DebugLoc(), 
                                                 PII->get(Primate::PseudoInsert), 
                                                 dest)
@@ -389,12 +440,13 @@ bool PrimatePacketPostProc::runOnMachineFunction(MachineFunction& MF) {
                             .addImm(0); // TODO: SCALAR
                         insert->getOperand(1).setIsKill();
                         insert->getOperand(2).setIsKill();
-                        insert->setSlotIdx(2);
+                        insert->setSlotIdx(insertSlotIdx);
                         MBB.insertAfterBundle(machineBundle.getIterator(), newOp);
                         MBB.insertAfterBundle(machineBundle.getIterator(), addiInstr);
                         MBB.insertAfterBundle(machineBundle.getIterator(), insert);
                         MBB.dump();
-                        finalizeBundle(MBB, insert->getIterator(), newOp->getIterator());
+                        finalizeBundle(MBB, insert->getIterator(), ++newOp->getIterator());
+                        MBB.dump();
                     }
                 }
             }

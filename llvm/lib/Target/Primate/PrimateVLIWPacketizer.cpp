@@ -415,7 +415,14 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
       SUnit *curSUnit = MIToSUnit[MI];
       if(!curSUnit) {
         MI->dump();
-        dbgs() << "has no scheduling info. Better be a bypass.\n";
+        dbgs() << "has no scheduling info. Looking for unslotted extracts.\n";
+        for (MachineInstr *otherMI : CurrentPacketMIs) {
+          if(otherMI == MI || otherMI->getOpcode() != Primate::EXTRACT) {
+            continue;
+          }
+          auto miUses = MI->uses();
+          bool instrGeneratesUse = false;
+        }
         continue;
       }
 

@@ -1319,7 +1319,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
                                             // opcode, location, return type(s), operand(s)
       Node->dump();
       dbgs() << "-------\n";
-      auto newNode = CurDAG->getMachineNode(Primate::OUTPUTMETA, DL, 
+      auto newNode = CurDAG->getMachineNode(Primate::OUTPUTDONE, DL, 
                                             MVT::Other, // chain out only
                                             // operands
                                             operands
