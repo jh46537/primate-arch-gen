@@ -16,6 +16,7 @@
 
 #include "MCTargetDesc/PrimateBaseInfo.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/CodeGen/MachineFunctionPass.h"
 
 namespace llvm {
 class PrimateRegisterBankInfo;
@@ -54,6 +55,9 @@ void initializePrimatePacketizerPass(PassRegistry &);
 
 FunctionPass *createPrimateStructToRegPass();
 void initializePrimateStructToRegPassPass(PassRegistry &);
+
+MachineFunctionPass *createPrimateRegisterNormalizePass();
+void initializePrimateRegisterNormalizePass(PassRegistry &);
 
 InstructionSelector *createPrimateInstructionSelector(const PrimateTargetMachine &,
                                                     PrimateSubtarget &,

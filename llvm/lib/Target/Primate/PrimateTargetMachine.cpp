@@ -16,6 +16,7 @@
 #include "PrimateTargetObjectFile.h"
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
+#include "PrimateStructToAggre.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -51,7 +52,7 @@ static StringRef computeDataLayout(const Triple &TT) {
   if (TT.isArch64Bit())
     return "e-m:e-p:64:64-i64:64-i128:128-n64-S128";
   assert(TT.isArch32Bit() && "only PR32 and PR64 are currently supported");
-  return "e-m:e-p:32:32-i64:64-n32-S128";
+  return "e-m:e-p:32:32-i64:64-i512:512-n32:64:128:512-S128";
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
@@ -180,6 +181,9 @@ bool PrimatePassConfig::addRegBankSelect() {
 }
 
 void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
+  PB.registerPipelineStartEPCallback([](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt){
+    MPM.addPass(llvm::PrimateStructToAggre());
+  });
   PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
     FPM.addPass(llvm::PrimateGEPFilterPass());
     FPM.addPass(llvm::PrimateStructLoadCombinerPass());
@@ -196,6 +200,7 @@ void PrimatePassConfig::addPreSched2() {}
 void PrimatePassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
   addPass(createPrimatePacketizer(), false);
+  addPass(createPrimateRegisterNormalizePass());
 }
 
 void PrimatePassConfig::addPreEmitPass2() {
