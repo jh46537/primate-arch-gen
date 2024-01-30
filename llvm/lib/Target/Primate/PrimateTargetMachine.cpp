@@ -52,7 +52,7 @@ static StringRef computeDataLayout(const Triple &TT) {
   if (TT.isArch64Bit())
     return "e-m:e-p:64:64-i64:64-i128:128-n64-S128";
   assert(TT.isArch32Bit() && "only PR32 and PR64 are currently supported");
-  return "e-m:e-p:32:32-i64:64-i512:512-n32:64:128:512-S128";
+  return "e-m:e-p:32:32-i64:64-n32-S128";
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
