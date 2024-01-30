@@ -10,6 +10,7 @@
 #ifndef PRIMATE_STRUCT_TO_AGGRE_H
 #define PRIMATE_STRUCT_TO_AGGRE_H
 #include <algorithm>
+#include <set>
 
 #include "Primate.h"
 #include "PrimateTargetMachine.h"
@@ -21,10 +22,12 @@ namespace llvm {
   struct PrimateStructToAggre : public PassInfoMixin<PrimateStructToAggre> {
     std::unordered_map<Function*, Function*> replacedFunctions;
     std::unordered_map<AllocaInst*, Value*> latestAllocaValue;
+    std::set<Value*> fixedCalls;
     SmallVector<Instruction*> instructionsToRemove;
 
     PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
 
+    Type* followPointerForType(Value*);
     void normalizeFuncs(Function& F);
     void removeAllocas(Function& F);
     void convertCall(CallInst *ci, AllocaInst *ai);
