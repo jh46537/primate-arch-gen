@@ -9,90 +9,11 @@
 
 
 namespace llvm {
-    void PrimateStructToAggre::normalizeFuncs(Function& F) {
-        LLVM_DEBUG(dbgs() << "normalizing function calls for " << F.getName() << "\n");
-        // look for all the calls in the function
-        SmallVector<CallInst*> worklist;
-        for(auto& bb: F) {
-            for(auto& inst: bb) {
-                if(CallInst* ci = dyn_cast<CallInst>(&inst)) {
-                    worklist.push_back(ci);
-                }
-            }
-        }
-
-        // calls that use vector types should check if those came from a struct originally.
-        for(CallInst* ci: worklist) {
-            if(ci->isDebugOrPseudoInst()) {
-                continue;
-            }
-            LLVM_DEBUG(dbgs() << "-------------------\nLooking at call inst:");
-            LLVM_DEBUG(ci->dump());
-            if(ci->hasStructRetAttr()) {
-                LLVM_DEBUG(dbgs() << "call inst already returns a struct via sret!");
-                LLVM_DEBUG(ci->dump());
-                continue;
-            }
-            IRBuilder<> builder(ci);
-            for(auto* user: ci->users()) {
-                // if the user is a store then we may have a struct acc 
-                SmallVector<Value*> args;
-                SmallVector<Type*> argsType;
-                Type* retType = nullptr; 
-                if(StoreInst* si = dyn_cast<StoreInst>(user)) {
-                    LLVM_DEBUG(dbgs() << "ran into store inst: ");
-                    LLVM_DEBUG(user->dump());
-                    // check the pointer
-                    // pointer is either an alloca, or a function arg
-                    Value* dstPtr = si->getPointerOperand();
-                    if(BitCastInst* bci = dyn_cast<BitCastInst>(dstPtr)) {
-                        // bitcast yay!
-                        LLVM_DEBUG(dbgs() << "ran into a bitcast:");
-                        LLVM_DEBUG(bci->dump());
-                        LLVM_DEBUG(dbgs() << " using as type: ");
-                        retType = dyn_cast<PointerType>(bci->getSrcTy())->getPointerElementType();
-                        LLVM_DEBUG(retType->dump());
-                        Value* originalPointer = bci->getOperand(0);  
-
-                        for(auto& arg: ci->args()) {
-                            argsType.push_back(arg.get()->getType());
-                            args.push_back(arg);
-                        }
-                        FunctionType* FT = FunctionType::get(retType, argsType, ci->getCalledFunction()->isVarArg());
-                        Function* newFunc = Function::Create(FT, 
-                                    ci->getCalledFunction()->getLinkage(), 
-                                    ci->getCalledFunction()->getName(), 
-                                    ci->getCalledFunction()->getParent());
-
-                        Value* newCall = builder.CreateCall(newFunc, args);
-                        Value* newStore = builder.CreateStore(newCall, originalPointer);
-
-                        LLVM_DEBUG(dbgs() << "Created insts: ");
-                        LLVM_DEBUG(newCall->dump());
-                        LLVM_DEBUG(newStore->dump());
-                        LLVM_DEBUG(dbgs() << "deleted insts:");
-                        LLVM_DEBUG(bci->dump());
-                        LLVM_DEBUG(ci->dump());
-                        LLVM_DEBUG(si->dump());
-                        instructionsToRemove.push_back(si);
-                        instructionsToRemove.push_back(bci);
-                        instructionsToRemove.push_back(ci);
-                    }
-                }
-            }
-        }
-
-        for(auto* inst: instructionsToRemove) {
-            inst->eraseFromParent();
-        }
-        instructionsToRemove.clear();
-    }
 
     PreservedAnalyses PrimateStructToAggre::run(Module& M, ModuleAnalysisManager& PA) {
         for(auto& F: M) {
             // first normalize all the function calls to the same form 
             // 1. revert all vectorized aggregates to structs
-            normalizeFuncs(F);
             LLVM_DEBUG(dbgs() << "looking for struct allocas in func: " << F.getName() << "\n");
             SmallVector<AllocaInst*> workList;
             for(auto& bb: F) {
@@ -132,6 +53,8 @@ namespace llvm {
                 }
                 workList.clear();
                 for(auto* inst: instructionsToRemove) {
+                    LLVM_DEBUG(dbgs() << "Removing instr: ");
+                    LLVM_DEBUG(inst->dump());
                     inst->eraseFromParent();
                 }
                 instructionsToRemove.clear();
@@ -194,73 +117,92 @@ namespace llvm {
         }
     }
 
+    Type* PrimateStructToAggre::followPointerForType(Value* start) {
+        Value* curInst = start;
+        while(true) {
+            if(AllocaInst* allocaArg = dyn_cast<AllocaInst>(curInst)) {
+                return allocaArg->getAllocatedType();
+                break;
+            }
+            else if(BitCastInst* bci = dyn_cast<BitCastInst>(curInst)) {
+                curInst = bci->getOperand(0);
+            }
+            else {
+                llvm_unreachable("can't follow a pointer...");
+            }
+        }
+    }
+
+    // remove all structs that are passed by pointer!
     void PrimateStructToAggre::convertCall(CallInst *ci, AllocaInst *ai) {
+        // if we already fixed this then we move on
+        if(fixedCalls.find(ci) != fixedCalls.end()) {
+            return;
+        }
         // look for struct ret
-        IRBuilder<> builder(ci->getParent());
-        builder.SetInsertPoint(ci);
-
         Function* func = ci->getCalledFunction();
-        Value* sretArg = nullptr;
-        SmallVector<Type*> funcTypes;
-        for(auto arg = func->arg_begin(); arg != func->arg_end(); arg++) {
-            Argument* a = llvm::dyn_cast<Argument>(arg);
-            if(!a) {
-                LLVM_DEBUG(dbgs() << "not an argument...\n");
-            }
-            else if(a->hasStructRetAttr()) {
-                int argIdx = arg->getArgNo();
-                sretArg = ci->getArgOperand(argIdx);
-            }
-            else {
-                funcTypes.push_back(a->getType());
-            }
+
+        Type* retType = nullptr;
+        if(ci->hasStructRetAttr()) {
+            // find where the pointer came from
+            retType = followPointerForType(ci->getArgOperand(0));
         }
-
-        if (sretArg) {
-            // if the function is returing to the alloca 
-            // we need to remove it and then fix that up
-            if(sretArg == ai) {
-                LLVM_DEBUG(dbgs() << "returned to THIS alloca\n";);
-                auto funcExists = replacedFunctions.find(func);
-                if(funcExists == replacedFunctions.end()) {
-                    LLVM_DEBUG(dbgs() << "adding a new function!\n";);
-                    Type* retType = ai->getAllocatedType();                
-                    FunctionType *FT = FunctionType::get(retType, funcTypes, func->isVarArg());
-                    Function* newFunc = Function::Create(FT, func->getLinkage(), func->getName(), func->getParent());
-                    replacedFunctions[func] = newFunc;
-                }
-
-                Function* newFunc = replacedFunctions.at(func);
-                std::vector<Value *> args;
-                auto farg = func->arg_begin();
-                for(auto arg = ci->arg_begin(); arg != ci->arg_end(); arg++, farg++) {
-                    Argument* a = llvm::dyn_cast<Argument>(farg);
-                    if(!a) {
-                        LLVM_DEBUG(dbgs() << "not an argument...\n");
-                    }
-                    else if(!a->hasStructRetAttr()) {
-                        LLVM_DEBUG({dbgs() << "adding as a param: ";
-                        arg->get()->dump();});
-                        args.push_back(arg->get());
-                    }
-                }
-                assert(args.size() + 1 == func->arg_size() && "unexpected number of arguments when collecting");
-                Value* newCall = builder.CreateCall(newFunc, args);
-                Value* newStore = builder.CreateStore(newCall, ai);
-                LLVM_DEBUG(dbgs() << "created instructions: ");
-                LLVM_DEBUG(newCall->dump());
-                LLVM_DEBUG(newStore->dump());
-                instructionsToRemove.push_back(ci);
-            }
-            else {
-                LLVM_DEBUG(sretArg->dump());
-                LLVM_DEBUG(dbgs() << "return to different alloca");
-            }
-        } 
         else {
-            LLVM_DEBUG(dbgs() << "uses an alloca");
-            // if we use an alloca ptr we should just load the alloca and then use the ssa val
+            retType = ci->getType();
         }
+
+        SmallVector<Type*> argTypes;
+        SmallVector<Value*> args;
+        IRBuilder<> builder(ci);
+        auto funcArg = func->arg_begin();
+        for(auto arg = ci->arg_begin(); arg != ci->arg_end(); arg++, funcArg++) {
+            if(funcArg->hasReturnedAttr() || funcArg->hasStructRetAttr()) {
+                // returns have been handled above
+                continue;
+            }
+            if(arg->get()->getType()->isPointerTy()) {
+                Type* ptrTy = followPointerForType(arg->get());
+                LoadInst* newLoad = builder.CreateLoad(ptrTy, arg->get());
+                argTypes.push_back(ptrTy);
+                args.push_back(newLoad);
+            }
+            else {
+                args.push_back(arg->get());
+                argTypes.push_back(arg->get()->getType());
+            }
+        }
+
+        LLVM_DEBUG(dbgs() << "Return type: ");
+        LLVM_DEBUG(retType->dump());
+        LLVM_DEBUG(dbgs() << "Argument types: ");
+        LLVM_DEBUG(for(auto* ty: argTypes){ty->dump();});
+
+        Function *newFunc = nullptr;
+        if(replacedFunctions.find(func) == replacedFunctions.end()) {
+            FunctionType *FT = FunctionType::get(retType, argTypes, func->isVarArg());
+            newFunc = Function::Create(FT, func->getLinkage(), func->getName(), func->getParent());
+            replacedFunctions[func] = newFunc;
+        }
+        else {
+            newFunc = replacedFunctions[func];
+        }
+
+        CallInst* newCall = builder.CreateCall(newFunc, args);
+        fixedCalls.insert(ci);
+        LLVM_DEBUG(dbgs() << "Created Call: ");
+        LLVM_DEBUG(newCall->dump());
+
+        if(func->hasStructRetAttr()) {
+            StoreInst* stInst = builder.CreateStore(newCall, ci->getArgOperand(0));
+            LLVM_DEBUG(dbgs() << "Creating Store: ");
+            LLVM_DEBUG(stInst->dump());
+        }
+        else {
+            ci->replaceAllUsesWith(newCall);
+        }
+
+
+        instructionsToRemove.push_back(ci);
     }
 
     void PrimateStructToAggre::convertAndTrimGEP(GetElementPtrInst* gepI) {

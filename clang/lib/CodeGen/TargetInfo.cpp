@@ -11355,7 +11355,7 @@ ABIArgInfo PrimateABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
 
   // Aggregates which are <= 2*XLen will be passed in registers if possible,
   // so coerce to integers.
-  if (Size <= 2 * XLen) {
+  if (Size <= 0) {
     unsigned Alignment = getContext().getTypeAlign(Ty);
 
     // Use a single XLen int if possible, 2*XLen if 2*XLen alignment is
