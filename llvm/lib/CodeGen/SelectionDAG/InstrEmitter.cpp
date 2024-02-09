@@ -1028,11 +1028,17 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
   if (II.isVariadic())
     assert(NumMIOperands >= II.getNumOperands() &&
            "Too few operands for a variadic node!");
-  else
+  else {
+    LLVM_DEBUG(Node->dump());
+    LLVM_DEBUG(dbgs() << "NumMIOperands: " << NumMIOperands << "\n"
+                      << "II.getNumOperands(): " << II.getNumOperands() << "\n" 
+                      << "II.getNumImplicitDefs(): " << II.getNumImplicitDefs() << "\n"
+                      << "NumImpUses: " << NumImpUses << "\n");
     assert(NumMIOperands >= II.getNumOperands() &&
            NumMIOperands <=
                II.getNumOperands() + II.implicit_defs().size() + NumImpUses &&
            "#operands for dag node doesn't match .td file!");
+  }
 #endif
 
   // Create the new machine instruction.

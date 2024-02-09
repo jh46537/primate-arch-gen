@@ -891,8 +891,8 @@ def : InstAlias<"end", (JAL X0, -1)>;
 let Itinerary = ItinIO in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
-    PRInstI<0b000, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins simm12:$imm12),
+        "inputread", "$rd, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
@@ -913,12 +913,12 @@ def OUTPUT_SEEK :
 let Itinerary = ItinExtractInsert in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def EXTRACT :
-    PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+    PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
         "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
-    PRInstI<0b001, OPC_PR_REG, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+    PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
         "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 }
 
@@ -931,8 +931,8 @@ def MSPM :
 let Itinerary = ItinBlue1 in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def ASCII :
-    PRInstI<0b000, OPC_PR_ASCII, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "ascii", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
+        "ascii", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -993,8 +993,6 @@ def : PatGprSimm12<xor, XORI>;
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
-
-def : PatGprSimm12<int_primate_extract, EXTRACT>;
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and

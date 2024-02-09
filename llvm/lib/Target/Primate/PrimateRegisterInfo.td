@@ -66,54 +66,87 @@ def sub_vrm1_5 : ComposedSubRegIndex<sub_vrm2_2, sub_vrm1_1>;
 def sub_vrm1_6 : ComposedSubRegIndex<sub_vrm2_3, sub_vrm1_0>;
 def sub_vrm1_7 : ComposedSubRegIndex<sub_vrm2_3, sub_vrm1_1>;
 
+def Pri_struct_A_a : SubRegIndex<32, 0>;
+def Pri_struct_A_b : SubRegIndex<32, 32>;
+def Pri_struct_A_c : SubRegIndex<32, 64>;
+def Pri_struct_A_d : SubRegIndex<32, 96>;
+def Pri_struct_A_e : SubRegIndex<32, 128>;
+def Pri_struct_A_f : SubRegIndex<32, 160>;
+def Pri_struct_A_g : SubRegIndex<32, 192>;
+def Pri_struct_A_h : SubRegIndex<32, 224>;
+def Pri_struct_A_i : SubRegIndex<32, 256>;
+def Pri_struct_A_j : SubRegIndex<32, 288>;
+def Pri_struct_A_k : SubRegIndex<32, 320>;
+
+def Pri_struct_B_a : SubRegIndex<32,0>;
+def Pri_struct_B_b : SubRegIndex<8,32>;
+
 } // Namespace = "Primate"
 
-// Integer registers
-// CostPerUse is set higher for registers that may not be compressible as they
-// are not part of GPRC, the most restrictive register class used by the
-// compressed instruction set. This will influence the greedy register
-// allocator to reduce the use of registers that can't be encoded in 16 bit
-// instructions. This affects register allocation even when compressed
-// instruction isn't targeted, we see no major negative codegen impact.
+foreach Index = 0-31 in {
+  // Pseudo regs
+  let RegAltNameIndices = [ABIRegAltName] in {
+    def X#Index  : PrimateReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_A#Index : PrimateReg<Index, "P_A_A"#Index, ["P_A_A"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_B#Index : PrimateReg<Index, "P_A_B"#Index, ["P_A_B"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_C#Index : PrimateReg<Index, "P_A_C"#Index, ["P_A_C"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_D#Index : PrimateReg<Index, "P_A_D"#Index, ["P_A_D"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_E#Index : PrimateReg<Index, "P_A_E"#Index, ["P_A_E"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_F#Index : PrimateReg<Index, "P_A_F"#Index, ["P_A_F"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_G#Index : PrimateReg<Index, "P_A_G"#Index, ["P_A_G"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_H#Index : PrimateReg<Index, "P_A_H"#Index, ["P_A_H"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_I#Index : PrimateReg<Index, "P_A_I"#Index, ["P_A_I"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_J#Index : PrimateReg<Index, "P_A_J"#Index, ["P_A_J"#Index]>, DwarfRegNum<[Index]>;
+    def P_A_K#Index : PrimateReg<Index, "P_A_K"#Index, ["P_A_K"#Index]>, DwarfRegNum<[Index]>;
 
-let RegAltNameIndices = [ABIRegAltName] in {
-  def X0  : PrimateReg<0, "x0", ["zero"]>, DwarfRegNum<[0]>;
-  let CostPerUse = [1] in {
-  def X1  : PrimateReg<1, "x1", ["ra"]>, DwarfRegNum<[1]>;
-  def X2  : PrimateReg<2, "x2", ["sp"]>, DwarfRegNum<[2]>;
-  def X3  : PrimateReg<3, "x3", ["gp"]>, DwarfRegNum<[3]>;
-  def X4  : PrimateReg<4, "x4", ["tp"]>, DwarfRegNum<[4]>;
-  def X5  : PrimateReg<5, "x5", ["t0"]>, DwarfRegNum<[5]>;
-  def X6  : PrimateReg<6, "x6", ["t1"]>, DwarfRegNum<[6]>;
-  def X7  : PrimateReg<7, "x7", ["t2"]>, DwarfRegNum<[7]>;
-  }
-  def X8  : PrimateReg<8, "x8", ["s0", "fp"]>, DwarfRegNum<[8]>;
-  def X9  : PrimateReg<9, "x9", ["s1"]>, DwarfRegNum<[9]>;
-  def X10 : PrimateReg<10,"x10", ["a0"]>, DwarfRegNum<[10]>;
-  def X11 : PrimateReg<11,"x11", ["a1"]>, DwarfRegNum<[11]>;
-  def X12 : PrimateReg<12,"x12", ["a2"]>, DwarfRegNum<[12]>;
-  def X13 : PrimateReg<13,"x13", ["a3"]>, DwarfRegNum<[13]>;
-  def X14 : PrimateReg<14,"x14", ["a4"]>, DwarfRegNum<[14]>;
-  def X15 : PrimateReg<15,"x15", ["a5"]>, DwarfRegNum<[15]>;
-  let CostPerUse = [1] in {
-  def X16 : PrimateReg<16,"x16", ["a6"]>, DwarfRegNum<[16]>;
-  def X17 : PrimateReg<17,"x17", ["a7"]>, DwarfRegNum<[17]>;
-  def X18 : PrimateReg<18,"x18", ["s2"]>, DwarfRegNum<[18]>;
-  def X19 : PrimateReg<19,"x19", ["s3"]>, DwarfRegNum<[19]>;
-  def X20 : PrimateReg<20,"x20", ["s4"]>, DwarfRegNum<[20]>;
-  def X21 : PrimateReg<21,"x21", ["s5"]>, DwarfRegNum<[21]>;
-  def X22 : PrimateReg<22,"x22", ["s6"]>, DwarfRegNum<[22]>;
-  def X23 : PrimateReg<23,"x23", ["s7"]>, DwarfRegNum<[23]>;
-  def X24 : PrimateReg<24,"x24", ["s8"]>, DwarfRegNum<[24]>;
-  def X25 : PrimateReg<25,"x25", ["s9"]>, DwarfRegNum<[25]>;
-  def X26 : PrimateReg<26,"x26", ["s10"]>, DwarfRegNum<[26]>;
-  def X27 : PrimateReg<27,"x27", ["s11"]>, DwarfRegNum<[27]>;
-  def X28 : PrimateReg<28,"x28", ["t3"]>, DwarfRegNum<[28]>;
-  def X29 : PrimateReg<29,"x29", ["t4"]>, DwarfRegNum<[29]>;
-  def X30 : PrimateReg<30,"x30", ["t5"]>, DwarfRegNum<[30]>;
-  def X31 : PrimateReg<31,"x31", ["t6"]>, DwarfRegNum<[31]>;
+    def P_B_A#Index : PrimateReg<Index, "P_B_K"#Index, ["P_B_K"#Index]>, DwarfRegNum<[Index]>;
+    def P_B_B#Index : PrimateReg<Index, "P_B_K"#Index, ["P_B_K"#Index]>, DwarfRegNum<[Index]>;
+
+    def P_A#Index : PrimateReg<Index, "P_A"#Index, ["P_A"#Index]>, DwarfRegNum<[Index]> {
+      let SubRegIndices = [Pri_struct_A_a,
+                           Pri_struct_A_b,
+                           Pri_struct_A_c,
+                           Pri_struct_A_d,
+                           Pri_struct_A_e,
+                           Pri_struct_A_f,
+                           Pri_struct_A_g,
+                           Pri_struct_A_h,
+                           Pri_struct_A_i,
+                           Pri_struct_A_j,
+                           Pri_struct_A_k];
+      let SubRegs = [!cast<Register>("P_A_A"#Index),
+                     !cast<Register>("P_A_B"#Index),
+                     !cast<Register>("P_A_C"#Index),
+                     !cast<Register>("P_A_D"#Index),
+                     !cast<Register>("P_A_E"#Index),
+                     !cast<Register>("P_A_F"#Index),
+                     !cast<Register>("P_A_G"#Index),
+                     !cast<Register>("P_A_H"#Index),
+                     !cast<Register>("P_A_I"#Index),
+                     !cast<Register>("P_A_J"#Index),
+                     !cast<Register>("P_A_K"#Index)];
+      let CoveredBySubRegs = true;
+    }
+    def P_B#Index : PrimateReg<Index, "P_B"#Index, ["P_B"#Index]>, DwarfRegNum<[Index]> {
+      let SubRegIndices = [Pri_struct_B_a,
+                           Pri_struct_B_b];
+      let SubRegs = [!cast<Register>("P_B_A"#Index),
+                     !cast<Register>("P_B_B"#Index)];
+      let CoveredBySubRegs = true;
+    }
+
+
   }
 }
+
+// Value type of the aggregate register file
+def PrimateAGGVT : ValueTypeByHwMode<[PR32, PR64],
+                               [Primate_aggregate,  Primate_aggregate]>;
+// register info of the aggregate register file
+def PrimateAGGRI : RegInfoByHwMode<
+  [PR32, PR64],
+  [RegInfo<32,32,32>, RegInfo<32,32,32>]
+>;
 
 def XLenVT : ValueTypeByHwMode<[PR32, PR64],
                                [i32,  i64]>;
@@ -124,17 +157,35 @@ def XLenRI : RegInfoByHwMode<
 // The order of registers represents the preferred allocation sequence.
 // Registers are listed in the order caller-save, callee-save, specials.
 def GPR : RegisterClass<"Primate", [XLenVT], 32, (add
-    (sequence "X%u", 10, 17),
-    (sequence "X%u", 5, 7),
-    (sequence "X%u", 28, 31),
-    (sequence "X%u", 8, 9),
-    (sequence "X%u", 18, 27),
-    (sequence "X%u", 0, 4)
+    (sequence "P_A_A%u", 0, 31),
+    (sequence "P_A_B%u", 0, 31),
+    (sequence "P_A_C%u", 0, 31),
+    (sequence "P_A_D%u", 0, 31),
+    (sequence "P_A_E%u", 0, 31),
+    (sequence "P_A_F%u", 0, 31),
+    (sequence "P_A_G%u", 0, 31),
+    (sequence "P_A_H%u", 0, 31),
+    (sequence "P_A_I%u", 0, 31),
+    (sequence "P_A_J%u", 0, 31),
+    (sequence "P_A_K%u", 0, 31),
+    (sequence "P_B_A%u", 0, 31),
+    (sequence "X%u", 0, 31)
   )> {
   let RegInfos = XLenRI;
 }
 
-def WIDEREG : RegisterClass<"Primate", [PrimateAGGTy], 32, (add X31)>;
+def GPR8 : RegisterClass<"Primate", [i8], 9, (add
+    (sequence "P_B_B%u", 0, 31)
+  )> {
+  let RegInfos = XLenRI;
+}
+
+def WIDEREG : RegisterClass<"Primate", [PrimateAGGVT], 32, (add 
+    (sequence "P_A%u", 0, 31),
+    (sequence "P_B%u", 0, 31)
+  )> {
+    let RegInfos = PrimateAGGRI;
+  }
 
 def GPRX0 : RegisterClass<"Primate", [XLenVT], 32, (add X0)> {
   let RegInfos = XLenRI;

@@ -1374,6 +1374,11 @@ enum NodeType {
   // Outputs: [rv], output chain, glue
   PATCHPOINT,
 
+  // Deals with aggregate types in the dag. now that the dag has support for aggregates
+  // we need the abillity to extract and insert, similar to how IR uses them
+  EXTRACT_VALUE,
+  INSERT_VALUE,
+
 // Vector Predication
 #define BEGIN_REGISTER_VP_SDNODE(VPSDID, ...) VPSDID,
 #include "llvm/IR/VPIntrinsics.def"

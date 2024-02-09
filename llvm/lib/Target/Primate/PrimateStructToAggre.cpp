@@ -5,6 +5,11 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
+// TODO: EVIL EVIL EVIL. MOVE TO CLANG!!!!!!
+#include "llvm/Demangle/Demangle.h"
+// TODO: DONT USE FUNC NAME FOR GENERATING INTRINSICS!!!!
+
+
 #define DEBUG_TYPE "PrimateStructToAggre"
 
 
@@ -74,6 +79,73 @@ namespace llvm {
 
             removeAllocas(F);
         }
+
+        // TODO: MOVE TO CLANG
+        // TODO: if you see this in the future and hate the if else tree just know me too. its a hack. 
+        for(auto& F: M) {
+            LLVM_DEBUG(dbgs() << "looking for probable intrinics in func: " << F.getName() << "\n");
+            SmallVector<CallInst*> workList;
+            for(auto& bb: F) {
+                workList.clear();
+                for(auto& inst: bb) {
+                    if(!inst.isDebugOrPseudoInst())
+                    if(CallInst *ci = dyn_cast<CallInst>(&inst)) {
+                        workList.push_back(ci);
+                    }
+                }
+                for(auto* inst: workList) {
+                    // replace input inst with call intr
+                    std::string demangledName = demangle(inst->getCalledFunction()->getName().str());
+                    if(demangledName == "A input<A>(int) (.1)" || demangledName == "B input<B>(int) (.2)") {
+                        IRBuilder<> builder(inst);
+                        std::vector<Type *> insArgType = {
+                            inst->getType()
+                        };
+                        std::vector<Value*> insArg = {
+                            inst->getOperand(0)
+                        };
+                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input, insArgType);
+                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                        inst->replaceAllUsesWith(newCi);
+                        instructionsToRemove.push_back(inst);
+                    }
+                    else if(demangledName == "BFU_EXAMPLE(A) (.3)") {
+                        IRBuilder<> builder(inst);
+                        std::vector<Type *> insArgType = {
+                            inst->getType(),
+                            inst->getType()
+                        };
+                        std::vector<Value*> insArg = {
+                            inst->getOperand(0)
+                        };
+                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_BFU_1, insArgType);
+                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                        inst->replaceAllUsesWith(newCi);
+                        instructionsToRemove.push_back(inst);
+                    }
+                    else if(demangledName == "BFU_EXAMPLE(B) (.4)") {
+                        IRBuilder<> builder(inst);
+                        std::vector<Type *> insArgType = {
+                            inst->getType(),
+                            inst->getType() // boo
+                        };
+                        std::vector<Value*> insArg = {
+                            inst->getOperand(0)
+                        };
+                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_BFU_2, insArgType);
+                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                        inst->replaceAllUsesWith(newCi);
+                        instructionsToRemove.push_back(inst);
+                    }
+                }
+            }
+        }
+
+        for(auto bleh: instructionsToRemove) {
+            bleh->eraseFromParent();
+        }
+
+
         return PreservedAnalyses::none();
     }
 
@@ -181,6 +253,7 @@ namespace llvm {
         if(replacedFunctions.find(func) == replacedFunctions.end()) {
             FunctionType *FT = FunctionType::get(retType, argTypes, func->isVarArg());
             newFunc = Function::Create(FT, func->getLinkage(), func->getName(), func->getParent());
+            newFunc->setDSOLocal(true);
             replacedFunctions[func] = newFunc;
         }
         else {
@@ -227,13 +300,32 @@ namespace llvm {
 
         for(auto uIter: gepI->users()) {
             if(auto* li = dyn_cast<LoadInst>(uIter)) {
+                builder.SetInsertPoint(li);
                 LoadInst* newLoad = builder.CreateLoad(srcType, srcPtr);
                 Value* extLoad = builder.CreateExtractValue(newLoad, lastIndex, li->getName());
+                LLVM_DEBUG(dbgs() << "replaced: "; li->dump(); 
+                dbgs() << " with: "; extLoad->dump());
                 li->replaceAllUsesWith(extLoad);
+                LLVM_DEBUG(dbgs() << "Created Ops: ";
+                newLoad->dump();
+                extLoad->dump(););
                 instructionsToRemove.push_back(li);
             }
+            else if(auto* si = dyn_cast<StoreInst>(uIter)) {
+                // TODO: HACK SHOULD BE OPT
+                // load insert and store....
+                builder.SetInsertPoint(si);
+                LoadInst *newLoad = builder.CreateLoad(srcType, srcPtr);
+                Value *insLoad = builder.CreateInsertValue(newLoad, si->getValueOperand(), lastIndex);
+                StoreInst *newStore = builder.CreateStore(insLoad, srcPtr);
+                LLVM_DEBUG(dbgs() << "Created Ops: ";
+                newLoad->dump();
+                insLoad->dump();
+                newStore->dump(););
+                instructionsToRemove.push_back(si);
+            }
             else {
-                llvm_unreachable("gep used by not a load");
+                llvm_unreachable("gep used by not a load/store D:");
             }
         }
         instructionsToRemove.push_back(gepI);

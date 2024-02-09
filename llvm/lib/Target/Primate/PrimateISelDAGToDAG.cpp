@@ -635,6 +635,40 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    case Intrinsic::primate_input: {
+      LLVM_DEBUG(dbgs() << "input lower thing\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+
+      MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), Node->getOperand(1));
+
+      ReplaceNode(Node, inputNode);
+
+      return;
+    }
+    case Intrinsic::primate_BFU_1: {
+      LLVM_DEBUG(dbgs() << "BFU1 lower thing\n");
+      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+      SmallVector<SDValue> ops;
+      for(int i = 1; i < Node->getNumOperands(); i++) {
+        ops.push_back(Node->getOperand(i));
+      }
+      SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
+      ReplaceNode(Node, BFU);
+      return;
+    }
+    case Intrinsic::primate_BFU_2: {
+      LLVM_DEBUG(dbgs() << "BFU2 lower thing\n");
+      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+      SmallVector<SDValue> ops;
+      for(int i = 1; i < Node->getNumOperands(); i++) {
+        ops.push_back(Node->getOperand(i));
+      }
+      SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
+      ReplaceNode(Node, BFU);
+      return;
+    }
     case Intrinsic::primate_vmsgeu:
     case Intrinsic::primate_vmsge: {
       SDValue Src1 = Node->getOperand(1);
@@ -838,11 +872,36 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     break;
   }
   case ISD::INTRINSIC_W_CHAIN: {
+    LLVM_DEBUG(dbgs() << "select for intrinsic with chain\n");
     unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
     switch (IntNo) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    case Intrinsic::primate_input: {
+      LLVM_DEBUG(dbgs() << "input lower w/ chain thing\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+
+      MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), Node->getOperand(1));
+
+      ReplaceNode(Node, inputNode);
+
+      return;
+    }
+    case Intrinsic::primate_BFU_1: {
+      LLVM_DEBUG(dbgs() << "BFU1 lower w/ chain thing\n");
+      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+      LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
+      return;
+    }
+    case Intrinsic::primate_BFU_2: {
+      LLVM_DEBUG(dbgs() << "BFU2 lower w/ chain thing\n");
+      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+      LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
+      return;
+    }
 
     case Intrinsic::primate_vsetvli:
     case Intrinsic::primate_vsetvlimax: {
@@ -1095,14 +1154,6 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     }
     }
     break;
-  }
-  case PrimateISD::EXTRACT: {
-    LLVM_DEBUG(dbgs() << "ISel for extract sdnode\n");
-    return;
-  }
-  case Intrinsic::primate_extract: {
-    LLVM_DEBUG(dbgs() << "ISel for extract intrinsic sdnode\n");
-    return;
   }
   case ISD::INTRINSIC_VOID: {
     unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
@@ -1404,9 +1455,20 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, Load);
     return;
   }
+  case ISD::EXTRACT_VALUE: {
+    // This is used for things
+    SmallVector<SDValue> operands;
+    operands.push_back(Node->getOperand(0));
+    operands.push_back(Node->getOperand(1));
+    MachineSDNode *extNode = CurDAG->getMachineNode(Primate::EXTRACT, DL, Node->getVTList(), operands);
+    ReplaceNode(Node, extNode);
+    return;
+  }
   }
 
   // Select the default instruction.
+  LLVM_DEBUG(dbgs() << "missed a custom ISEL hook: ");
+  LLVM_DEBUG(Node->dump());
   SelectCode(Node);
 }
 

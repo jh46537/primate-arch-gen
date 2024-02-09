@@ -3713,6 +3713,17 @@ public:
     return false;
   }
 
+  // returns true if the target can support this aggregate as a 
+  // register/single type in the DAG
+  virtual bool supportedAggregate(StructType &STy) const {
+    return false;
+  }
+
+  // returns the EVT of a given aggregate if its supported by the target.
+  virtual EVT getAggregateVT(StructType &STy) const {
+    return EVT(MVT::i32);
+  }
+
   /// Returns true if the specified base+offset is a legal indexed addressing
   /// mode for this target. \p MI is the load or store instruction that is being
   /// considered for transformation.

@@ -314,6 +314,16 @@ public:
   bool isCheapToSpeculateCtlz() const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
+  
+  virtual bool supportedAggregate(StructType &STy) const override {
+    return true;
+  }
+
+  // returns the EVT of a given aggregate if its supported by the target.
+  virtual EVT getAggregateVT(StructType &STy) const override {
+    return EVT(MVT::Primate_aggregate);
+  }
+
 
   bool softPromoteHalfType() const override { return true; }
 

@@ -722,6 +722,7 @@ void SelectionDAGISel::SelectBasicBlock(BasicBlock::const_iterator Begin,
   // nodes for this block. If an instruction is elided, don't emit it, but do
   // handle any debug-info attached to it.
   for (BasicBlock::const_iterator I = Begin; I != End && !SDB->HasTailCall; ++I) {
+    LLVM_DEBUG(dbgs() << "select for: "; I->dump());
     if (!ElidedArgCopyInstrs.count(&*I))
       SDB->visit(*I);
     else
@@ -1557,6 +1558,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
   // Iterate over all basic blocks in the function.
   StackProtector &SP = getAnalysis<StackProtector>();
   for (const BasicBlock *LLVMBB : RPOT) {
+    dbgs() << "reverse post order traversal\n";
     if (OptLevel != CodeGenOptLevel::None) {
       bool AllPredsVisited = true;
       for (const BasicBlock *Pred : predecessors(LLVMBB)) {
@@ -1598,6 +1600,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
 
     // Before doing SelectionDAG ISel, see if FastISel has been requested.
     if (FastIS) {
+      dbgs() << "fast isel starting...";
       if (LLVMBB != &Fn.getEntryBlock())
         FastIS->startNewBlock();
 
@@ -1624,6 +1627,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
 
         // Try to select the instruction with FastISel.
         if (FastIS->selectInstruction(Inst)) {
+          dbgs() << "Fast Isel selected: "; Inst->dump();
           --NumFastIselRemaining;
           ++NumFastIselSuccess;
 
@@ -1747,6 +1751,7 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
       // Run SelectionDAG instruction selection on the remainder of the block
       // not handled by FastISel. If FastISel is not run, this is the entire
       // block.
+      dbgs() << "Slow ISel full block: " << ((End == BI) ? "true" : "false") << "\n";
       bool HadTailCall;
       SelectBasicBlock(Begin, BI, HadTailCall);
 

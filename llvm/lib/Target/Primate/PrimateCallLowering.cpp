@@ -14,7 +14,10 @@
 
 #include "PrimateCallLowering.h"
 #include "PrimateISelLowering.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+
+#define DEBUG_TYPE "PrimateCallLowering"
 
 using namespace llvm;
 
@@ -39,6 +42,7 @@ bool PrimateCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
                                              ArrayRef<ArrayRef<Register>> VRegs,
                                              FunctionLoweringInfo &FLI) const {
 
+  LLVM_DEBUG(dbgs() << "Trying to lower args for "; F.dump());
   if (F.arg_empty())
     return true;
 
@@ -47,5 +51,6 @@ bool PrimateCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 
 bool PrimateCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
                                   CallLoweringInfo &Info) const {
+  LLVM_DEBUG(dbgs() << "Trying to lower "; Info.Callee.dump());
   return false;
 }

@@ -48,11 +48,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.isPR32E())
     report_fatal_error("Codegen not yet implemented for PR32E");
-  
-  // custom promote intrinsics which have 
-  // i8 return types I think that's fair.
-  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, LegalizeAction::Custom);                                          
-
+    
   PrimateABI::ABI ABI = Subtarget.getTargetABI();
   assert(ABI != PrimateABI::ABI_Unknown && "Improperly initialised target ABI");
 
@@ -86,8 +82,13 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 
   // Set up the register classes.
   addRegisterClass(XLenVT, &Primate::GPRRegClass);
-  addRegisterClass(MVT::primate_aggre_1, &Primate::WIDEREGRegClass);
 
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Any, LegalizeAction::Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Any, LegalizeAction::Custom);
+  addRegisterClass(MVT::Primate_aggregate, &Primate::WIDEREGRegClass);
+  addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
+
+  //addRegisterClass(MVT::primate_aggre_1, &Primate::WIDEREGRegClass);
   if (Subtarget.hasStdExtZfh())
     addRegisterClass(MVT::f16, &Primate::FPR16RegClass);
   if (Subtarget.hasStdExtF())
@@ -3491,6 +3492,7 @@ static SDValue lowerVectorIntrinsicSplats(SDValue Op, SelectionDAG &DAG,
   assert((Op.getOpcode() == ISD::INTRINSIC_WO_CHAIN ||
           Op.getOpcode() == ISD::INTRINSIC_W_CHAIN) &&
          "Unexpected opcode");
+  dbgs() << "Something thinks its a vector intrinsic splat\n";
 
   if (!Subtarget.hasStdExtV())
     return SDValue();
@@ -3562,6 +3564,10 @@ static SDValue lowerVectorIntrinsicSplats(SDValue Op, SelectionDAG &DAG,
 
 SDValue PrimateTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                                                      SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "lower intrinsic wo chain while trying to construct dag\n");
+  LLVM_DEBUG(Op.dump());
+  LLVM_DEBUG(Op.getNode()->dump());
+
   unsigned IntNo = Op.getConstantOperandVal(0);
   SDLoc DL(Op);
   MVT XLenVT = Subtarget.getXLenVT();
@@ -3719,6 +3725,7 @@ SDValue PrimateTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
 SDValue PrimateTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
                                                     SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "lower intrinsic w chain while trying to construct dag\n");
   return lowerVectorIntrinsicSplats(Op, DAG, Subtarget);
 }
 
@@ -5252,6 +5259,30 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
+    case Intrinsic::primate_BFU_1: {
+      LLVM_DEBUG({
+        dbgs() << "Num ops: " << N->getNumOperands() << "\n";
+        dbgs() << "Lowered op: ";
+        N->dump();
+      }); 
+      llvm_unreachable(
+          "Don't know how to custom type legalize this intrinsic!");
+
+    }
+    case Intrinsic::primate_BFU_2: {
+      LLVM_DEBUG({
+        dbgs() << "Num ops: " << N->getNumOperands() << "\n";
+        dbgs() << "Lowered op: ";
+        N->dump();
+      });
+      llvm_unreachable(
+          "Don't know how to custom type legalize this intrinsic!");
+
+    }
+    case Intrinsic::primate_input: {
+      dbgs() << "tried to lower the input intrinsic\n";
+      return;
+    }
     case Intrinsic::primate_extract: {
       // check and replace ops
       
@@ -5280,7 +5311,7 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
       SDValue op2 = N->getOperand(1);
       SDValue op3 = N->getOperand(2);
 
-      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::primate_aggre_1, op1, op2, op3);
+      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::Primate_aggregate, op1, op2, op3);
 
       Res.dump();
       errs() << N->getValueType(0).getEVTString() << "\n";
@@ -6637,6 +6668,7 @@ void PrimateTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
     Known.Zero.setBitsFrom(14);
     break;
   case ISD::INTRINSIC_W_CHAIN: {
+    LLVM_DEBUG(dbgs () << "Int w chain 1\n");
     unsigned IntNo = Op.getConstantOperandVal(1);
     switch (IntNo) {
     default:

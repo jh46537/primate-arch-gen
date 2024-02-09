@@ -23,7 +23,11 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Target/TargetMachine.h"
+
+#define DEBUG_TYPE "Analysis.cpp"
 
 using namespace llvm;
 
@@ -83,9 +87,16 @@ void llvm::ComputeValueVTs(const TargetLowering &TLI, const DataLayout &DL,
                            TypeSize StartingOffset) {
   // Given a struct type, recursively traverse the elements.
   if (StructType *STy = dyn_cast<StructType>(Ty)) {
+    LLVM_DEBUG(dbgs() << "compute val VTs "; Ty->dump());
     // If the Offsets aren't needed, don't query the struct layout. This allows
     // us to support structs with scalable vectors for operations that don't
     // need offsets.
+
+    if(TLI.supportedAggregate(*STy)) {
+      ValueVTs.push_back(TLI.getAggregateVT(*STy));
+      return;
+    }
+
     const StructLayout *SL = Offsets ? DL.getStructLayout(STy) : nullptr;
     for (StructType::element_iterator EB = STy->element_begin(),
                                       EI = EB,
@@ -180,7 +191,9 @@ void llvm::computeValueLLTs(const DataLayout &DL, Type &Ty,
                             SmallVectorImpl<uint64_t> *Offsets,
                             uint64_t StartingOffset) {
   // Given a struct type, recursively traverse the elements.
+  LLVM_DEBUG(dbgs() << "compute val LLTs "; Ty.dump());
   if (StructType *STy = dyn_cast<StructType>(&Ty)) {
+    LLVM_DEBUG(dbgs() << "compute val LLTs " << STy->getStructName());
     // If the Offsets aren't needed, don't query the struct layout. This allows
     // us to support structs with scalable vectors for operations that don't
     // need offsets.

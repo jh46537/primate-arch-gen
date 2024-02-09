@@ -8,14 +8,20 @@
 #include "llvm/PassRegistry.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "PrimateRegisterNormalize"
 
 namespace llvm {
 bool llvm::PrimateRegisterNormalize::runOnMachineFunction(MachineFunction& MF) {
-    dbgs() << "hello from register normalize";
+    LLVM_DEBUG(dbgs() << "hello from register normalize\n");
 
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-    for (MCRegUnitIterator Units(Primate::X0, TRI); Units.isValid(); ++Units) {
-        // do something
+    unsigned a = TRI->getNumRegClasses();
+    unsigned b = TRI->getNumRegUnits();
+    for (MCRegUnitIterator Units(Primate::P_A0, TRI); Units.isValid(); ++Units) {
+      // do something
+      LLVM_DEBUG(dbgs() << "Register 0 has unit: " << *Units << "\n");
     }
     return false;
 }
