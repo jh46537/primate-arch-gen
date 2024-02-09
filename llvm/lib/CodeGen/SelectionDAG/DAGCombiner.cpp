@@ -247,7 +247,7 @@ namespace {
       // We use the minimum store size here, since that's all we can guarantee
       // for the scalable vector types.
       for (MVT VT : MVT::all_valuetypes())
-        if (EVT(VT).isSimple() && VT != MVT::Other &&
+        if (EVT(VT).isSimple() && !(VT == MVT::Other || VT == MVT::Primate_aggregate) &&
             TLI.isTypeLegal(EVT(VT)) &&
             VT.getSizeInBits().getKnownMinSize() >= MaximumLegalStoreInBits)
           MaximumLegalStoreInBits = VT.getSizeInBits().getKnownMinSize();

@@ -36,6 +36,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Printable.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/CodeGen/ValueTypes.h"
 #include <cassert>
 #include <utility>
 
@@ -221,6 +222,8 @@ TargetRegisterInfo::getMinimalPhysRegClass(MCRegister reg, MVT VT) const {
       BestRC = RC;
   }
 
+  LLVM_DEBUG(dbgs() << "Looking for a reg class for reg: " << reg << "\n");
+  LLVM_DEBUG(dbgs() << "Looking for a reg class for Type: " << EVT(VT).getEVTString() << "\n");
   assert(BestRC && "Couldn't find the register class");
   return BestRC;
 }

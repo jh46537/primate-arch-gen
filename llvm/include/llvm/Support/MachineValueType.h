@@ -272,10 +272,10 @@ namespace llvm {
       x86amx         = 177,    // This is an X86 AMX value
       i64x8          = 178,    // 8 Consecutive GPRs (AArch64)
 
-      primate_aggre_1 = 179,   // Primate's first aggregate type. Need a way to expand this....
+      Primate_aggregate = 179,   // Primate's first aggregate type. Need a way to expand this....
 
       FIRST_VALUETYPE =  1,    // This is always the beginning of the list.
-      LAST_VALUETYPE = primate_aggre_1,  // This always remains at the end of the list.
+      LAST_VALUETYPE = Primate_aggregate,  // This always remains at the end of the list.
       VALUETYPE_SIZE = LAST_VALUETYPE + 1,
 
       // This is the current maximum for LAST_VALUETYPE.
@@ -878,6 +878,8 @@ namespace llvm {
                          "in codegen and has no size");
       case Metadata:
         llvm_unreachable("Value type is metadata.");
+      case Primate_aggregate:
+        llvm_unreachable("Primate_aggregate type bit size makes no sense");
       case i1:
       case v1i1: return TypeSize::Fixed(1);
       case nxv1i1: return TypeSize::Scalable(1);
@@ -942,7 +944,6 @@ namespace llvm {
       case nxv4bf16:
       case nxv2f32:
       case nxv1f64: return TypeSize::Scalable(64);
-      case primate_aggre_1:
       case f80 :  return TypeSize::Fixed(80);
       case v3i32:
       case v3f32: return TypeSize::Fixed(96);
