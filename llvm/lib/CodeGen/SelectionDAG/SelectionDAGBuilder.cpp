@@ -1129,6 +1129,7 @@ void SelectionDAGBuilder::visitPHI(const PHINode &) {
 void SelectionDAGBuilder::visit(unsigned Opcode, const User &I) {
   // Note: this doesn't use InstVisitor, because it has to work with
   // ConstantExpr's in addition to instructions.
+  LLVM_DEBUG(dbgs() << "Opcode: " << Opcode << "\n");
   switch (Opcode) {
   default: llvm_unreachable("Unknown instruction type encountered!");
     // Build the switch statement using the Instruction.def file.
@@ -3806,12 +3807,25 @@ void SelectionDAGBuilder::visitExtractValue(const User &I) {
 
   unsigned LinearIndex = ComputeLinearIndex(AggTy, Indices);
 
+  dbgs() << "extract dump: \nAgg: "; AggTy->dump(); 
+  dbgs() << "Val: "; ValTy->dump();
+  dbgs() << "LinearIndex: " << LinearIndex << "\n";
+  dbgs() << "Indeices: "; 
+  for(auto I: Indices) {
+    dbgs() << I << " ";
+  }
+  dbgs() << "\n";
+
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SmallVector<EVT, 4> ValValueVTs;
   ComputeValueVTs(TLI, DAG.getDataLayout(), ValTy, ValValueVTs);
+  for(EVT val: ValValueVTs) {
+    dbgs() << val.getSimpleVT().getSizeInBits() << "\n";
+  }
 
   unsigned NumValValues = ValValueVTs.size();
 
+  dbgs() << "NumValValues: " << NumValValues << "\n";
   // Ignore a extractvalue that produces an empty object
   if (!NumValValues) {
     setValue(&I, DAG.getUNDEF(MVT(MVT::Other)));
@@ -3822,14 +3836,24 @@ void SelectionDAGBuilder::visitExtractValue(const User &I) {
 
   SDValue Agg = getValue(Op0);
   // Copy out the selected value(s).
-  for (unsigned i = LinearIndex; i != LinearIndex + NumValValues; ++i)
-    Values[i - LinearIndex] =
-      OutOfUndef ?
-        DAG.getUNDEF(Agg.getNode()->getValueType(Agg.getResNo() + i)) :
-        SDValue(Agg.getNode(), Agg.getResNo() + i);
+  if(TLI.supportedAggregate(*(dyn_cast<StructType>(AggTy)))) {
+    Values.clear(); // clear since we are pushing ops not setting. (small happy changes :) )
 
-  setValue(&I, DAG.getNode(ISD::MERGE_VALUES, getCurSDLoc(),
-                           DAG.getVTList(ValValueVTs), Values));
+    Values.push_back(Agg);
+    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, /*isTarget=*/true,
+                                 /*isOpaque*/false));
+    setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
+  }
+  else {
+    for (unsigned i = LinearIndex; i != LinearIndex + NumValValues; ++i)
+      Values[i - LinearIndex] =
+        OutOfUndef ?
+          DAG.getUNDEF(Agg.getNode()->getValueType(Agg.getResNo() + i)) :
+          SDValue(Agg.getNode(), Agg.getResNo() + i);
+
+    setValue(&I, DAG.getNode(ISD::MERGE_VALUES, getCurSDLoc(),
+                             DAG.getVTList(ValValueVTs), Values));
+  }
 }
 
 void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
@@ -4757,6 +4781,7 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
   // Ignore the callsite's attributes. A specific call site may be marked with
   // readnone, but the lowering code will expect the chain based on the
   // definition.
+  dbgs() << "visiting intrinsic: "; I.dump();
   const Function *F = I.getCalledFunction();
   bool HasChain = !F->doesNotAccessMemory();
   bool OnlyLoad = HasChain && F->onlyReadsMemory();
@@ -4788,6 +4813,13 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
   // Add all operands of the call to the operand list.
   for (unsigned i = 0, e = I.getNumArgOperands(); i != e; ++i) {
     const Value *Arg = I.getArgOperand(i);
+    // if(Arg->getType()->isAggregateType()) {
+    //   dbgs() << "aggregate nodes custom operand :P (Kayvan's fault if wrong)\n";
+    //   for(int i = 0; i < Arg->getType()->getStructNumElements(); i++) {
+    //     Ops.push_back(SDValue((getValue(Arg).getNode()), i));
+    //   } 
+    //   continue;
+    // }
     if (!I.paramHasAttr(i, Attribute::ImmArg)) {
       Ops.push_back(getValue(Arg));
       continue;
