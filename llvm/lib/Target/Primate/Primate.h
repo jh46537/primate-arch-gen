@@ -56,6 +56,9 @@ void initializePrimatePacketizerPass(PassRegistry &);
 FunctionPass *createPrimateStructToRegPass();
 void initializePrimateStructToRegPassPass(PassRegistry &);
 
+MachineFunctionPass *createPrimateExtMergePass();
+void initializePrimateExtMergePass(PassRegistry &);
+
 MachineFunctionPass *createPrimateRegisterNormalizePass();
 void initializePrimateRegisterNormalizePass(PassRegistry &);
 

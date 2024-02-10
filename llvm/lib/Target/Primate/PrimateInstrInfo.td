@@ -918,8 +918,10 @@ def EXTRACT :
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
-    PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12),
+        "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+          let Constraints = "$rd = $rs1";
+        }
 }
 
 let Itinerary = ItinBlue0 in
