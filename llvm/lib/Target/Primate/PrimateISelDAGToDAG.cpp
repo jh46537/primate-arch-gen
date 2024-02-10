@@ -1464,6 +1464,16 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, extNode);
     return;
   }
+  case ISD::INSERT_VALUE: {
+    // This is used for things
+    SmallVector<SDValue> operands;
+    operands.push_back(Node->getOperand(0));
+    operands.push_back(Node->getOperand(1));
+    operands.push_back(Node->getOperand(2));
+    MachineSDNode *extNode = CurDAG->getMachineNode(Primate::INSERT, DL, Node->getVTList(), operands);
+    ReplaceNode(Node, extNode);
+    return;
+  }
   }
 
   // Select the default instruction.

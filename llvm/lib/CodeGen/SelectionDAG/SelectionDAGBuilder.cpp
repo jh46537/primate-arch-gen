@@ -4035,25 +4035,37 @@ void SelectionDAGBuilder::visitInsertValue(const InsertValueInst &I) {
   }
 
   SDValue Agg = getValue(Op0);
+  SDValue insVal = getValue(Op1);
   unsigned i = 0;
-  // Copy the beginning value(s) from the original aggregate.
-  for (; i != LinearIndex; ++i)
-    Values[i] = IntoUndef ? DAG.getUNDEF(AggValueVTs[i]) :
-                SDValue(Agg.getNode(), Agg.getResNo() + i);
-  // Copy values from the inserted value(s).
-  if (NumValValues) {
-    SDValue Val = getValue(Op1);
-    for (; i != LinearIndex + NumValValues; ++i)
-      Values[i] = FromUndef ? DAG.getUNDEF(AggValueVTs[i]) :
-                  SDValue(Val.getNode(), Val.getResNo() + i - LinearIndex);
+  // insert the value and move on.
+  StructType *sTY = (dyn_cast<StructType>(AggTy)); 
+  if(sTY && TLI.supportedAggregate(*sTY)) {
+    Values.clear();
+    Values.push_back(Agg);
+    Values.push_back(insVal);
+    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, true, false));
+    setValue(&I, DAG.getNode(ISD::INSERT_VALUE, getCurSDLoc(), TLI.getAggregateVT(*sTY), Values));
   }
-  // Copy remaining value(s) from the original aggregate.
-  for (; i != NumAggValues; ++i)
-    Values[i] = IntoUndef ? DAG.getUNDEF(AggValueVTs[i]) :
-                SDValue(Agg.getNode(), Agg.getResNo() + i);
+  else {
+    // Copy the beginning value(s) from the original aggregate.
+    for (; i != LinearIndex; ++i)
+      Values[i] = IntoUndef ? DAG.getUNDEF(AggValueVTs[i]) :
+                  SDValue(Agg.getNode(), Agg.getResNo() + i);
+    // Copy values from the inserted value(s).
+    if (NumValValues) {
+      SDValue Val = getValue(Op1);
+      for (; i != LinearIndex + NumValValues; ++i)
+        Values[i] = FromUndef ? DAG.getUNDEF(AggValueVTs[i]) :
+                    SDValue(Val.getNode(), Val.getResNo() + i - LinearIndex);
+    }
+    // Copy remaining value(s) from the original aggregate.
+    for (; i != NumAggValues; ++i)
+      Values[i] = IntoUndef ? DAG.getUNDEF(AggValueVTs[i]) :
+                  SDValue(Agg.getNode(), Agg.getResNo() + i);
 
-  setValue(&I, DAG.getNode(ISD::MERGE_VALUES, getCurSDLoc(),
-                           DAG.getVTList(AggValueVTs), Values));
+    setValue(&I, DAG.getNode(ISD::MERGE_VALUES, getCurSDLoc(),
+                            DAG.getVTList(AggValueVTs), Values));
+  }
 }
 
 void SelectionDAGBuilder::visitExtractValue(const ExtractValueInst &I) {

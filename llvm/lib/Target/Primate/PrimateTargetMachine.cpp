@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// do not include passes registered with the legacy pass manager.....
+
 #include "PrimateTargetMachine.h"
 #include "MCTargetDesc/PrimateBaseInfo.h"
 #include "Primate.h"
@@ -217,4 +219,5 @@ void PrimatePassConfig::addPreRegAlloc() {
 
   // Convert structs to registers before any other reg alloc
   addPass(createPrimateInsertVSETVLIPass());
+  addPass(createPrimateExtMergePass());
 }
