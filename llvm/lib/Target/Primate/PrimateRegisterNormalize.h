@@ -6,7 +6,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 
-namespace llvm{
+namespace llvm {
 class PrimateRegisterNormalize : public MachineFunctionPass {
 
 public: 
