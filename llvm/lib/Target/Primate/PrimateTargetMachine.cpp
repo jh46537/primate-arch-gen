@@ -217,7 +217,7 @@ void PrimatePassConfig::addPreRegAlloc() {
   if (TM->getOptLevel() != CodeGenOpt::None)
     addPass(createPrimateMergeBaseOffsetOptPass());
 
-  // Convert structs to registers before any other reg alloc
   addPass(createPrimateInsertVSETVLIPass());
+  // Convert structs to registers before any other reg alloc
   addPass(createPrimateExtMergePass());
 }
