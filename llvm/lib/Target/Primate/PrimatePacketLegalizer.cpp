@@ -107,12 +107,14 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     for(unsigned i = 0; i < numSlots; i++) {
         MachineInstr *curInst = newBundle[i];
         if(newBundle[i] && hasScalarRegs(newBundle[i])) {
-            if(newBundle[i]->getOpcode() == Primate::PseudoRET || isNewInstr[i]) {
+            if(newBundle[i]->getOpcode() == Primate::PseudoRET) {
                 continue;
             }
             switch (newBundle[i]->getOpcode())
             {
             case Primate::EXTRACT:{
+                if(isNewInstr[i])
+                    continue; // new extracts have been handled. 
                 // InstrItineraryData
                 // extract need a way to figure out which slot of extract we are? 
                 llvm_unreachable("Dangling extract that we didn't manage to deal with and are unable to deal with RN");
@@ -121,21 +123,20 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
             case Primate::INSERT:{
                 // check if the op exists
                 int opCheck = i + 1;
-                int extCheck = i + 2;
+                // if no op there then just add it in. then the op clean up will clean it. 
                 if(!newBundle[opCheck]) {
                     dbgs() << "found bad insert\n";
                     curInst->dump();
-                    Register superRegister = TRI->getMatchingSuperReg(curInst->getOperand(2).getReg(), 1, &Primate::WIDEREGRegClass);
-                    newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
-                                            PII->get(Primate::EXTRACT), 
+                    newBundle[opCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                            PII->get(Primate::ADDI), 
                                             curInst->getOperand(2).getReg())
-                                            .addReg(superRegister)
+                                            .addReg(curInst->getOperand(2).getReg())
                                             .addImm(0);
-                    newBundle[extCheck]->dump();
-                    newBundle[extCheck]->setSlotIdx(extCheck);
+                    newBundle[opCheck]->dump();
+                    newBundle[opCheck]->setSlotIdx(opCheck);
                     MIBundleBuilder builder(BundleMI);
-                    isNewInstr[extCheck] = true;
-                    builder.insert(++(curInst->getIterator()), newBundle[extCheck]);
+                    isNewInstr[opCheck] = true;
+                    builder.insert(++(curInst->getIterator()), newBundle[opCheck]);
                     BundleMI->getParent()->dump();
                 }
                 break;

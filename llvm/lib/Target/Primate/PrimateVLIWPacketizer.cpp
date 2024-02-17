@@ -446,7 +446,17 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     //  SUJ->getInstr()->print(dbgs());
     //  dbgs() << "\tDue to WAR hazard\n";
     //  return false;
-    case SDep::Kind::Output:
+    case SDep::Kind::Output: {
+      if(SUI->getInstr()->getOpcode() == Primate::INSERT) {
+        LLVM_DEBUG({
+          dbgs() << "Legal to packetize:\n\t";
+          SUI->getInstr()->print(dbgs());
+          dbgs() << "\t";
+          SUJ->getInstr()->print(dbgs());
+          dbgs() << "\tDue to WAW hazard on insert\n";
+        });
+        return true;
+      }
       LLVM_DEBUG({
         dbgs() << "Illegal to packetize:\n\t";
         SUI->getInstr()->print(dbgs());
@@ -455,6 +465,7 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
         dbgs() << "\tDue to WAW hazard\n";
       });
       return false;
+    }
     case SDep::Kind::Order:
       LLVM_DEBUG({
         dbgs() << "Illegal to packetize:\n\t";
