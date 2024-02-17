@@ -240,7 +240,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
       LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
       CurrentPacketMIs.pop_back();
       --MI;
-      for(auto& _: generated_bypass_instrs){
+      for(unsigned long i = 0; i < generated_bypass_instrs.size(); i++){
         --MI;
       }
       MI->dump();
@@ -418,7 +418,17 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
 
     SDep::Kind DepType = SUJ->Succs[i].getKind();
     switch(DepType) {
-    case SDep::Kind::Data:
+    case SDep::Kind::Data: {
+      if(SUI->getInstr()->getOpcode() == Primate::INSERT) {
+        LLVM_DEBUG({
+          dbgs() << "Legal to packetize:\n\t";
+          SUI->getInstr()->print(dbgs());
+          dbgs() << "\t";
+          SUJ->getInstr()->print(dbgs());
+          dbgs() << "\tDue to INSERT with RAW hazard\n";
+        });
+        return true;
+      }
       LLVM_DEBUG({
         dbgs() << "Illegal to packetize:\n\t";
         SUI->getInstr()->print(dbgs());
@@ -426,7 +436,8 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
         SUJ->getInstr()->print(dbgs());
         dbgs() << "\tDue to RAW hazard\n";
       });
-      return false;
+      return false; // inserts can packetize
+    }
     // WAR hazards are okay to packetize together since all operands are read before the packet
     //case SDep::Kind::Anti:
     //  dbgs() << "Illegal to packetize:\n\t";

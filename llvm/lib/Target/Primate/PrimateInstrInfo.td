@@ -889,40 +889,54 @@ def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
 def : InstAlias<"end", (JAL X0, -1)>;
 
 let Itinerary = ItinIO in {
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
     PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins simm12:$imm12),
         "inputread", "$rd, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
     PRInstI<0b001, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_WRITE :
-    PRInstI<0b010, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "outputwrite", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b010, OPC_PR_IO, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
+        "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_SEEK :
     PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
         "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 }
 
-let Itinerary = ItinExtractInsert in {
+
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def EXTRACT :
     PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
-        "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+        "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {
+          let Itinerary = ItinExtract;
+}
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INSERTdef :
+    PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "insert", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {
+          let Itinerary = ItinInsert;
+}
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
     PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12),
-        "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+        "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {
           let Constraints = "$rd = $rs1";
-        }
+          let Itinerary = ItinInsert;
 }
+
 
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
@@ -931,7 +945,7 @@ def MSPM :
         "mspm", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
 
 let Itinerary = ItinBlue1 in
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def ASCII :
     PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
         "ascii", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
@@ -1054,6 +1068,10 @@ def : Pat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
 def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
+def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
+def : Pat<(int_primate_input simm12:$imm), (INPUT_READ simm12:$imm)>;
+def : Pat<(int_primate_BFU_1 WIDEREG:$rs1), (ASCII WIDEREG:$rs1)>;
+
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
     : Pseudo<(outs valty:$dst),
@@ -1130,6 +1148,58 @@ def PseudoCALLIndirect : Pseudo<(outs), (ins GPRJALR:$rs1),
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(primate_ret_flag)]>,
                 PseudoInstExpansion<(JALR X0, X1, 0)>;
+
+def PseudoADD : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      [(set GPR:$rd, (add (extract_value WIDEREG:$rs1, simm12:$imm1), (extract_value WIDEREG:$rs2, simm12:$imm2)))]>{
+        let Itinerary = ItinGreen;
+      }
+
+def PseudoADDww : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      [(set WIDEREG:$rd, 
+        (insert_value 
+          WIDEREG:$rs0, 
+          (add 
+            (i32 (extract_value 
+              WIDEREG:$rs1, 
+              simm12:$imm1)), 
+            (extract_value 
+              WIDEREG:$rs2, 
+              simm12:$imm2)), 
+          simm12:$imm0))]>{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
+def PseudoADDI : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      [(set GPR:$rd, (add (extract_value WIDEREG:$rs1, simm12:$imm1), simm12:$imm2))]> {
+        let Itinerary = ItinGreen;
+      }
+
+def PseudoADDIww : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      [(set WIDEREG:$rd, 
+        (insert_value 
+          WIDEREG:$rs0, 
+          (add 
+            (extract_value 
+              WIDEREG:$rs1, 
+              simm12:$imm1), 
+            simm12:$imm2), 
+          simm12:$imm0))]> {
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
+// missed op patterns
+def : Pat<(extract_value WIDEREG:$rs1, simm12:$imm1), 
+           (EXTRACT WIDEREG:$rs1, simm12:$imm1)>;
+def : Pat<(insert_value WIDEREG:$rs1, GPR:$rs2, simm12:$imm1), 
+           (INSERT WIDEREG:$rs1, GPR:$rs2, simm12:$imm1)>;
+
+
 
 // PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually
 // expand to auipc and jalr while encoding.

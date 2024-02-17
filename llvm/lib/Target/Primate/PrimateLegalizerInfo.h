@@ -15,8 +15,6 @@
 
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 
-#define DEBUG_TYPE "Primate-Legalizer-Info"
-
 namespace llvm {
 
 class PrimateSubtarget;
@@ -27,8 +25,6 @@ public:
   PrimateLegalizerInfo(const PrimateSubtarget &ST);
   virtual bool legalizeIntrinsic(LegalizerHelper &Helper,
                                  MachineInstr &MI) const override {
-    LLVM_DEBUG(dbgs() << "Attempting to legalize intrinsic: ");
-    LLVM_DEBUG(MI.dump());
     return true;
   }
 };

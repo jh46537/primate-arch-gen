@@ -86,7 +86,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Any, LegalizeAction::Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Any, LegalizeAction::Custom);
   addRegisterClass(MVT::Primate_aggregate, &Primate::WIDEREGRegClass);
-  addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
+  // addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
 
   //addRegisterClass(MVT::primate_aggre_1, &Primate::WIDEREGRegClass);
   if (Subtarget.hasStdExtZfh())
@@ -164,9 +164,6 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
     }
  
   }
-
-
-  addRegisterClass(MVT::Other, &Primate::WIDEREGRegClass);
 
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
@@ -5259,30 +5256,30 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
-    case Intrinsic::primate_BFU_1: {
-      LLVM_DEBUG({
-        dbgs() << "Num ops: " << N->getNumOperands() << "\n";
-        dbgs() << "Lowered op: ";
-        N->dump();
-      }); 
-      llvm_unreachable(
-          "Don't know how to custom type legalize this intrinsic!");
+    // case Intrinsic::primate_BFU_1: {
+    //   LLVM_DEBUG({
+    //     dbgs() << "Num ops: " << N->getNumOperands() << "\n";
+    //     dbgs() << "Lowered op: ";
+    //     N->dump();
+    //   }); 
+    //   llvm_unreachable(
+    //       "Don't know how to custom type legalize this intrinsic!");
 
-    }
-    case Intrinsic::primate_BFU_2: {
-      LLVM_DEBUG({
-        dbgs() << "Num ops: " << N->getNumOperands() << "\n";
-        dbgs() << "Lowered op: ";
-        N->dump();
-      });
-      llvm_unreachable(
-          "Don't know how to custom type legalize this intrinsic!");
+    // }
+    // case Intrinsic::primate_BFU_2: {
+    //   LLVM_DEBUG({
+    //     dbgs() << "Num ops: " << N->getNumOperands() << "\n";
+    //     dbgs() << "Lowered op: ";
+    //     N->dump();
+    //   });
+    //   llvm_unreachable(
+    //       "Don't know how to custom type legalize this intrinsic!");
 
-    }
-    case Intrinsic::primate_input: {
-      dbgs() << "tried to lower the input intrinsic\n";
-      return;
-    }
+    // }
+    // case Intrinsic::primate_input: {
+    //   dbgs() << "tried to lower the input intrinsic\n";
+    //   return;
+    // }
     case Intrinsic::primate_extract: {
       // check and replace ops
       
@@ -5310,7 +5307,7 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
       SDValue op1 = N->getOperand(0);
       SDValue op2 = N->getOperand(1);
       SDValue op3 = N->getOperand(2);
-
+      
       SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::Primate_aggregate, op1, op2, op3);
 
       Res.dump();

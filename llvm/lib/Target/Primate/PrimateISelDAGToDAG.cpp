@@ -47,6 +47,22 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
        I != E;) {
     SDNode *N = &*I++; // Preincrement iterator to avoid invalidation issues.
 
+    SDLoc DL(N);
+    // if (N->getOpcode() == PrimateISD::EXTRACT || N->getOpcode() == PrimateISD::INSERT ||
+    //     N->getOpcode() == ISD::Constant) {
+    //   continue;
+    // }
+
+    // for(unsigned i = 0; i < N->getNumValues(); i++ ) {
+    //   SDValue curVal = SDValue(N, i);
+    //   if(curVal.getValueType() == MVT::i32) {
+    //     dbgs() << "Found an instr that has an i32 type :D\n";
+    //     N->dump();
+    //     SmallVector<SDValue> ops {curVal, CurDAG->getTargetConstant(0, DL, MVT::i32)};
+    //     CurDAG->getNode(Primate::INSERTdef, DL, MVT::Primate_aggregate, ops);
+    //   }
+    // }
+
     // Lower SPLAT_VECTOR_SPLIT_I64 to two scalar stores and a stride 0 vector
     // load. Done after lowering and combining so that we have a chance to
     // optimize this to VMV_V_X_VL when the upper bits aren't needed.
@@ -63,7 +79,7 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
            "Unexpected VTs!");
     MachineFunction &MF = CurDAG->getMachineFunction();
     PrimateMachineFunctionInfo *FuncInfo = MF.getInfo<PrimateMachineFunctionInfo>();
-    SDLoc DL(N);
+    
 
     // We use the same frame index we use for moving two i32s into 64-bit FPR.
     // This is an analogous operation.
@@ -635,40 +651,42 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
-    case Intrinsic::primate_input: {
-      LLVM_DEBUG(dbgs() << "input lower thing\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    // case Intrinsic::primate_input: {
+    //   LLVM_DEBUG(dbgs() << "input lower thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
 
-      MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), Node->getOperand(1));
+    //   auto cnst = CurDAG->getTargetConstant(Node->getConstantOperandVal(1), DL, MVT::i32);
 
-      ReplaceNode(Node, inputNode);
+    //   MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), cnst);
 
-      return;
-    }
-    case Intrinsic::primate_BFU_1: {
-      LLVM_DEBUG(dbgs() << "BFU1 lower thing\n");
-      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
-      SmallVector<SDValue> ops;
-      for(int i = 1; i < Node->getNumOperands(); i++) {
-        ops.push_back(Node->getOperand(i));
-      }
-      SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
-      ReplaceNode(Node, BFU);
-      return;
-    }
-    case Intrinsic::primate_BFU_2: {
-      LLVM_DEBUG(dbgs() << "BFU2 lower thing\n");
-      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
-      SmallVector<SDValue> ops;
-      for(int i = 1; i < Node->getNumOperands(); i++) {
-        ops.push_back(Node->getOperand(i));
-      }
-      SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
-      ReplaceNode(Node, BFU);
-      return;
-    }
+    //   ReplaceNode(Node, inputNode);
+
+    //   return;
+    // }
+    // case Intrinsic::primate_BFU_1: {
+    //   LLVM_DEBUG(dbgs() << "BFU1 lower thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    //   SmallVector<SDValue> ops;
+    //   for(unsigned i = 1; i < Node->getNumOperands(); i++) {
+    //     ops.push_back(Node->getOperand(i));
+    //   }
+    //   SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
+    //   ReplaceNode(Node, BFU);
+    //   return;
+    // }
+    // case Intrinsic::primate_BFU_2: {
+    //   LLVM_DEBUG(dbgs() << "BFU2 lower thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    //   SmallVector<SDValue> ops;
+    //   for(unsigned i = 1; i < Node->getNumOperands(); i++) {
+    //     ops.push_back(Node->getOperand(i));
+    //   }
+    //   SDNode *BFU = CurDAG->getMachineNode(Primate::ASCII, DL, Node->getVTList(), ops);
+    //   ReplaceNode(Node, BFU);
+    //   return;
+    // }
     case Intrinsic::primate_vmsgeu:
     case Intrinsic::primate_vmsge: {
       SDValue Src1 = Node->getOperand(1);
@@ -878,30 +896,32 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
-    case Intrinsic::primate_input: {
-      LLVM_DEBUG(dbgs() << "input lower w/ chain thing\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    // case Intrinsic::primate_input: {
+    //   LLVM_DEBUG(dbgs() << "input lower w/ chain thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
 
-      MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), Node->getOperand(1));
+    //   auto cnst = CurDAG->getTargetConstant(Node->getConstantOperandVal(1), DL, MVT::i32);
 
-      ReplaceNode(Node, inputNode);
+    //   MachineSDNode* inputNode = CurDAG->getMachineNode(Primate::INPUT_READ, DL, Node->getVTList(), cnst);
 
-      return;
-    }
-    case Intrinsic::primate_BFU_1: {
-      LLVM_DEBUG(dbgs() << "BFU1 lower w/ chain thing\n");
-      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
-      LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
-      return;
-    }
-    case Intrinsic::primate_BFU_2: {
-      LLVM_DEBUG(dbgs() << "BFU2 lower w/ chain thing\n");
-      LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
-      LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
-      LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
-      return;
-    }
+    //   ReplaceNode(Node, inputNode);
+
+    //   return;
+    // }
+    // case Intrinsic::primate_BFU_1: {
+    //   LLVM_DEBUG(dbgs() << "BFU1 lower w/ chain thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    //   LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
+    //   return;
+    // }
+    // case Intrinsic::primate_BFU_2: {
+    //   LLVM_DEBUG(dbgs() << "BFU2 lower w/ chain thing\n");
+    //   LLVM_DEBUG(dbgs() << "Node num ops: "  << Node->getNumOperands() << "\n");
+    //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");
+    //   LLVM_DEBUG(dbgs() << "op 1 value size: " << Node->getOperand(1).getValueType().getSizeInBits() << "\n");
+    //   return;
+    // }
 
     case Intrinsic::primate_vsetvli:
     case Intrinsic::primate_vsetvlimax: {
@@ -1455,25 +1475,25 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, Load);
     return;
   }
-  case ISD::EXTRACT_VALUE: {
-    // This is used for things
-    SmallVector<SDValue> operands;
-    operands.push_back(Node->getOperand(0));
-    operands.push_back(Node->getOperand(1));
-    MachineSDNode *extNode = CurDAG->getMachineNode(Primate::EXTRACT, DL, Node->getVTList(), operands);
-    ReplaceNode(Node, extNode);
-    return;
-  }
-  case ISD::INSERT_VALUE: {
-    // This is used for things
-    SmallVector<SDValue> operands;
-    operands.push_back(Node->getOperand(0));
-    operands.push_back(Node->getOperand(1));
-    operands.push_back(Node->getOperand(2));
-    MachineSDNode *extNode = CurDAG->getMachineNode(Primate::INSERT, DL, Node->getVTList(), operands);
-    ReplaceNode(Node, extNode);
-    return;
-  }
+  // case ISD::EXTRACT_VALUE: {
+  //   // This is used for things
+  //   SmallVector<SDValue> operands;
+  //   operands.push_back(Node->getOperand(0));
+  //   operands.push_back(curDAG->getConst Node->getConstantOperandVal(1));
+  //   MachineSDNode *extNode = CurDAG->getMachineNode(Primate::EXTRACT, DL, Node->getVTList(), operands);
+  //   ReplaceNode(Node, extNode);
+  //   return;
+  // }
+  // case ISD::INSERT_VALUE: {
+  //   // This is used for things
+  //   SmallVector<SDValue> operands;
+  //   operands.push_back(Node->getOperand(0));
+  //   operands.push_back(Node->getOperand(1));
+  //   operands.push_back(Node->getOperand(2));
+  //   MachineSDNode *extNode = CurDAG->getMachineNode(Primate::INSERT, DL, Node->getVTList(), operands);
+  //   ReplaceNode(Node, extNode);
+  //   return;
+  // }
   }
 
   // Select the default instruction.
