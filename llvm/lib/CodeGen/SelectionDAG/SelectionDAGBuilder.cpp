@@ -3780,7 +3780,7 @@ void SelectionDAGBuilder::visitInsertValue(const User &I) {
     Values.clear();
     Values.push_back(Agg);
     Values.push_back(insVal);
-    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, true, false));
+    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, false, false));
     setValue(&I, DAG.getNode(ISD::INSERT_VALUE, getCurSDLoc(), TLI.getAggregateVT(*sTY), Values));
   }
   else {
@@ -3852,7 +3852,7 @@ void SelectionDAGBuilder::visitExtractValue(const User &I) {
     Values.clear(); // clear since we are pushing ops not setting. (small happy changes :) )
 
     Values.push_back(Agg);
-    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, /*isTarget=*/true,
+    Values.push_back(DAG.getConstant(LinearIndex, getCurSDLoc(), MVT::i32, /*isTarget=*/false,
                                  /*isOpaque*/false));
     setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
   }

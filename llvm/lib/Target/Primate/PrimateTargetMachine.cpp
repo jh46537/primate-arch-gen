@@ -138,6 +138,7 @@ public:
     return getTM<PrimateTargetMachine>();
   }
 
+  void addMachineSSAOptimization() override;
   void addIRPasses() override;
   bool addInstSelector() override;
   bool addIRTranslator() override;
@@ -153,6 +154,13 @@ public:
 
 TargetPassConfig *PrimateTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new PrimatePassConfig(*this, PM);
+}
+
+void PrimatePassConfig::addMachineSSAOptimization() {
+  // Convert structs to registers before any other reg alloc
+  // addPass(createPrimateRegisterNormalizePass());
+  addPass(createPrimateExtMergePass());
+  addPass(createPrimateOPMergePass());
 }
 
 void PrimatePassConfig::addIRPasses() {
@@ -201,8 +209,10 @@ void PrimatePassConfig::addPreSched2() {}
 
 void PrimatePassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
+
+  // two passes that form a pseudo super pass
   addPass(createPrimatePacketizer(), false);
-  addPass(createPrimateRegisterNormalizePass());
+  addPass(createPrimatePacketLegalizerPass(), true);
 }
 
 void PrimatePassConfig::addPreEmitPass2() {
@@ -218,6 +228,4 @@ void PrimatePassConfig::addPreRegAlloc() {
     addPass(createPrimateMergeBaseOffsetOptPass());
 
   addPass(createPrimateInsertVSETVLIPass());
-  // Convert structs to registers before any other reg alloc
-  addPass(createPrimateExtMergePass());
 }

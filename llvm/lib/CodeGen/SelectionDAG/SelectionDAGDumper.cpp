@@ -79,6 +79,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
 #ifndef NDEBUG
   case ISD::DELETED_NODE:               return "<<Deleted Node!>>";
 #endif
+  case ISD::EXTRACT_VALUE:              return "Extract_value";
+  case ISD::INSERT_VALUE:              return "Insert_value";
   case ISD::PREFETCH:                   return "Prefetch";
   case ISD::ATOMIC_FENCE:               return "AtomicFence";
   case ISD::ATOMIC_CMP_SWAP:            return "AtomicCmpSwap";

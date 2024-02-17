@@ -127,6 +127,7 @@ void LiveVariables::MarkVirtRegAliveInBlock(VarInfo &VRInfo,
 
 void LiveVariables::HandleVirtRegUse(Register Reg, MachineBasicBlock *MBB,
                                      MachineInstr &MI) {
+  dbgs() << "HandleVRegUse for reg: " << Register::virtReg2Index(Reg) << "\n";
   assert(MRI->getVRegDef(Reg) && "Register use before def!");
 
   unsigned BBNum = MBB->getNumber();
@@ -500,6 +501,8 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
   assert(!MI.isDebugOrPseudoInstr());
   // Process all of the operands of the instruction...
   unsigned NumOperandsToProcess = MI.getNumOperands();
+  dbgs() << "Live var on: ";
+  MI.dump();
 
   // Unless it is a PHI node.  In this case, ONLY process the DEF, not any
   // of the uses.  They will be handled in other basic blocks.
@@ -512,6 +515,12 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
   SmallVector<unsigned, 1> RegMasks;
   for (unsigned i = 0; i != NumOperandsToProcess; ++i) {
     MachineOperand &MO = MI.getOperand(i);
+    if(MO.isReg()) {
+      MO.dump();
+      dbgs() << "is Def: " << MO.isDef() << "\n";
+      dbgs() << "is Use: " << MO.isUse() << "\n";
+    }
+
     if (MO.isRegMask()) {
       RegMasks.push_back(i);
       continue;
@@ -519,6 +528,10 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
     if (!MO.isReg() || MO.getReg() == 0)
       continue;
     Register MOReg = MO.getReg();
+    dbgs() << "DEF Instrs: \n";
+    for(auto& re: MRI->def_instructions(MOReg)) {
+      re.dump();
+    }
     if (MO.isUse()) {
       if (!(Register::isPhysicalRegister(MOReg) && MRI->isReserved(MOReg)))
         MO.setIsKill(false);
@@ -551,8 +564,10 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
   // Process all defs.
   for (unsigned i = 0, e = DefRegs.size(); i != e; ++i) {
     unsigned MOReg = DefRegs[i];
-    if (Register::isVirtualRegister(MOReg))
+    if (Register::isVirtualRegister(MOReg)) {
+      dbgs() << "is handling vreg: " << Register::virtReg2Index(MOReg) << "\n";
       HandleVirtRegDef(MOReg, MI);
+    }
     else if (!MRI->isReserved(MOReg))
       HandlePhysRegDef(MOReg, &MI, Defs);
   }
