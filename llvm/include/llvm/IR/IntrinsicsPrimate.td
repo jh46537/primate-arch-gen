@@ -89,14 +89,18 @@ let TargetPrefix = "primate" in {
   // primate ops
   def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_i32_ty], // Params: imm12
-		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;
+		              [IntrNoMem, IntrHasSideEffects]>; // properties;
+  
+  def int_primate_output :  Intrinsic<[], // return val
+                  [llvm_any_ty, llvm_i32_ty], // Params: imm12
+		              [IntrNoMem, IntrHasSideEffects]>; // properties;
 
   def int_primate_BFU_1 :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: gpr w/ struct
-		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;
+		              [IntrHasSideEffects]>; // properties;
   def int_primate_BFU_2 :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: gpr w/ struct
-		              [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties;
+		              [IntrHasSideEffects]>; // properties;
 
 
   def int_primate_extract :  Intrinsic<[llvm_any_ty], // return val

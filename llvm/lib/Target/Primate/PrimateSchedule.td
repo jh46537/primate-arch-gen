@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-def ItinGreen         : InstrItinClass;
-def ItinBlue0         : InstrItinClass;
-def ItinBlue1         : InstrItinClass;
-def ItinExtractInsert : InstrItinClass;
-def ItinIO            : InstrItinClass;
-def ItinBranch        : InstrItinClass;
+def ItinExtract : InstrItinClass;
+def ItinInsert  : InstrItinClass;
+def ItinGreen   : InstrItinClass;
+def ItinBlue0   : InstrItinClass;
+def ItinBlue1   : InstrItinClass;
+def ItinIO      : InstrItinClass;
+def ItinBranch  : InstrItinClass;
 
 /// Define scheduler resources associated with def operands.
 def WriteIALU       : SchedWrite;    // 32 or 64-bit integer ALU operations

@@ -96,7 +96,9 @@ namespace llvm {
                 for(auto* inst: workList) {
                     // replace input inst with call intr
                     std::string demangledName = demangle(inst->getCalledFunction()->getName().str());
-                    if(demangledName == "A input<A>(int) (.1)" || demangledName == "B input<B>(int) (.2)") {
+                    dbgs() << "demangled name: " << demangledName << "\n";
+                    
+                    if(demangledName.find("primate::input") != std::string::npos) {
                         IRBuilder<> builder(inst);
                         std::vector<Type *> insArgType = {
                             inst->getType()
@@ -109,7 +111,7 @@ namespace llvm {
                         inst->replaceAllUsesWith(newCi);
                         instructionsToRemove.push_back(inst);
                     }
-                    else if(demangledName == "BFU_EXAMPLE(A) (.3)") {
+                    else if(demangledName.find("primate::BFU_") != std::string::npos) {
                         IRBuilder<> builder(inst);
                         std::vector<Type *> insArgType = {
                             inst->getType(),
@@ -123,16 +125,16 @@ namespace llvm {
                         inst->replaceAllUsesWith(newCi);
                         instructionsToRemove.push_back(inst);
                     }
-                    else if(demangledName == "BFU_EXAMPLE(B) (.4)") {
+                    else if(demangledName.find("primate::output") != std::string::npos) {
                         IRBuilder<> builder(inst);
                         std::vector<Type *> insArgType = {
-                            inst->getType(),
-                            inst->getType() // boo
+                            inst->getOperand(0)->getType()
                         };
                         std::vector<Value*> insArg = {
-                            inst->getOperand(0)
+                            inst->getOperand(0),
+                            inst->getOperand(1)
                         };
-                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_BFU_2, insArgType);
+                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output, insArgType);
                         CallInst* newCi = builder.CreateCall(insFunc, insArg);
                         inst->replaceAllUsesWith(newCi);
                         instructionsToRemove.push_back(inst);

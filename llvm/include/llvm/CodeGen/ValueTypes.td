@@ -284,7 +284,7 @@ def i64x8     : ValueType<512,  195>;  // 8 Consecutive GPRs (AArch64)
 def aarch64svcount
               : ValueType<16,   196>;  // AArch64 predicate-as-counter
 def spirvbuiltin : ValueType<0,  197>; // SPIR-V's builtin type
-def Primate_aggregate      : ValueType<0,  198>;  // its a primate supported aggregate
+def Primate_aggregate      : ValueType<512,  198>;  // its a primate supported aggregate
 
 def token      : ValueType<0, 248>;  // TokenTy
 def MetadataVT : ValueType<0, 249> { // Metadata

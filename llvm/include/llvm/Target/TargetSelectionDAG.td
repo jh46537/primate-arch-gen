@@ -102,6 +102,9 @@ class SDTypeProfile<int numresults, int numoperands,
 }
 
 // Builtin profiles.
+def SDTExtAgg: SDTypeProfile<1, 2, [SDTCisVT<1, Primate_aggregate>, SDTCisInt<2>]>;
+def SDTInsAgg: SDTypeProfile<1, 3, [SDTCisVT<0, Primate_aggregate>, SDTCisVT<1, Primate_aggregate>, SDTCisInt<2>, SDTCisInt<3>]>;
+
 def SDTIntLeaf: SDTypeProfile<1, 0, [SDTCisInt<0>]>;         // for 'imm'.
 def SDTFPLeaf : SDTypeProfile<1, 0, [SDTCisFP<0>]>;          // for 'fpimm'.
 def SDTPtrLeaf: SDTypeProfile<1, 0, [SDTCisPtrTy<0>]>;       // for '&g'.
@@ -381,6 +384,11 @@ def blockaddress : SDNode<"ISD::BlockAddress",        SDTPtrLeaf, [],
                          "BlockAddressSDNode">;
 def tblockaddress: SDNode<"ISD::TargetBlockAddress",  SDTPtrLeaf, [],
                          "BlockAddressSDNode">;
+
+def extract_value        : SDNode<"ISD::EXTRACT_VALUE"       , SDTExtAgg   ,[],
+                        "Extract_Value">;
+def insert_value        : SDNode<"ISD::INSERT_VALUE"       , SDTInsAgg   ,[],
+                        "Insert_Value">;
 
 def add        : SDNode<"ISD::ADD"       , SDTIntBinOp   ,
                         [SDNPCommutative, SDNPAssociative]>;

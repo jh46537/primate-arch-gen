@@ -158,17 +158,6 @@ def XLenRI : RegInfoByHwMode<
 // Registers are listed in the order caller-save, callee-save, specials.
 def GPR : RegisterClass<"Primate", [XLenVT], 32, (add
     (sequence "P_A_A%u", 0, 31),
-    (sequence "P_A_B%u", 0, 31),
-    (sequence "P_A_C%u", 0, 31),
-    (sequence "P_A_D%u", 0, 31),
-    (sequence "P_A_E%u", 0, 31),
-    (sequence "P_A_F%u", 0, 31),
-    (sequence "P_A_G%u", 0, 31),
-    (sequence "P_A_H%u", 0, 31),
-    (sequence "P_A_I%u", 0, 31),
-    (sequence "P_A_J%u", 0, 31),
-    (sequence "P_A_K%u", 0, 31),
-    (sequence "P_B_A%u", 0, 31),
     (sequence "X%u", 0, 31)
   )> {
   let RegInfos = XLenRI;

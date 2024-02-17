@@ -14,16 +14,29 @@
 
 namespace llvm {
 bool llvm::PrimateRegisterNormalize::runOnMachineFunction(MachineFunction& MF) {
-    LLVM_DEBUG(dbgs() << "hello from register normalize\n");
+  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
+  SmallVector<MachineInstr*> worklist; 
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  assert(MRI.isSSA() && "Not in SSA for generating extracts and inserts");
 
-    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
-    unsigned a = TRI->getNumRegClasses();
-    unsigned b = TRI->getNumRegUnits();
-    for (MCRegUnitIterator Units(Primate::P_A0, TRI); Units.isValid(); ++Units) {
-      // do something
-      LLVM_DEBUG(dbgs() << "Register 0 has unit: " << *Units << "\n");
+  for(MachineBasicBlock &MBB: MF) {
+    for(MachineInstr &MI: MBB) {
+      // instructions that are not inserts or extracts are not allowed to have
+      // scalar registers. 
+      // would be nice to do this on the dag but I swear I am so close to ending my own life.
+      // I hate this project. 
+      // this architecture is stupid.
+      if(MI.getOpcode() == Primate::EXTRACT || MI.getOpcode() == Primate::INSERT) {
+        dbgs() << "mogus ";
+        for(auto &op: MI.uses()) {
+          if(op.isReg() && MRI.getRegClass(op.getReg()) != &Primate::WIDEREGRegClass) {
+            op.dump();
+          }
+        }
+      }
     }
-    return false;
+  }
+  return false;
 }
 
 MachineFunctionPass *createPrimateRegisterNormalizePass();
