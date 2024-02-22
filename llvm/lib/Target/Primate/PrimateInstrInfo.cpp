@@ -304,6 +304,10 @@ void PrimateInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     Opcode = Primate::PseudoVSPILL7_M1;
   else if (Primate::VRN8M1RegClass.hasSubClassEq(RC))
     Opcode = Primate::PseudoVSPILL8_M1;
+  else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
+    Opcode = Primate::SW;
+    IsScalableVector = false;
+  }
   else
     llvm_unreachable("Can't store this register to stack slot");
 
@@ -398,6 +402,10 @@ void PrimateInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     Opcode = Primate::PseudoVRELOAD7_M1;
   else if (Primate::VRN8M1RegClass.hasSubClassEq(RC))
     Opcode = Primate::PseudoVRELOAD8_M1;
+  else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
+    Opcode = Primate::LW;
+    IsScalableVector = false;
+  }
   else
     llvm_unreachable("Can't load this register from stack slot");
 

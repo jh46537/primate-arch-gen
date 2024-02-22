@@ -114,7 +114,7 @@ foreach Index = 0-31 in {
                            Pri_struct_A_i,
                            Pri_struct_A_j,
                            Pri_struct_A_k];
-      let SubRegs = [!cast<Register>("P_A_A"#Index),
+      let SubRegs = [!cast<Register>("X"#Index),
                      !cast<Register>("P_A_B"#Index),
                      !cast<Register>("P_A_C"#Index),
                      !cast<Register>("P_A_D"#Index),
@@ -130,7 +130,7 @@ foreach Index = 0-31 in {
     def P_B#Index : PrimateReg<Index, "P_B"#Index, ["P_B"#Index]>, DwarfRegNum<[Index]> {
       let SubRegIndices = [Pri_struct_B_a,
                            Pri_struct_B_b];
-      let SubRegs = [!cast<Register>("P_B_A"#Index),
+      let SubRegs = [!cast<Register>("X"#Index),
                      !cast<Register>("P_B_B"#Index)];
       let CoveredBySubRegs = true;
     }
@@ -157,7 +157,6 @@ def XLenRI : RegInfoByHwMode<
 // The order of registers represents the preferred allocation sequence.
 // Registers are listed in the order caller-save, callee-save, specials.
 def GPR : RegisterClass<"Primate", [XLenVT], 32, (add
-    (sequence "P_A_A%u", 0, 31),
     (sequence "X%u", 0, 31)
   )> {
   let RegInfos = XLenRI;
@@ -170,8 +169,7 @@ def GPR8 : RegisterClass<"Primate", [i8], 9, (add
 }
 
 def WIDEREG : RegisterClass<"Primate", [PrimateAGGVT], 32, (add 
-    (sequence "P_A%u", 0, 31),
-    (sequence "P_B%u", 0, 31)
+    (sequence "P_A%u", 0, 31)
   )> {
     let RegInfos = PrimateAGGRI;
   }

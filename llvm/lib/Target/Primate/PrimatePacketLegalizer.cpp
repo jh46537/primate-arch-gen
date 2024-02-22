@@ -100,7 +100,17 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     SmallVector<bool>          isNewInstr(numSlots);
     dbgs() << "Slots: " << numSlots << "\n";
     for(auto curInst = pktStart; curInst != pktEnd; curInst++) {
-        dbgs() << "attempt slot: " << curInst->getSlotIdx() << "\n";
+        if(curInst->getOpcode() == Primate::EXTRACT) {
+            llvm_unreachable("EXTRACTS SHOULD NOT EXIST AT THIS POINT");
+        }
+        if(curInst->getOpcode() == Primate::INSERT) {
+            llvm_unreachable("INSERTS SHOULD NOT EXIST AT THIS POINT");
+        }
+        if(curInst->isCFIInstruction())
+            continue;
+        dbgs() << "Looking at instr: ";
+        curInst->dump();
+        dbgs() << "Has slot: " << curInst->getSlotIdx() << "\n";
         newBundle[curInst->getSlotIdx()] = &*curInst;
         isNewInstr[curInst->getSlotIdx()] = false;
     }

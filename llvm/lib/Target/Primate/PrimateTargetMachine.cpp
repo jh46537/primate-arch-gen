@@ -191,12 +191,17 @@ bool PrimatePassConfig::addRegBankSelect() {
 }
 
 void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
-  PB.registerPipelineStartEPCallback([](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt){
+  PB.registerAnalysisRegistrationCallback([](ModuleAnalysisManager &C) {
+    C.registerPass([](){
+      return llvm::PrimateBFUTypeFinding();
+    });
+  });
+  PB.registerPipelineStartEPCallback([](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt) {
     MPM.addPass(llvm::PrimateStructToAggre());
   });
   PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
-    FPM.addPass(llvm::PrimateGEPFilterPass());
-    FPM.addPass(llvm::PrimateStructLoadCombinerPass());
+    // FPM.addPass(llvm::PrimateGEPFilterPass());
+    // FPM.addPass(llvm::PrimateStructLoadCombinerPass());
   });
 }
 

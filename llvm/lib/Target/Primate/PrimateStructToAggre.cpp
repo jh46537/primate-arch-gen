@@ -15,7 +15,19 @@
 
 namespace llvm {
 
+    bool PrimateStructToAggre::isBFUType(Type* ty) {
+        return std::find(BFUTypes.begin(), BFUTypes.end(), ty) != BFUTypes.end();
+    }
+
+    void PrimateStructToAggre::findBFUTypes(Module& M) {
+    }
+
     PreservedAnalyses PrimateStructToAggre::run(Module& M, ModuleAnalysisManager& PA) {
+        BFUTypes = PA.getResult<PrimateBFUTypeFinding>(M);
+        dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";
+        for(Type* type: BFUTypes) {
+            type->dump();
+        }
         for(auto& F: M) {
             // first normalize all the function calls to the same form 
             // 1. revert all vectorized aggregates to structs
@@ -32,7 +44,7 @@ namespace llvm {
                 // do work on allocas
                 for(auto* ai: workList) {
                     // normal allocas can be left
-                    if(!ai->getAllocatedType()->isAggregateType()) {
+                    if(!isBFUType(ai->getAllocatedType())) {
                         continue;
                     }
                     LLVM_DEBUG(ai->dump());
@@ -88,56 +100,68 @@ namespace llvm {
             for(auto& bb: F) {
                 workList.clear();
                 for(auto& inst: bb) {
-                    if(!inst.isDebugOrPseudoInst())
-                    if(CallInst *ci = dyn_cast<CallInst>(&inst)) {
-                        workList.push_back(ci);
+                    if(!inst.isDebugOrPseudoInst()) {
+                        if(CallInst *ci = dyn_cast<CallInst>(&inst)) {
+                            workList.push_back(ci);
+                        }
                     }
                 }
                 for(auto* inst: workList) {
                     // replace input inst with call intr
                     std::string demangledName = demangle(inst->getCalledFunction()->getName().str());
                     dbgs() << "demangled name: " << demangledName << "\n";
-                    
-                    if(demangledName.find("primate::input") != std::string::npos) {
-                        IRBuilder<> builder(inst);
-                        std::vector<Type *> insArgType = {
-                            inst->getType()
-                        };
-                        std::vector<Value*> insArg = {
-                            inst->getOperand(0)
-                        };
-                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input, insArgType);
-                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                        inst->replaceAllUsesWith(newCi);
-                        instructionsToRemove.push_back(inst);
-                    }
-                    else if(demangledName.find("primate::BFU_") != std::string::npos) {
-                        IRBuilder<> builder(inst);
-                        std::vector<Type *> insArgType = {
-                            inst->getType(),
-                            inst->getType()
-                        };
-                        std::vector<Value*> insArg = {
-                            inst->getOperand(0)
-                        };
-                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_BFU_1, insArgType);
-                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                        inst->replaceAllUsesWith(newCi);
-                        instructionsToRemove.push_back(inst);
-                    }
-                    else if(demangledName.find("primate::output") != std::string::npos) {
-                        IRBuilder<> builder(inst);
-                        std::vector<Type *> insArgType = {
-                            inst->getOperand(0)->getType()
-                        };
-                        std::vector<Value*> insArg = {
-                            inst->getOperand(0),
-                            inst->getOperand(1)
-                        };
-                        Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output, insArgType);
-                        CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                        inst->replaceAllUsesWith(newCi);
-                        instructionsToRemove.push_back(inst);
+                    MDNode* priTop = inst->getCalledFunction()->getMetadata("primate");
+                    if(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue") {
+                        // Primate BFU
+                        if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
+                            if(demangledName.find("primate::Input") != std::string::npos) {
+                                IRBuilder<> builder(inst);
+                                std::vector<Type *> insArgType = {
+                                    inst->getType()
+                                };
+                                std::vector<Value*> insArg = {
+                                    inst->getOperand(0)
+                                };
+                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input, insArgType);
+                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                                inst->replaceAllUsesWith(newCi);
+                                instructionsToRemove.push_back(inst);
+                            }
+                            else if(demangledName.find("primate::Output") != std::string::npos) {
+                                IRBuilder<> builder(inst);
+                                std::vector<Type *> insArgType = {
+                                    inst->getOperand(0)->getType()
+                                };
+                                std::vector<Value*> insArg = {
+                                    inst->getOperand(0),
+                                    inst->getOperand(1)
+                                };
+                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output, insArgType);
+                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                                inst->replaceAllUsesWith(newCi);
+                                instructionsToRemove.push_back(inst);
+                            }
+                            else {
+                                llvm_unreachable("UNSUPPORTED IO BFU OPERATION (Options are Input, Output)");
+                            }
+                        }
+                        else {
+                            std::map<StringRef, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins = {{"BFU1", llvm::Intrinsic::primate_BFU_1},
+                                                                                                     {"BFU2", llvm::Intrinsic::primate_BFU_2}};
+                            StringRef BFUName = dyn_cast<MDString>(priTop->getOperand(1))->getString();
+                            IRBuilder<> builder(inst);
+                            std::vector<Type *> insArgType = {
+                                inst->getType(),
+                                inst->getType()
+                            };
+                            std::vector<Value*> insArg = {
+                                inst->getOperand(0)
+                            };
+                            Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), nameToIntrins.at(BFUName), insArgType);
+                            CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                            inst->replaceAllUsesWith(newCi);
+                            instructionsToRemove.push_back(inst);
+                        }
                     }
                 }
             }
@@ -164,7 +188,7 @@ namespace llvm {
         }
 
         for(AllocaInst* ai: worklist) {
-            if(ai->getAllocatedType()->isAggregateType()) {
+            if(isBFUType(ai->getAllocatedType())) {
                 for(Value* consumer: ai->users()) {
                     LLVM_DEBUG(consumer->dump(););
                     if(LoadInst* li = dyn_cast<LoadInst>(consumer)) {
@@ -255,8 +279,10 @@ namespace llvm {
         if(replacedFunctions.find(func) == replacedFunctions.end()) {
             FunctionType *FT = FunctionType::get(retType, argTypes, func->isVarArg());
             newFunc = Function::Create(FT, func->getLinkage(), func->getName(), func->getParent());
-            newFunc->setDSOLocal(true);
+            newFunc->setMetadata("primate", func->getMetadata("primate"));
+            //newFunc->setDSOLocal(true);
             replacedFunctions[func] = newFunc;
+            
         }
         else {
             newFunc = replacedFunctions[func];
