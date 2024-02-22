@@ -18,12 +18,15 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/PassManager.h"
 
+#include "PrimateBFUTypeFindingPass.h"
+
 namespace llvm {
   struct PrimateStructToAggre : public PassInfoMixin<PrimateStructToAggre> {
     std::unordered_map<Function*, Function*> replacedFunctions;
     std::unordered_map<AllocaInst*, Value*> latestAllocaValue;
     std::set<Value*> fixedCalls;
     SmallVector<Instruction*> instructionsToRemove;
+    std::set<Type*> BFUTypes;
 
     PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
 
@@ -32,6 +35,8 @@ namespace llvm {
     void removeAllocas(Function& F);
     void convertCall(CallInst *ci, AllocaInst *ai);
     void convertAndTrimGEP(GetElementPtrInst* gepI);
+    void findBFUTypes(Module& M);
+    bool isBFUType(Type* ty);
 
   };
 }
