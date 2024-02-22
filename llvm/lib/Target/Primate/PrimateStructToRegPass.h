@@ -30,14 +30,15 @@ public:
 
     for(auto &bb: F) {
       for(auto &inst: bb) {
-	if(llvm::isa<llvm::GetElementPtrInst>(inst)) {
-	  auto ptr_type = inst.getType();
-	  errs() << ptr_type->getStructName();
-	  for(auto u = inst.user_begin(); u != inst.user_end(); u++) {
-	    u->dump();
-	  }
-	  inst.dump();
-	}
+      if(llvm::isa<llvm::GetElementPtrInst>(inst)) {
+        auto ptr_type = dyn_cast<GetElementPtrInst>(&inst)->getPointerOperandType();
+        if(auto temp = dyn_cast<StructType>(ptr_type))
+          errs() << temp->getStructName();
+        for(auto u = inst.user_begin(); u != inst.user_end(); u++) {
+          u->dump();
+        }
+        inst.dump();
+      }
       }
     }
     

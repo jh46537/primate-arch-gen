@@ -47,6 +47,7 @@ add_llvm_target(PrimateCodeGen
   PrimateExtMerge.cpp
   PrimateOpMerge.cpp
   PrimatePacketLegalizer.cpp
+  PrimateBFUTypeFindingPass.cpp
 
   LINK_COMPONENTS
   Analysis
