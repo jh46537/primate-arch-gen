@@ -15,6 +15,7 @@ namespace llvm {
 // if 
 
 bool PrimatePacketLegalizer::runOnMachineFunction(MachineFunction& MF) {
+    TLI = static_cast<const PrimateTargetLowering *>(MF.getSubtarget().getTargetLowering());
     const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
     ResourceTracker = TII->CreateTargetScheduleState(MF.getSubtarget());
     PII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
@@ -170,7 +171,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                             Register wideReg = TRI->getMatchingSuperReg(op.getReg(), 1, &Primate::WIDEREGRegClass);
                             newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                                         PII->get(Primate::EXTRACT), 
-                                                        op.getReg()).addReg(wideReg).addImm(0);
+                                                        op.getReg()).addReg(wideReg).addImm(TLI->getScalarField());
                             newBundle[extCheck]->dump();   
                             newBundle[extCheck]->setSlotIdx(extCheck);   
                             MIBundleBuilder builder(BundleMI);
@@ -187,7 +188,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     Register wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), 1, &Primate::WIDEREGRegClass);
                     newBundle[insCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                                 PII->get(Primate::INSERT), 
-                                                wideReg).addReg(wideReg).addReg(curInst->getOperand(0).getReg()).addImm(0);
+                                                wideReg).addReg(wideReg).addReg(curInst->getOperand(0).getReg()).addImm(TLI->getScalarField());
                     newBundle[insCheck]->dump();   
                     newBundle[insCheck]->setSlotIdx(insCheck);   
                     MIBundleBuilder builder(BundleMI);

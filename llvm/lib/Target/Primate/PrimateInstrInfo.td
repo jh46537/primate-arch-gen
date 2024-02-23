@@ -1203,13 +1203,29 @@ class PatWideScalarImm<SDPatternOperator OpNode, PRInst Inst>
         simm12:$imm1), 
       simm12:$imm0),
     (Inst WIDEREG:$rs0, simm12:$imm0, $rs1, $imm1)>;
-
-
 class PatWideWide<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode (extract_value WIDEREG:$rs1, simm12:$imm1), (extract_value WIDEREG:$rs2, simm12:$imm2)), 
       (Inst WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2)>;
 
+
+
 let mayLoad = 0, mayStore = 0, hasSideEffects= 0 in {
+// def PseudoMov : Pseudo<(outs WIDEREG:$rd), 
+//       (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1), 
+//       [(set 
+//           WIDEREG:$rd, 
+//           (insert_value 
+//             WIDEREG:$rs0, 
+//             (i32 (extract_value 
+//               WIDEREG:$rs1, 
+//               simm12:$imm1)),
+//             simm12:$imm0
+//         )
+//       )]>{
+//         let Constraints = "$rd = $rs0";
+//         let Itinerary = ItinGreen;
+//       }
+
 def PseudoADDsww : Pseudo<(outs GPR:$rd), 
       (ins WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
       []>{
