@@ -292,6 +292,9 @@ enum NodeType : unsigned {
 class PrimateTargetLowering : public TargetLowering {
   const PrimateSubtarget &Subtarget;
 
+  std::vector<int> allSizes;
+  std::vector<int> allPoses;
+
 public:
   explicit PrimateTargetLowering(const TargetMachine &TM,
                                const PrimateSubtarget &STI);
@@ -314,7 +317,47 @@ public:
   bool isCheapToSpeculateCtlz() const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
+
+  unsigned int getScalarField() const {
+    int posBits = 32 - __builtin_clz(allPoses.size());
+    int sizeBits = 32 - __builtin_clz(allSizes.size());
+    if(find(allSizes.begin(), allSizes.end(), 32) == allSizes.end()) {
+      llvm_unreachable("unsupported struct element size");
+    }
+    int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), 32));
+
+    dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";
+    dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posBits: " << posBits << "\n";
+
+    return (sizeIdx & ((1 << sizeBits) - 1)) << posBits;
+  }
   
+  virtual unsigned int linearToAggregateIndex(StructType &STy, unsigned int linearIndex) const override {
+    // first find a field that fits this width, then attempt to put it at the bottom of that field.
+
+    int posBits = 32 - __builtin_clz(allPoses.size());
+    int sizeBits = 32 - __builtin_clz(allSizes.size());
+    int bitPos = 0;
+    for(unsigned i = 0; i < linearIndex; i++) {
+      bitPos += STy.getElementType(i)->getScalarSizeInBits();
+      dbgs() << "bit pos currently: " << bitPos << "\n";
+    }
+    if(find(allPoses.begin(), allPoses.end(), bitPos) == allPoses.end()) {
+      llvm_unreachable("unsupported struct position");
+    }
+    int posIdx = std::distance(allPoses.begin(), find(allPoses.begin(), allPoses.end(), bitPos));
+    if(find(allSizes.begin(), allSizes.end(), STy.getElementType(linearIndex)->getScalarSizeInBits()) == allSizes.end()) {
+      llvm_unreachable("unsupported struct element size");
+    }
+    int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), STy.getElementType(linearIndex)->getScalarSizeInBits()));
+    
+    dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";
+    dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posIdx: " << posIdx << " posBits: " << posBits << "\n";
+
+
+    return ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1));
+  }
+
   virtual bool supportedAggregate(StructType &STy) const override {
     return true;
   }

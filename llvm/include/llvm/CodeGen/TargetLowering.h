@@ -3216,6 +3216,10 @@ public:
     return false;
   }
 
+  virtual unsigned int linearToAggregateIndex(StructType &STy, unsigned int index) const {
+    return index;
+  }
+
   // returns the EVT of a given aggregate if its supported by the target.
   virtual EVT getAggregateVT(StructType &STy) const {
     return EVT(MVT::i32);
