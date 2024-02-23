@@ -36,6 +36,9 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <fstream>
+#include <sstream>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "primate-lower"
@@ -874,6 +877,34 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine(ISD::SRA);
     setTargetDAGCombine(ISD::SRL);
     setTargetDAGCombine(ISD::SHL);
+  }
+
+  // Need to read in the archgen params for the reg file.
+  dbgs() << "reading in register indexing parameters\n";
+  std::ifstream archgenParams ("primate.cfg");
+  while(archgenParams.good()) {
+    std::string paramString;
+    getline(archgenParams, paramString);
+    std::string name  = paramString.substr(0, paramString.find("=")); 
+    std::string value = paramString.substr(paramString.find("=")+1, paramString.length());
+    if(name == "SRC_POS") {
+      dbgs() << value << "\n";
+      auto iss = std::istringstream{value};
+      auto str = std::string{};
+
+      while (iss >> str) {
+        allPoses.push_back(std::stoi(str));
+      }
+    }
+    else if(name == "SRC_MODE") {
+      dbgs() << value << "\n";
+      auto iss = std::istringstream{value};
+      auto str = std::string{};
+
+      while (iss >> str) {
+        allSizes.push_back(std::stoi(str));
+      }
+    }
   }
 }
 

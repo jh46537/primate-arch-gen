@@ -27,6 +27,7 @@ public:
     bool runOnMachineFunction(MachineFunction& MF) override;
 
 private:
+    const PrimateTargetLowering *TLI;
     const PrimateInstrInfo *PII;
     const TargetRegisterInfo *TRI;
     DFAPacketizer* ResourceTracker;

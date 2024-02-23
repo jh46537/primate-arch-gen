@@ -53,6 +53,7 @@ bool PrimateExtMerge::runOnMachineFunction(MachineFunction& MF) {
 
         dbgs() << "removing ops\n";
         for(auto* MI : MIToRemove) {
+            // FIXME: if the instr is used in multiple places then we can't remove it
             MI->eraseFromParent();
         }
 
