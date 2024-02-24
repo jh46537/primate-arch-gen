@@ -16,6 +16,7 @@ def GreenBlueUnit1     : FuncUnit;
 def InsertUnit1        : FuncUnit;
 def IOUnit             : FuncUnit;
 def BranchUnit         : FuncUnit;
+def MemUnit            : FuncUnit;
 
 def PrimateItinList {
   list<InstrItinData> ItinList = [
@@ -25,7 +26,8 @@ def PrimateItinList {
     InstrItinData<ItinBlue0,         [InstrStage<1, [GreenBlueUnit0]>]>,
     InstrItinData<ItinBlue1,         [InstrStage<1, [GreenBlueUnit1]>]>,
     InstrItinData<ItinIO,            [InstrStage<1, [IOUnit]>]>,
-    InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>
+    InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>,
+    InstrItinData<ItinMem,           [InstrStage<1, [MemUnit]>]>
   ];
 }
 
@@ -33,6 +35,7 @@ def PrimateItineraries :
     ProcessorItineraries<[
         BranchUnit,
         IOUnit,
+        MemUnit,
         InsertUnit1,
         GreenBlueUnit1,
         ExtractUnit1b,
@@ -85,6 +88,7 @@ let SchedModel = PrimateModel in {
 let BufferSize = 0 in {
 def BranchPipe         : ProcResource<1>;
 def IOPipe             : ProcResource<1>;
+def MemPipe            : ProcResource<1>;
 def InsertPipe1        : ProcResource<1>;
 def GreenBluePipe1     : ProcResource<1>;
 def ExtractPipe1b      : ProcResource<1>;
@@ -98,6 +102,7 @@ def ExtractPipe0a      : ProcResource<1>;
 def PrimatePipes : ProcResGroup<[
   BranchPipe,
   IOPipe,
+  MemPipe,
   InsertPipe1,
   GreenBluePipe1,
   ExtractPipe1b,
