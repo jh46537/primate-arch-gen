@@ -95,10 +95,10 @@ let TargetPrefix = "primate" in {
                   [llvm_any_ty, llvm_i32_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
 
-  def int_primate_BFU_1 :  Intrinsic<[llvm_any_ty], // return val
+  def int_primate_BFU_0 :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: gpr w/ struct
 		              [IntrHasSideEffects]>; // properties;
-  def int_primate_BFU_2 :  Intrinsic<[llvm_any_ty], // return val
+  def int_primate_BFU_1 :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: gpr w/ struct
 		              [IntrHasSideEffects]>; // properties;
 

@@ -332,13 +332,13 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
           );
         }
 
-        LLVM_DEBUG({
-          dbgs() << "Before slot " << slotIdx << " last slot " << lastSlotIdx;
-          MII->dump();
-        });
-
         // pseudos that expand to many instrs need to fix up the slots for nop generation. 
         PseudoExpansionIndexFixup( &*MII, &slotIdx, &lastSlotIdx);
+
+        LLVM_DEBUG({
+          dbgs() << "slot " << slotIdx << " last slot " << lastSlotIdx;
+          MII->dump();
+        });
 
         if (slotIdx > lastSlotIdx) {
           emitNops(slotIdx - lastSlotIdx);
@@ -352,10 +352,6 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
           dbgs() << "custom lower instrucion\n";
           customLower = true;
         }
-        LLVM_DEBUG({
-          dbgs() << "After slot " << slotIdx << " last slot " << lastSlotIdx;
-          MII->dump();
-        });
 
         // Do any auto-generated pseudo lowerings.
         if (emitPseudoExpansionLowering(*OutStreamer, &*MII))
