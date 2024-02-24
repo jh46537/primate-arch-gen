@@ -932,15 +932,15 @@ def INSERT :
 
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
-def MSPM :
+def BFU0 :
     PRInstI<0b000, OPC_PR_MPSM, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-        "mspm", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
+        "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
 
 let Itinerary = ItinBlue1 in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
-def ASCII :
+def BFU1 :
     PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-        "ascii", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
+        "bf1", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -1062,8 +1062,8 @@ def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
 def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
 def : Pat<(int_primate_input simm12:$imm), (INPUT_READ simm12:$imm)>;
-def : Pat<(int_primate_BFU_1 WIDEREG:$rs1), (ASCII WIDEREG:$rs1)>;
-def : Pat<(int_primate_BFU_2 WIDEREG:$rs1), (MSPM WIDEREG:$rs1)>;
+def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
+def : Pat<(int_primate_BFU_1 WIDEREG:$rs1), (BFU1 WIDEREG:$rs1)>;
 
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>

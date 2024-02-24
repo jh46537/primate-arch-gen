@@ -19,6 +19,7 @@
 #include "llvm/IR/PassManager.h"
 
 #include "PrimateBFUTypeFindingPass.h"
+#include "llvm/IR/IntrinsicsPrimate.h"
 
 namespace llvm {
   struct PrimateStructToAggre : public PassInfoMixin<PrimateStructToAggre> {
@@ -27,6 +28,7 @@ namespace llvm {
     std::set<Value*> fixedCalls;
     SmallVector<Instruction*> instructionsToRemove;
     std::set<Type*> BFUTypes;
+    std::map<StringRef, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins;
 
     PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
 
