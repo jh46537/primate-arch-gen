@@ -9,6 +9,7 @@
 def ItinExtract : InstrItinClass;
 def ItinInsert  : InstrItinClass;
 def ItinGreen   : InstrItinClass;
+def ItinMem     : InstrItinClass;
 def ItinBlue0   : InstrItinClass;
 def ItinBlue1   : InstrItinClass;
 def ItinIO      : InstrItinClass;

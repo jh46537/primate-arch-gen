@@ -492,7 +492,7 @@ def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
 def BGEU : BranchCC_rri<0b111, "bgeu">;
 
-let Predicates = [HasFullI] in {
+let Predicates = [HasFullI], Itinerary = ItinMem in {
 def LB  : Load_ri<0b000, "lb">, Sched<[WriteLDB, ReadMemBase]>;
 def LH  : Load_ri<0b001, "lh">, Sched<[WriteLDH, ReadMemBase]>;
 def LW  : Load_ri<0b010, "lw">, Sched<[WriteLDW, ReadMemBase]>;
@@ -500,7 +500,7 @@ def LBU : Load_ri<0b100, "lbu">, Sched<[WriteLDB, ReadMemBase]>;
 def LHU : Load_ri<0b101, "lhu">, Sched<[WriteLDH, ReadMemBase]>;
 } // Predicates = [HasFullI]
 
-let Predicates = [HasFullI] in {
+let Predicates = [HasFullI], Itinerary = ItinMem in {
 def SB : Store_rri<0b000, "sb">, Sched<[WriteSTB, ReadStoreData, ReadMemBase]>;
 def SH : Store_rri<0b001, "sh">, Sched<[WriteSTH, ReadStoreData, ReadMemBase]>;
 def SW : Store_rri<0b010, "sw">, Sched<[WriteSTW, ReadStoreData, ReadMemBase]>;
@@ -1183,7 +1183,7 @@ class PatScalarWideImm<SDPatternOperator OpNode, PRInst Inst>
               (i32 (extract_value 
                 WIDEREG:$rs1, 
                 simm12:$imm1)),   
-                 simm12:$imm2),
+              simm12:$imm2),
       (Inst WIDEREG:$rs1, simm12:$imm1, simm12:$imm2)>;
 class PatWideScalarScalar<SDPatternOperator OpNode, PRInst Inst> 
   : Pat<
@@ -1193,7 +1193,7 @@ class PatWideScalarScalar<SDPatternOperator OpNode, PRInst Inst>
         GPR:$rs1,  
         GPR:$rs2), 
       simm12:$imm0),
-    (Inst WIDEREG:$rs0, simm12:$imm0, $rs1, $rs2)>;
+    (Inst WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2)>;
 class PatWideScalarImm<SDPatternOperator OpNode, PRInst Inst> 
   : Pat<
     (insert_value 
@@ -1202,7 +1202,7 @@ class PatWideScalarImm<SDPatternOperator OpNode, PRInst Inst>
         GPR:$rs1,  
         simm12:$imm1), 
       simm12:$imm0),
-    (Inst WIDEREG:$rs0, simm12:$imm0, $rs1, $imm1)>;
+    (Inst WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1)>;
 class PatWideWide<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode (extract_value WIDEREG:$rs1, simm12:$imm1), (extract_value WIDEREG:$rs2, simm12:$imm2)), 
       (Inst WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2)>;
@@ -1246,11 +1246,10 @@ def PseudoADDwss : Pseudo<(outs WIDEREG:$rd),
         let Constraints = "$rd = $rs0";
       }
 
+let Itinerary = ItinGreen in
 def PseudoADDIswi : Pseudo<(outs GPR:$rd), 
       (ins WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
-      []> {
-        let Itinerary = ItinGreen;
-      }
+      []>;
 
 def PseudoADDIwwi : Pseudo<(outs WIDEREG:$rd), 
       (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
@@ -1260,7 +1259,7 @@ def PseudoADDIwwi : Pseudo<(outs WIDEREG:$rd),
       }
 
 def PseudoADDIwsi : Pseudo<(outs WIDEREG:$rd), 
-      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm2), 
+      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1), 
       []> {
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
