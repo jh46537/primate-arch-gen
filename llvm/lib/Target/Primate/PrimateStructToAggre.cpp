@@ -1,9 +1,10 @@
 #include "PrimateStructToAggre.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/IntrinsicsPrimate.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
+
+#include <fstream>
 
 // TODO: EVIL EVIL EVIL. MOVE TO CLANG!!!!!!
 #include "llvm/Demangle/Demangle.h"
@@ -23,6 +24,27 @@ namespace llvm {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Module& M, ModuleAnalysisManager& PA) {
+        std::ifstream bfuMapping("bfu_list.txt");
+        int bfu_schedule_slot = 0;
+        bool inscope = false;
+        for (std::string line; std::getline(bfuMapping, line); ) {
+            if(line == "{") {
+                assert(!inscope);
+                inscope = true;
+            }
+            else if(line == "}") {
+                assert(inscope);
+                inscope = false;
+            }
+            else if(inscope) {
+                continue;
+            }
+            else {
+                // assume we got a name
+                nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)(llvm::Intrinsic::primate_BFU_0 + (bfu_schedule_slot++));
+            }
+        }
+
         BFUTypes = PA.getResult<PrimateBFUTypeFinding>(M);
         dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";
         for(Type* type: BFUTypes) {
@@ -146,8 +168,6 @@ namespace llvm {
                             }
                         }
                         else {
-                            std::map<StringRef, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins = {{"BFU1", llvm::Intrinsic::primate_BFU_1},
-                                                                                                     {"BFU2", llvm::Intrinsic::primate_BFU_2}};
                             StringRef BFUName = dyn_cast<MDString>(priTop->getOperand(1))->getString();
                             IRBuilder<> builder(inst);
                             std::vector<Type *> insArgType = {
@@ -157,6 +177,7 @@ namespace llvm {
                             std::vector<Value*> insArg = {
                                 inst->getOperand(0)
                             };
+                            assert(std::find(nameToIntrins.begin(), nameToIntrins.end(), BFUName) != nameToIntrins.end() && "unknown BFU name >:(");
                             Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), nameToIntrins.at(BFUName), insArgType);
                             CallInst* newCi = builder.CreateCall(insFunc, insArg);
                             inst->replaceAllUsesWith(newCi);
