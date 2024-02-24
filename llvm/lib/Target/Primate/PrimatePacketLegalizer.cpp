@@ -152,8 +152,14 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 }
                 break;
             }
+            case Primate::LW: {
+                break;
+            }
+            case Primate::SW: {
+                break;
+            }
             default: {
-                // not insert or extract;
+                // not insert, extract, or memory;
                 dbgs() << "op needs ins or ext";
                 curInst->dump();
                 int insCheck = i - 1;
@@ -176,7 +182,10 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                             newBundle[extCheck]->setSlotIdx(extCheck);   
                             MIBundleBuilder builder(BundleMI);
                             isNewInstr[extCheck] = true;
-                            builder.insert((curInst->getIterator()), newBundle[extCheck]);
+                            auto insertPoint = curInst->getIterator();
+                            for(int i = 0; i < extOffset; i++)
+                                insertPoint++;
+                            builder.insert(insertPoint, newBundle[extCheck]);
                             BundleMI->getParent()->dump();
                             extOffset++;
                         }
