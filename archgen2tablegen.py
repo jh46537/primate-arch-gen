@@ -1,9 +1,13 @@
 import re
+import os
+
+gen_file_dir = "./primate-compiler-gen/"
+os.makedirs(gen_file_dir, exist_ok=True)
 
 def combStr(in_str, num_iter):
     return "".join([in_str.format(i) for i in range(num_iter)])
 
-with open("bfu_list.txt") as f:
+with open("../../hw/bfu_list.txt") as f:
     f_str = f.read()
     numBFUs = len(re.findall(r"(.+\n?)\{([^\}]*\n?)+\}", f_str))
 
@@ -353,7 +357,7 @@ defm : UnsupportedSchedZfh;
 }}
 """
 
-with open("./PrimateSchedPrimate.td", "w") as f:
+with open(os.path.join(gen_file_dir, "./PrimateSchedPrimate.td"), "w") as f:
   print(PrimateSchedPrimate, file=f)
 
 NewItinDefTemplate = "def ItinBlue{0}   : InstrItinClass;\n"
@@ -604,7 +608,7 @@ include "PrimateScheduleB.td"
 include "PrimateScheduleV.td"
 """
 
-with open("./PrimateSchedule.td", "w") as f:
+with open(os.path.join(gen_file_dir, "./PrimateSchedule.td"), "w") as f:
     print(PrimateSchedule, file=f)
 
 BFUInstPatternTemplate = "def : Pat<(int_primate_BFU_{0} WIDEREG:$rs1), (BFU{0} WIDEREG:$rs1)>;\n"
@@ -2192,7 +2196,7 @@ include "PrimateInstrInfoV.td"
 include "PrimateInstrInfoZfh.td"
 """
 
-with open("./PrimateInstrInfo.td", "w") as f:
+with open(os.path.join(gen_file_dir, "./PrimateInstrInfo.td"), "w") as f:
     print(PrimateInstrInfo, file=f)
     
     
@@ -3478,5 +3482,5 @@ let TargetPrefix = "primate" in {{
 }} // TargetPrefix = "primate"
 """
 
-with open("./IntrinsicsPrimate.td", "w") as f:
+with open(os.path.join(gen_file_dir, "./IntrinsicsPrimate.td"), "w") as f:
     print(IntrinsicsPrimate, file=f)
