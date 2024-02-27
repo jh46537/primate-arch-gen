@@ -28,7 +28,7 @@ namespace llvm {
     std::set<Value*> fixedCalls;
     SmallVector<Instruction*> instructionsToRemove;
     std::set<Type*> BFUTypes;
-    std::map<StringRef, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins;
+    std::map<std::string, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins;
 
     PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
 

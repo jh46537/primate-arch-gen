@@ -17,6 +17,26 @@
 
 namespace llvm {
 
+Type* KayvanfollowPointerForType(Value* start) {
+    Value* curInst = start;
+    while(true) {
+        if(AllocaInst* allocaArg = dyn_cast<AllocaInst>(curInst)) {
+            return allocaArg->getAllocatedType();
+            break;
+        }
+        else if(BitCastInst* bci = dyn_cast<BitCastInst>(curInst)) {
+            curInst = bci->getOperand(0);
+        }
+        else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
+            curInst = gepI->getPointerOperand(); 
+        }
+        else {
+            curInst->dump();
+            llvm_unreachable("can't follow a pointer...");
+        }
+    }
+}
+
 AnalysisKey PrimateBFUTypeFinding::Key;
 
 PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalysisManager& PA) {
@@ -37,21 +57,32 @@ PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalys
                             // TODO: Use the rest of the metadata in some way 
                             FunctionType* FT = calledFunc->getFunctionType();
                             if(calledFunc->hasStructRetAttr()) {
-                                BFUTypes.insert(calledFunc->getParamStructRetType(0));
-                                dbgs() << "Found Primate Type: ";
-                                calledFunc->getParamStructRetType(0)->dump();
+                                if(calledFunc->getParamStructRetType(0)->isAggregateType()) {
+                                    BFUTypes.insert(calledFunc->getParamStructRetType(0));
+                                    dbgs() << "Found Primate Type: ";
+                                    calledFunc->getParamStructRetType(0)->dump();
+                                }
                             }
                             else {
-                                dbgs() << "Found Primate Type: ";
-                                FT->getReturnType()->dump();
-                                BFUTypes.insert(FT->getReturnType());
+                                if(FT->getReturnType()->isAggregateType()) {
+                                    dbgs() << "Found Primate Type: ";
+                                    FT->getReturnType()->dump();
+                                    BFUTypes.insert(FT->getReturnType());
+                                }
                             }
-
+                            dbgs() << "Checking the operands\n";
+                            dbgs() << "getNumOperands(): " << ci->getNumOperands();
                             // get param types. 
-                            for(unsigned i = 0; i < calledFunc->getNumOperands(); i++) {
-                                dbgs() << "Found Primate Type: ";
-                                calledFunc->getOperand(i)->getType()->dump();
-                                BFUTypes.insert(calledFunc->getOperand(i)->getType());
+                            // first is ret. last is func called.
+                            for(auto& a: ci->args()) {
+                                if(a->getType()->isPointerTy()) {
+                                    a->getType()->dump();
+                                    if(KayvanfollowPointerForType(a)->isAggregateType()) {
+                                        dbgs() << "Found Primate Type: ";
+                                        KayvanfollowPointerForType(a)->dump();
+                                        BFUTypes.insert(KayvanfollowPointerForType(a));
+                                    }
+                                }
                             }
                         }
                     }

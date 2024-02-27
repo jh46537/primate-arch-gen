@@ -4089,9 +4089,6 @@ void SelectionDAGBuilder::visitExtractValue(const ExtractValueInst &I) {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SmallVector<EVT, 4> ValValueVTs;
   ComputeValueVTs(TLI, DAG.getDataLayout(), ValTy, ValValueVTs);
-  for(EVT val: ValValueVTs) {
-    dbgs() << val.getSimpleVT().getSizeInBits() << "\n";
-  }
 
   unsigned NumValValues = ValValueVTs.size();
 
@@ -4107,7 +4104,8 @@ void SelectionDAGBuilder::visitExtractValue(const ExtractValueInst &I) {
   SDValue Agg = getValue(Op0);
   // Copy out the selected value(s).
   if(TLI.supportedAggregate(*(dyn_cast<StructType>(AggTy)))) {
-    Values.clear(); // clear since we are pushing ops not setting. (small happy changes :) )
+    dbgs() << "supported Aggregate\n";
+    Values.clear(); // clear since we are pushing ops not setting.
 
     Values.push_back(Agg);
     Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(dyn_cast<StructType>(AggTy)), LinearIndex), getCurSDLoc(), MVT::i32, /*isTarget=*/false,
@@ -4115,6 +4113,7 @@ void SelectionDAGBuilder::visitExtractValue(const ExtractValueInst &I) {
     setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
   }
   else {
+    dbgs() << "unsupported Aggregate\n";
     for (unsigned i = LinearIndex; i != LinearIndex + NumValValues; ++i)
       Values[i - LinearIndex] =
         OutOfUndef ?
