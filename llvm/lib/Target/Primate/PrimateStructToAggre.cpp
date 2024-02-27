@@ -5,6 +5,9 @@
 #include "llvm/Support/Debug.h"
 
 #include <fstream>
+#include <algorithm> 
+#include <cctype>
+#include <locale>
 
 // TODO: EVIL EVIL EVIL. MOVE TO CLANG!!!!!!
 #include "llvm/Demangle/Demangle.h"
@@ -14,17 +17,33 @@
 #define DEBUG_TYPE "PrimateStructToAggre"
 
 
+
+
+// trim from start (in place)
+inline void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+// trim from end (in place)
+inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
 namespace llvm {
 
     bool PrimateStructToAggre::isBFUType(Type* ty) {
-        return std::find(BFUTypes.begin(), BFUTypes.end(), ty) != BFUTypes.end();
+        return BFUTypes.find(ty) != BFUTypes.end();
     }
 
     void PrimateStructToAggre::findBFUTypes(Module& M) {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Module& M, ModuleAnalysisManager& PA) {
-        std::ifstream bfuMapping("bfu_list.txt");
+        std::ifstream bfuMapping("../../hw/bfu_list.txt");
         int bfu_schedule_slot = 0;
         bool inscope = false;
         for (std::string line; std::getline(bfuMapping, line); ) {
@@ -41,8 +60,13 @@ namespace llvm {
             }
             else {
                 // assume we got a name
+                rtrim(line);
+                ltrim(line);
+                dbgs() << "Found a BFU Named: " << line << "\n";
                 nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)(llvm::Intrinsic::primate_BFU_0 + (bfu_schedule_slot++));
-            }
+                for (const auto& [no, ac] : nameToIntrins)
+                    dbgs() << no << "\n";
+                }
         }
 
         BFUTypes = PA.getResult<PrimateBFUTypeFinding>(M);
@@ -55,6 +79,7 @@ namespace llvm {
             // 1. revert all vectorized aggregates to structs
             LLVM_DEBUG(dbgs() << "looking for struct allocas in func: " << F.getName() << "\n");
             SmallVector<AllocaInst*> workList;
+            SmallVector<CallInst*> callWorklist;
             for(auto& bb: F) {
                 // find allocas
                 for(auto& inst: bb) {
@@ -90,7 +115,25 @@ namespace llvm {
                     }
                     LLVM_DEBUG(dbgs() << "---\n");
                 }
+
                 workList.clear();
+                for(auto* inst: instructionsToRemove) {
+                    LLVM_DEBUG(dbgs() << "Removing instr: ");
+                    LLVM_DEBUG(inst->dump());
+                    inst->eraseFromParent();
+                }
+                instructionsToRemove.clear();
+
+                // do the call conversion and cleaning on the remaining instructions
+                for(auto& inst: bb) {
+                    if(CallInst* ci = dyn_cast<llvm::CallInst>(&inst)) {
+                        if(!ci->getCalledFunction()->isIntrinsic())
+                            callWorklist.push_back(ci);
+                    }
+                }
+                for(auto* ci: callWorklist) {
+                    convertCall(ci, nullptr);
+                }
                 for(auto* inst: instructionsToRemove) {
                     LLVM_DEBUG(dbgs() << "Removing instr: ");
                     LLVM_DEBUG(inst->dump());
@@ -111,7 +154,7 @@ namespace llvm {
 
             }
 
-            removeAllocas(F);
+            //removeAllocas(F);
         }
 
         // TODO: MOVE TO CLANG
@@ -136,7 +179,9 @@ namespace llvm {
                     if(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue") {
                         // Primate BFU
                         if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
-                            if(demangledName.find("primate::Input") != std::string::npos) {
+                            if(demangledName.find("PRIMATE::input") != std::string::npos) {
+                                dbgs() << "generating intrinsic for\n";
+                                inst->dump();
                                 IRBuilder<> builder(inst);
                                 std::vector<Type *> insArgType = {
                                     inst->getType()
@@ -149,7 +194,7 @@ namespace llvm {
                                 inst->replaceAllUsesWith(newCi);
                                 instructionsToRemove.push_back(inst);
                             }
-                            else if(demangledName.find("primate::Output") != std::string::npos) {
+                            else if(demangledName.find("PRIMATE::output") != std::string::npos) {
                                 IRBuilder<> builder(inst);
                                 std::vector<Type *> insArgType = {
                                     inst->getOperand(0)->getType()
@@ -164,20 +209,25 @@ namespace llvm {
                                 instructionsToRemove.push_back(inst);
                             }
                             else {
-                                llvm_unreachable("UNSUPPORTED IO BFU OPERATION (Options are Input, Output)");
+                                llvm_unreachable("UNSUPPORTED IO BFU OPERATION (Options are input, output)");
                             }
                         }
                         else {
-                            StringRef BFUName = dyn_cast<MDString>(priTop->getOperand(1))->getString();
+                            std::string BFUName = dyn_cast<MDString>(priTop->getOperand(1))->getString().str();
+                            rtrim(BFUName);
+                            ltrim(BFUName);
                             IRBuilder<> builder(inst);
                             std::vector<Type *> insArgType = {
                                 inst->getType(),
-                                inst->getType()
+                                inst->getOperand(0)->getType()
                             };
                             std::vector<Value*> insArg = {
                                 inst->getOperand(0)
                             };
-                            assert(std::find(nameToIntrins.begin(), nameToIntrins.end(), BFUName) != nameToIntrins.end() && "unknown BFU name >:(");
+                            if(nameToIntrins.find(BFUName) == nameToIntrins.end()) {
+                                dbgs() << BFUName << "\n";
+                            }
+                            assert(nameToIntrins.find(BFUName) != nameToIntrins.end() && "unknown BFU name >:(");
                             Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), nameToIntrins.at(BFUName), insArgType);
                             CallInst* newCi = builder.CreateCall(insFunc, insArg);
                             inst->replaceAllUsesWith(newCi);
@@ -246,7 +296,11 @@ namespace llvm {
             else if(BitCastInst* bci = dyn_cast<BitCastInst>(curInst)) {
                 curInst = bci->getOperand(0);
             }
+            else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
+                curInst = gepI->getPointerOperand(); 
+            }
             else {
+                curInst->dump();
                 llvm_unreachable("can't follow a pointer...");
             }
         }
@@ -255,16 +309,20 @@ namespace llvm {
     // remove all structs that are passed by pointer!
     void PrimateStructToAggre::convertCall(CallInst *ci, AllocaInst *ai) {
         // if we already fixed this then we move on
+        dbgs() << "converting call: "; ci->dump();
         if(fixedCalls.find(ci) != fixedCalls.end()) {
             return;
         }
         // look for struct ret
         Function* func = ci->getCalledFunction();
 
+        bool needsReplace = false;
         Type* retType = nullptr;
         if(ci->hasStructRetAttr()) {
             // find where the pointer came from
             retType = followPointerForType(ci->getArgOperand(0));
+            if(isBFUType(retType))
+                needsReplace = true;
         }
         else {
             retType = ci->getType();
@@ -274,22 +332,45 @@ namespace llvm {
         SmallVector<Value*> args;
         IRBuilder<> builder(ci);
         auto funcArg = func->arg_begin();
+        dbgs() << "checking args\n";
         for(auto arg = ci->arg_begin(); arg != ci->arg_end(); arg++, funcArg++) {
+            arg->get()->dump();
             if(funcArg->hasReturnedAttr() || funcArg->hasStructRetAttr()) {
                 // returns have been handled above
                 continue;
+                dbgs() << "return: skip\n";
             }
             if(arg->get()->getType()->isPointerTy()) {
+                dbgs() << "ptr: ";
                 Type* ptrTy = followPointerForType(arg->get());
-                LoadInst* newLoad = builder.CreateLoad(ptrTy, arg->get());
-                argTypes.push_back(ptrTy);
-                args.push_back(newLoad);
+                ptrTy->dump();
+                if(isBFUType(ptrTy)) {
+                    dbgs() << "BFU Type.";
+                    ci->dump();
+                    ptrTy->dump();
+                    LoadInst* newLoad = builder.CreateLoad(ptrTy, arg->get());
+                    argTypes.push_back(ptrTy);
+                    args.push_back(newLoad);
+                    needsReplace = true;
+                }
+                else {
+                    dbgs() << "scalar.";
+                    argTypes.push_back(arg->get()->getType());
+                    args.push_back(arg->get());
+                }
+                dbgs() << "\n";
             }
             else {
-                args.push_back(arg->get());
+                dbgs() << "not ptr\n";
                 argTypes.push_back(arg->get()->getType());
+                args.push_back(arg->get());
             }
         }
+        if(!needsReplace) {
+            dbgs() << "Needs no replacement!\n";
+            return;
+        }
+        dbgs() << "attempting to replace...\n";
 
         LLVM_DEBUG(dbgs() << "Return type: ");
         LLVM_DEBUG(retType->dump());
