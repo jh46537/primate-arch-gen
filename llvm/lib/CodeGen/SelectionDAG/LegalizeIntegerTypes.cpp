@@ -170,6 +170,8 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
     break;
   case ISD::GET_ROUNDING: Res = PromoteIntRes_GET_ROUNDING(N); break;
 
+  case ISD::EXTRACT_VALUE:
+                          Res = PromoteIntRes_ExtractValue(N); break;
   case ISD::AND:
   case ISD::OR:
   case ISD::XOR:
@@ -1318,6 +1320,23 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SimpleIntBinOp(SDNode *N) {
                      N->getOperand(2), N->getOperand(3));
 }
 
+SDValue DAGTypeLegalizer::PromoteIntOp_InsertValue(SDNode *N, unsigned OpNo) {
+  assert(OpNo == 1 && "cannot promote op other than 1");
+  SDValue op = GetPromotedInteger(N->getOperand(1));
+  return DAG.getNode(N->getOpcode(), SDLoc(N), N->getValueType(0), 
+                    N->getOperand(0), op, N->getOperand(2));
+
+}
+
+SDValue DAGTypeLegalizer::PromoteIntRes_ExtractValue(SDNode *N) {
+  // inputs are are as is
+  // result needs to be corrected in order to fix the instructions
+
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+  return DAG.getNode(N->getOpcode(), SDLoc(N),
+                     NVT, N->getOperand(0), N->getOperand(1));
+}
+
 SDValue DAGTypeLegalizer::PromoteIntRes_SExtIntBinOp(SDNode *N) {
   // Sign extend the input.
   SDValue LHS = SExtPromotedInteger(N->getOperand(0));
@@ -1757,7 +1776,8 @@ SDValue DAGTypeLegalizer::PromoteIntRes_VAARG(SDNode *N) {
 /// result types of the node are known to be legal, but other operands of the
 /// node may need promotion or expansion as well as the specified one.
 bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
-  LLVM_DEBUG(dbgs() << "Promote integer operand: "; N->dump(&DAG));
+  LLVM_DEBUG(dbgs() << "Promote integer operand: "; N->dump(&DAG);
+             dbgs() << "\n"; dbgs() << OpNo << " operand num\n";);
   SDValue Res = SDValue();
   if (CustomLowerNode(N, N->getOperand(OpNo).getValueType(), false)) {
     LLVM_DEBUG(dbgs() << "Node has been custom lowered, done\n");
@@ -1831,6 +1851,8 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
 
   case ISD::FSHL:
   case ISD::FSHR: Res = PromoteIntOp_FunnelShift(N); break;
+  case ISD::INSERT_VALUE: 
+                  Res = PromoteIntOp_InsertValue(N, OpNo); break;
 
   case ISD::SADDO_CARRY:
   case ISD::SSUBO_CARRY:

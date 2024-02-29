@@ -75,6 +75,23 @@ static DecodeStatus DecodeWIDEREGRegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus DecodeGPR128RegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+                                           const void *Decoder) {
+  const FeatureBitset &FeatureBits =
+      static_cast<const MCDisassembler *>(Decoder)
+          ->getSubtargetInfo()
+          .getFeatureBits();
+  bool IsPR32E = FeatureBits[Primate::FeaturePR32E];
+
+  if (RegNo >= 32 || (IsPR32E && RegNo >= 16))
+    return MCDisassembler::Fail;
+
+  MCRegister Reg = Primate::H0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint64_t RegNo,
                                            uint64_t Address,
                                            const void *Decoder) {

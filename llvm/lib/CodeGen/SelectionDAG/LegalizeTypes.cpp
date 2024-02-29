@@ -976,6 +976,7 @@ bool DAGTypeLegalizer::CustomWidenLowerNode(SDNode *N, EVT VT) {
 }
 
 SDValue DAGTypeLegalizer::DisintegrateMERGE_VALUES(SDNode *N, unsigned ResNo) {
+  dbgs() << "This is a string to disintegrate a merge value\n";
   for (unsigned i = 0, e = N->getNumValues(); i != e; ++i)
     if (i != ResNo)
       ReplaceValueWith(SDValue(N, i), SDValue(N->getOperand(i)));

@@ -341,6 +341,7 @@ private:
   SDValue PromoteIntRes_SETCC(SDNode *N);
   SDValue PromoteIntRes_SHL(SDNode *N);
   SDValue PromoteIntRes_SimpleIntBinOp(SDNode *N);
+  SDValue PromoteIntRes_ExtractValue(SDNode *N);
   SDValue PromoteIntRes_ZExtIntBinOp(SDNode *N);
   SDValue PromoteIntRes_SExtIntBinOp(SDNode *N);
   SDValue PromoteIntRes_UMINUMAX(SDNode *N);
@@ -377,6 +378,7 @@ private:
   SDValue PromoteIntOp_BRCOND(SDNode *N, unsigned OpNo);
   SDValue PromoteIntOp_BUILD_VECTOR(SDNode *N);
   SDValue PromoteIntOp_INSERT_VECTOR_ELT(SDNode *N, unsigned OpNo);
+  SDValue PromoteIntOp_InsertValue(SDNode *N, unsigned OpNo);
   SDValue PromoteIntOp_EXTRACT_VECTOR_ELT(SDNode *N);
   SDValue PromoteIntOp_EXTRACT_SUBVECTOR(SDNode *N);
   SDValue PromoteIntOp_INSERT_SUBVECTOR(SDNode *N);
