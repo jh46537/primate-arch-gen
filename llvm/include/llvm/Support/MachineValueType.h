@@ -879,7 +879,7 @@ namespace llvm {
       case Metadata:
         llvm_unreachable("Value type is metadata.");
       case Primate_aggregate:
-        llvm_unreachable("Primate_aggregate type bit size makes no sense");
+        return TypeSize::Fixed(512);
       case i1:
       case v1i1: return TypeSize::Fixed(1);
       case nxv1i1: return TypeSize::Scalable(1);
