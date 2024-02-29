@@ -263,9 +263,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       *lastSlotIdx += 1; 
       break;
     }
-    case Primate::PseudoADDwww: {
-      [[fallthrough]];
-    }
+    case Primate::PseudoADDwww: 
     default: {
       return false;
       //llvm_unreachable("don't know how to custom or TABLEGEN expand this pseudo instr. See Kayvan.");

@@ -89,6 +89,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Any, LegalizeAction::Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Any, LegalizeAction::Custom);
   addRegisterClass(MVT::Primate_aggregate, &Primate::WIDEREGRegClass);
+  addRegisterClass(MVT::i128, &Primate::GPR128RegClass);
   // addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
 
   //addRegisterClass(MVT::primate_aggre_1, &Primate::WIDEREGRegClass);

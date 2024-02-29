@@ -917,8 +917,18 @@ def EXTRACT :
     PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
         "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
         {
-          let Itinerary = ItinExtract;
+          let Itinerary = ItinGreen;
 }
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def EXTRACT_hang :
+    PRInstI<0b010, OPC_PR_REG, (outs GPR128:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
+        "extracth", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {
+          let Itinerary = ItinGreen;
+}
+
+def : Pat<(extract_value WIDEREG:$rs1, simm12:$rs2), (EXTRACT_hang WIDEREG:$rs1, simm12:$rs2)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
@@ -926,14 +936,23 @@ def INSERT :
         "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
         {
           let Constraints = "$rd = $rs1";
-          let Itinerary = ItinInsert;
+          let Itinerary = ItinGreen;
 }
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INSERT_hang :
+    PRInstI<0b011, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR128:$rs2, simm12:$imm12),
+        "inserth", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {
+          let Constraints = "$rd = $rs1";
+          let Itinerary = ItinGreen;
+}
+def : Pat<(insert_value WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2), (INSERT_hang WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2)>;
 
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def BFU0 :
-    PRInstI<0b000, OPC_PR_MPSM, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
+    PRInstI<0b000, OPC_PR_MPSM, (outs GPR:$rd), (ins WIDEREG:$rs1),
         "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
 
 let Itinerary = ItinBlue1 in
@@ -956,6 +975,7 @@ class PatGpr<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
 class PatGprGpr<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
+
 
 class PatGprImm<SDPatternOperator OpNode, PRInst Inst, ImmLeaf ImmType>
     : Pat<(XLenVT (OpNode (XLenVT GPR:$rs1), ImmType:$imm)),

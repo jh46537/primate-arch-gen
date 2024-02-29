@@ -64,8 +64,8 @@ namespace llvm {
                 ltrim(line);
                 dbgs() << "Found a BFU Named: " << line << "\n";
                 nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)(llvm::Intrinsic::primate_BFU_0 + (bfu_schedule_slot++));
-                for (const auto& [no, ac] : nameToIntrins)
-                    dbgs() << no << "\n";
+                for (const auto& nameIntrinPair : nameToIntrins)
+                    dbgs() << nameIntrinPair.first << "\n";
                 }
         }
 

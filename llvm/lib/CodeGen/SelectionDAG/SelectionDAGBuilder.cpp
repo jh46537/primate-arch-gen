@@ -902,6 +902,7 @@ void RegsForValue::getCopyToRegs(SDValue Val, SelectionDAG &DAG,
   SmallVector<SDValue, 8> Parts(NumRegs);
   for (unsigned Value = 0, Part = 0, e = ValueVTs.size(); Value != e; ++Value) {
     unsigned NumParts = RegCount[Value];
+    
 
     MVT RegisterVT = isABIMangled() ? TLI.getRegisterTypeForCallingConv(
                                           *DAG.getContext(),
@@ -1546,20 +1547,38 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
       assert(N1.getNode() && "visit didn't populate the NodeMap!");
       return N1;
     }
-
+    
+    const TargetLowering &TLI = DAG.getTargetLoweringInfo();
     if (isa<ConstantStruct>(C) || isa<ConstantArray>(C)) {
-      SmallVector<SDValue, 4> Constants;
-      for (const Use &U : C->operands()) {
-        SDNode *Val = getValue(U).getNode();
-        // If the operand is an empty aggregate, there are no values.
-        if (!Val) continue;
-        // Add each leaf value from the operand to the Constants list
-        // to form a flattened list of all the values.
-        for (unsigned i = 0, e = Val->getNumValues(); i != e; ++i)
-          Constants.push_back(SDValue(Val, i));
+      if(TLI.supportedAggregate(*(dyn_cast<StructType>(V->getType())))) {
+        int linearIdx = 0;
+        SDValue lastChain = DAG.getUNDEF(MVT::Primate_aggregate);
+        for (const Use &U : C->operands()) {
+          SDValue Val = getValue(U);
+          unsigned aggIdx = TLI.linearToAggregateIndex(*(dyn_cast<StructType>(V->getType())), 
+                                                        linearIdx);
+          SDValue idxNode = DAG.getConstant(aggIdx, getCurSDLoc(), MVT::i32);
+          U->getType()->dump();
+          dbgs() << "Linear Idx: " << linearIdx++ << " : " << aggIdx << "\n";
+          if (!Val) continue;
+          lastChain = DAG.getNode(ISD::INSERT_VALUE, getCurSDLoc(), MVT::Primate_aggregate, lastChain, Val, idxNode);
+        }
+        return lastChain;
       }
+      else {
+        SmallVector<SDValue, 4> Constants;
+        for (const Use &U : C->operands()) {
+          SDNode *Val = getValue(U).getNode();
+          // If the operand is an empty aggregate, there are no values.
+          if (!Val) continue;
+          // Add each leaf value from the operand to the Constants list
+          // to form a flattened list of all the values.
+          for (unsigned i = 0, e = Val->getNumValues(); i != e; ++i)
+            Constants.push_back(SDValue(Val, i));
+        }
 
-      return DAG.getMergeValues(Constants, getCurSDLoc());
+        return DAG.getMergeValues(Constants, getCurSDLoc());
+      }
     }
 
     if (const ConstantDataSequential *CDS =
@@ -3740,6 +3759,7 @@ void SelectionDAGBuilder::visitShuffleVector(const User &I) {
 }
 
 void SelectionDAGBuilder::visitInsertValue(const User &I) {
+  dbgs() << "visiting insert value\n";
   ArrayRef<unsigned> Indices;
   if (const InsertValueInst *IV = dyn_cast<InsertValueInst>(&I))
     Indices = IV->getIndices();
@@ -3777,6 +3797,7 @@ void SelectionDAGBuilder::visitInsertValue(const User &I) {
   // insert the value and move on.
   StructType *sTY = (dyn_cast<StructType>(AggTy)); 
   if(sTY && TLI.supportedAggregate(*sTY)) {
+    dbgs() << "insert to supported aggregate\n";
     Values.clear();
     Values.push_back(Agg);
     Values.push_back(insVal);
@@ -9889,6 +9910,7 @@ SelectionDAGBuilder::CopyValueToVirtualRegister(const Value *V, unsigned Reg) {
   ISD::NodeType ExtendType = (FuncInfo.PreferredExtendType.find(V) ==
                               FuncInfo.PreferredExtendType.end())
                                  ? ISD::ANY_EXTEND
+
                                  : FuncInfo.PreferredExtendType[V];
   RFV.getCopyToRegs(Op, DAG, getCurSDLoc(), Chain, nullptr, V, ExtendType);
   PendingExports.push_back(Chain);

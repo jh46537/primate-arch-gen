@@ -144,6 +144,10 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
       MB.print(dbgs());
       dbgs() << "===========================\n ";
     });
+    if(std::distance(MB.instr_begin(), MB.instr_end()) == 0) {
+      dbgs() << "MB is empty? go next for now\n";
+      continue;
+    }
     Packetizer.PacketizeMIs(&MB, MB.begin(), MB.end());
     printf("");
   }
@@ -224,11 +228,18 @@ PrimatePacketizerList::addToPacket(MachineInstr &MI) {
 
 void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
                                       MachineBasicBlock::iterator MI) {
+  if(CurrentPacketMIs.size() == 0) {
+    dbgs() << "packet with no instructions....\n";
+    return;
+  }
   // Replace VLIWPacketizerList::endPacket(MBB, EndMI).
 
   // need to first generate the needed bypass ops
   // generating bypass ops allows the fix up to x0 out the bypasses for free :>
   MachineInstr* packet_breaking_instr = CurrentPacketMIs.back();
+  dbgs() << "examining instruction for bypassing...\n";
+  dbgs() << packet_breaking_instr->isImplicitDef();
+  packet_breaking_instr->dump();
   llvm::SmallVector<MachineInstr*, 2> generated_bypass_instrs;
   MachineBasicBlock::iterator old_end_instr = MI;
   bool push_branch_to_next_packet = false;
@@ -369,13 +380,18 @@ void PrimatePacketizerList::initPacketizerState() {
 bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
                                                     const MachineBasicBlock *) {
   // FIXME: ignore END or maybe in isSoloInstruction?
-  if (MI.isCFIInstruction())
+  if (MI.isCFIInstruction()) {
+    dbgs() << "Pseudo Instr is ignored...";
     return true;
+  }
 
   // We check if MI has any functional units mapped to it. If it doesn't,
   // we ignore the instruction.
   const MCInstrDesc& TID = MI.getDesc();
   auto *IS = ResourceTracker->getInstrItins()->beginStage(TID.getSchedClass());
+  if(!IS->getUnits()) {
+    dbgs() << "Pseudo Instr is ignored...";
+  }
   return !IS->getUnits();
 }
 
