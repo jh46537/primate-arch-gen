@@ -70,7 +70,7 @@ static DecodeStatus DecodeWIDEREGRegisterClass(MCInst &Inst, uint64_t RegNo,
   if (RegNo >= 32 || (IsPR32E && RegNo >= 16))
     return MCDisassembler::Fail;
 
-  MCRegister Reg = Primate::P_A0 + RegNo;
+  MCRegister Reg = Primate::P0 + RegNo;
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }

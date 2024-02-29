@@ -22,11 +22,17 @@ bool PrimatePacketLegalizer::runOnMachineFunction(MachineFunction& MF) {
     TRI = MF.getSubtarget().getRegisterInfo();
 
     dbgs() << "hello from Primate Packet Legalizer\n";
+    MF.dump();
+    dbgs() << "starting\n";
     SmallVector<MachineInstr*> worklist; 
     for(MachineBasicBlock &MBB : MF) {
         worklist.clear();
         for(MachineInstr &BundleMI: MBB) {
-            assert(BundleMI.getOpcode() == Primate::BUNDLE && "ONLY BUNDLES ALLOWED IN TOP LEVEL MBB");
+            BundleMI.dump();
+            if(BundleMI.getOpcode() != Primate::BUNDLE) {
+                dbgs() << "found a non-bundle instr. skipping for now.\n";
+                continue;
+            }
 
             auto pktStart = getBundleStart(BundleMI.getIterator());
             auto pktEnd = getBundleEnd(BundleMI.getIterator());
@@ -69,7 +75,7 @@ bool PrimatePacketLegalizer::hasScalarDefs(MachineInstr* curInst) {
         if(!res.isReg()) {
             continue; // wtf?
         } 
-        if(!isWideReg(res.getReg())) {
+        if(!isWideReg(res.getReg()) && res.getReg() != Primate::X0) {
             return true;
         }
     }
@@ -101,13 +107,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     SmallVector<bool>          isNewInstr(numSlots);
     dbgs() << "Slots: " << numSlots << "\n";
     for(auto curInst = pktStart; curInst != pktEnd; curInst++) {
-        if(curInst->getOpcode() == Primate::EXTRACT) {
-            llvm_unreachable("EXTRACTS SHOULD NOT EXIST AT THIS POINT");
-        }
-        if(curInst->getOpcode() == Primate::INSERT) {
-            llvm_unreachable("INSERTS SHOULD NOT EXIST AT THIS POINT");
-        }
-        if(curInst->isCFIInstruction())
+        if(curInst->isCFIInstruction() || curInst->isImplicitDef())
             continue;
         dbgs() << "Looking at instr: ";
         curInst->dump();
@@ -123,14 +123,42 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
             }
             switch (newBundle[i]->getOpcode())
             {
+            case Primate::EXTRACT_hang:
             case Primate::EXTRACT:{
                 if(isNewInstr[i])
                     continue; // new extracts have been handled. 
-                // InstrItineraryData
-                // extract need a way to figure out which slot of extract we are? 
-                llvm_unreachable("Dangling extract that we didn't manage to deal with and are unable to deal with RN");
+                Register wideReg;
+                if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(0).getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+                }
+                else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                }
+                newBundle[i]->setSlotIdx(i+1);
+                newBundle[i+1] = newBundle[i];
+                newBundle[i] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                            PII->get(Primate::ADDI), 
+                                            Primate::X0)
+                                            .addReg(Primate::X0)
+                                            .addImm(0);
+                newBundle[i]->setSlotIdx(i);
+                newBundle[i-1] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                            PII->get(Primate::INSERT), 
+                                            wideReg)
+                                            .addReg(wideReg)
+                                            .addReg(curInst->getOperand(0).getReg())
+                                            .addImm(TLI->getScalarField());
+                newBundle[i-1]->setSlotIdx(i-1);
+                MIBundleBuilder builder(BundleMI);
+                isNewInstr[i] = true;
+                isNewInstr[i-1] = true;
+                isNewInstr[i+1] = true;
+                builder.insert(++(curInst->getIterator()), newBundle[i]);
+                builder.insert(++(++(curInst->getIterator())), newBundle[i-1]);
+                BundleMI->getParent()->dump();
                 break;
             }
+            case Primate::INSERT_hang:
             case Primate::INSERT:{
                 // check if the op exists
                 int opCheck = i + 1;
@@ -159,6 +187,10 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 break;
             }
             default: {
+                if(curInst->isBranch()) {
+                    dbgs() << "ran into branch. already handled...\n";
+                    continue;
+                }
                 // not insert, extract, or memory;
                 dbgs() << "op needs ins or ext";
                 curInst->dump();
@@ -168,13 +200,19 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 if(hasScalarOps(curInst)) {
                     dbgs() << "op needs extract!\n";
                     for(auto &op: curInst->uses()) {
-                        if(!op.isReg()) {
+                        if(!op.isReg() || op.getReg() == Primate::X0) {
                             continue;
                         }
                         if(!isWideReg(op.getReg())) {
                             //scalar ops must be thinged
                             int extCheck = i + extOffset;
-                            Register wideReg = TRI->getMatchingSuperReg(op.getReg(), 1, &Primate::WIDEREGRegClass);
+                            Register wideReg;
+                            if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(0).getReg())) {
+                                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+                            }
+                            else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
+                                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                            }
                             newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                                         PII->get(Primate::EXTRACT), 
                                                         op.getReg()).addReg(wideReg).addImm(TLI->getScalarField());
@@ -194,7 +232,13 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 }
                 if(hasScalarDefs(curInst) && !newBundle[insCheck]) {
                     dbgs() << "op needs insert\n";
-                    Register wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), 1, &Primate::WIDEREGRegClass);
+                    Register wideReg;
+                    if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(0).getReg())) {
+                        wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+                    }
+                    else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
+                        wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                    }
                     newBundle[insCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                                 PII->get(Primate::INSERT), 
                                                 wideReg).addReg(wideReg).addReg(curInst->getOperand(0).getReg()).addImm(TLI->getScalarField());

@@ -381,7 +381,8 @@ bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
                                                     const MachineBasicBlock *) {
   // FIXME: ignore END or maybe in isSoloInstruction?
   if (MI.isCFIInstruction()) {
-    dbgs() << "Pseudo Instr is ignored...";
+    MI.dump();
+    dbgs() << "CFI Instr is ignored...\n";
     return true;
   }
 
@@ -390,7 +391,7 @@ bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
   const MCInstrDesc& TID = MI.getDesc();
   auto *IS = ResourceTracker->getInstrItins()->beginStage(TID.getSchedClass());
   if(!IS->getUnits()) {
-    dbgs() << "Pseudo Instr is ignored...";
+    dbgs() << "Pseudo Instr is ignored...\n";
   }
   return !IS->getUnits();
 }

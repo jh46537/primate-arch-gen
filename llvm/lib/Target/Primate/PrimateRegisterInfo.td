@@ -79,10 +79,10 @@ foreach Index = 0-31 in {
       let SubRegIndices = [gpr_idx];
       let SubRegs = [!cast<Register>("X"#Index)];
     }
-    def P_A#Index : PrimateReg<Index, "P_A"#Index, ["P_A"#Index]>, DwarfRegNum<[Index]> {
+    def P#Index : PrimateReg<Index, "p"#Index, ["p"#Index]>, DwarfRegNum<[Index]> {
       let SubRegIndices = [Pri_hanger];
       let SubRegs = [!cast<Register>("H"#Index)];
-      let CoveredBySubRegs = true;
+      //let CoveredBySubRegs = true;
     }
   }
 }
@@ -125,7 +125,7 @@ def GPR128 : RegisterClass<"Primate", [HoldingRegVT], 32, (add
 }
 
 def WIDEREG : RegisterClass<"Primate", [PrimateAGGVT], 32, (add 
-    (sequence "P_A%u", 0, 31)
+    (sequence "P%u", 0, 31)
   )> {
     let RegInfos = PrimateAGGRI;
   }
