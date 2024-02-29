@@ -485,12 +485,14 @@ def JALR : PRInstI<0b000, OPC_JALR, (outs GPR:$rd),
            Sched<[WriteJalr, ReadJalr]>;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
+let Itinerary = ItinBranch in {
 def BEQ  : BranchCC_rri<0b000, "beq">;
 def BNE  : BranchCC_rri<0b001, "bne">;
 def BLT  : BranchCC_rri<0b100, "blt">;
 def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
 def BGEU : BranchCC_rri<0b111, "bgeu">;
+}
 
 let Predicates = [HasFullI], Itinerary = ItinMem in {
 def LB  : Load_ri<0b000, "lb">, Sched<[WriteLDB, ReadMemBase]>;
@@ -1284,6 +1286,45 @@ def PseudoADDIwsi : Pseudo<(outs WIDEREG:$rd),
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
       }
+
+def PseudoANDIswi : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      []>;
+
+def PseudoANDIwwi : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      []> {
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
+def PseudoANDIwsi : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1), 
+      []> {
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
+def PseudoANDsww : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      []>{
+        let Itinerary = ItinGreen;
+      }
+
+def PseudoANDwww : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      []>{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
+def PseudoANDwss : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2), 
+      []>{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }
+
 }
 
 def : PatWideScalarImm<add, PseudoADDIwsi>;
@@ -1293,6 +1334,14 @@ def : PatWideWideImm<add, PseudoADDIwwi>;
 def : PatWideScalarScalar<add, PseudoADDwss>;
 def : PatScalarWideWide<add, PseudoADDsww>;
 def : PatWideWideWide<add, PseudoADDwww>;
+
+def : PatWideScalarImm<and, PseudoANDIwsi>;
+def : PatScalarWideImm<and, PseudoANDIswi>;
+def : PatWideWideImm<and, PseudoANDIwwi>;
+
+def : PatWideScalarScalar<and, PseudoANDwss>;
+def : PatScalarWideWide<and, PseudoANDsww>;
+def : PatWideWideWide<and, PseudoANDwww>;
 
 // missed op patterns
 def : Pat<(extract_value WIDEREG:$rs1, simm12:$imm1), 
