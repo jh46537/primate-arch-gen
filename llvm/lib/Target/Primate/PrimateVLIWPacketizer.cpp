@@ -259,12 +259,10 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
     else if(generated_bypass_instrs.size() > 0) { 
       LLVM_DEBUG({dbgs() << "Bypasses fit into same packet: "
           << generated_bypass_instrs.size() << " ops\n";});
-      CurrentPacketMIs.pop_back();
       for(auto& bypass_op: generated_bypass_instrs) {
         ResourceTracker->reserveResources(*bypass_op);
         CurrentPacketMIs.push_back(bypass_op);
       }
-      CurrentPacketMIs.push_back(packet_breaking_instr);
     }
   }
 
