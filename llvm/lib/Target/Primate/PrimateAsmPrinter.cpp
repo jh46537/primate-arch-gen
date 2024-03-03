@@ -110,21 +110,120 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
   // only need to lower the words down to the other things
   // create instrs, and then move the slot idx n-1 (n is number of ops generated)
   switch(MI->getOpcode()) {
+    case Primate::PseudoANDIswi: {
+      // WIDEREG:$rs1, simm12:$imm1, simm12:$imm2
+      MCInst ExtractOp1;
+      MCInst TmpInst;
+      MCOperand MCOp;
+      ExtractOp1.setOpcode(Primate::EXTRACT);
+      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0));
+      ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(1).getReg()));
+      lowerOperand(MI->getOperand(2), MCOp);
+      ExtractOp1.addOperand(MCOp);
+
+      TmpInst.setOpcode(Primate::ANDI);
+      // Operand: rd
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // Operand: rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // Operand: imm12
+      lowerOperand(MI->getOperand(3), MCOp);
+      TmpInst.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, ExtractOp1);
+      *lastSlotIdx += 1; 
+      break;
+    }
+    case Primate::PseudoANDIwsi: {
+      // ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1
+      MCInst InsertOpDest;
+      MCInst TmpInst;
+      MCOperand MCOp;
+      InsertOpDest.setOpcode(Primate::INSERT);
+      // rd
+      InsertOpDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
+      // rs1
+      InsertOpDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
+      // rs2
+      InsertOpDest.addOperand(MCOperand::createReg(Primate::X0));
+      // imm
+      lowerOperand(MI->getOperand(2), MCOp);
+      InsertOpDest.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, InsertOpDest);
+
+      TmpInst.setOpcode(Primate::ANDI);
+      // rd
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // rs
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // imm12
+      lowerOperand(MI->getOperand(2), MCOp);
+      TmpInst.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, TmpInst);
+      *lastSlotIdx += 1; 
+      break;
+    }
+    case Primate::PseudoANDIwwi: {
+      // ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, simm12:$imm2
+      // insert: (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12)
+      MCInst InsertDest;
+      MCInst ExtractOp1;
+      MCInst TmpInst;
+      MCOperand MCOp;
+      InsertDest.setOpcode(Primate::INSERT);
+      // rd
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
+      // rs1
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(1).getReg()));
+      // rs2 
+      InsertDest.addOperand(MCOperand::createReg(Primate::X0));
+      // imm12
+      lowerOperand(MI->getOperand(2), MCOp);
+      InsertDest.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, InsertDest);
+
+      TmpInst.setOpcode(Primate::ANDI);
+      // Operand: rd
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // Operand: rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // Operand: imm12
+      lowerOperand(MI->getOperand(5), MCOp);
+      TmpInst.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, TmpInst);
+
+
+      ExtractOp1.setOpcode(Primate::EXTRACT);
+      // rd
+      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0));
+      // rs1
+      ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(3).getReg()));
+      // imm12
+      lowerOperand(MI->getOperand(4), MCOp);
+      ExtractOp1.addOperand(MCOp);
+      EmitToStreamer(OutStreamer, ExtractOp1);
+      *lastSlotIdx += 2; 
+      break;
+    }
+
     case Primate::PseudoADDIswi: {
       // WIDEREG:$rs1, simm12:$imm1, simm12:$imm2
       MCInst ExtractOp1;
       MCInst TmpInst;
       MCOperand MCOp;
       ExtractOp1.setOpcode(Primate::EXTRACT);
-      ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
-      lowerOperand(MI->getOperand(1), MCOp);
+      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0));
+      ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(1).getReg()));
+      lowerOperand(MI->getOperand(2), MCOp);
       ExtractOp1.addOperand(MCOp);
 
       TmpInst.setOpcode(Primate::ADDI);
       // Operand: rd
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() - 1));
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
+      // Operand: rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
       // Operand: imm12
-      lowerOperand(MI->getOperand(2), MCOp);
+      lowerOperand(MI->getOperand(3), MCOp);
       TmpInst.addOperand(MCOp);
       EmitToStreamer(OutStreamer, TmpInst);
       EmitToStreamer(OutStreamer, ExtractOp1);
@@ -142,7 +241,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // rs1
       InsertOpDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
       // rs2
-      InsertOpDest.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx()));
+      InsertOpDest.addOperand(MCOperand::createReg(Primate::X0));
       // imm
       lowerOperand(MI->getOperand(2), MCOp);
       InsertOpDest.addOperand(MCOp);
@@ -152,7 +251,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // rd
       TmpInst.addOperand(MCOperand::createReg(Primate::X0));
       // rs
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() - 1));
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
       // imm12
       lowerOperand(MI->getOperand(2), MCOp);
       TmpInst.addOperand(MCOp);
@@ -173,7 +272,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // rs1
       InsertDest.addOperand(MCOperand::createReg(MI->getOperand(1).getReg()));
       // rs2 
-      InsertDest.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx()));
+      InsertDest.addOperand(MCOperand::createReg(Primate::X0));
       // imm12
       lowerOperand(MI->getOperand(2), MCOp);
       InsertDest.addOperand(MCOp);
@@ -183,7 +282,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // Operand: rd
       TmpInst.addOperand(MCOperand::createReg(Primate::X0));
       // rs1
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 1));
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0));
       // Operand: imm12
       lowerOperand(MI->getOperand(5), MCOp);
       TmpInst.addOperand(MCOp);
@@ -192,7 +291,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
 
       ExtractOp1.setOpcode(Primate::EXTRACT);
       // rd
-      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 1));
+      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0));
       // rs1
       ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(3).getReg()));
       // imm12
@@ -212,8 +311,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
 
       TmpInst.setOpcode(Primate::ADD);
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rd
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 1)); //rs1
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 2)); //rs2
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rs2
       EmitToStreamer(OutStreamer, TmpInst);
 
       ExtractOp1.setOpcode(Primate::EXTRACT);
@@ -257,8 +356,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
 
       TmpInst.setOpcode(Primate::ADD);
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rd
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 1)); // rs1
-      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 2)); // rs2
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs2
       EmitToStreamer(OutStreamer, TmpInst);
       *lastSlotIdx += 1; 
       break;
