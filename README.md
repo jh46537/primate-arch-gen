@@ -10,34 +10,59 @@
 
         git checkout primate
 
-### Some useful env vars
+### Required env vars
 
         export CC=/usr/bin/clang
         export CXX=/usr/bin/clang++
-        export LLVM_ROOT=<path to this repo>
+        export PRIMATE_COMPILER_ROOT=<path to this repo>
 
 ### CMake with proper targets. This will make the backend with RISCV and Primate useful for comparisons.
 
-        cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS='clang;libc;libcxx;libcxxabi' -DLLVM_TARGETS_TO_BUILD='Primate;RISCV' -DLLVM_BUILD_TESTS=False -DCMAKE_INSTALL_PREFIX="${LLVM_ROOT}/build" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Primate
+        cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS='clang;libc;libcxx;libcxxabi' -DLLVM_TARGETS_TO_BUILD='Primate;RISCV' -DLLVM_BUILD_TESTS=False -DCMAKE_INSTALL_PREFIX="${PRIMATE_COMPILER_ROOT}/build" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Primate
 
 ### Ninja to actually compile
 
+<<<<<<< HEAD
         ninja -C ${LLVM_ROOT}/build
+=======
+        ninja -C {PRIMATE_COMPILER_ROOT}/build
+>>>>>>> f78e03c95ba1 ([ArchGen] Update readme with instructions.)
     
 Note: may get some odd compile fails. This is potentially caused by OOM. just retry the build again.
 Note: if you fail due to some inline asm related to fsqrt or similar, ensure you are using clang
 
 ### Finally you can compile cpp into primate insts:
 
+<<<<<<< HEAD
         export PATH="${LLVM_ROOT}/build/bin:$PATH"
         export LD_LIBRARY_PATH="${LLVM_ROOT}/build/lib:$LD_LIBRARY_PATH"
         clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -mno-relax -c -o <output-file> <cpp>
+=======
+        export PATH="${PRIMATE_COMPILER_ROOT}/build/bin:$PATH"``
+        export LD_LIBRARY_PATH="${PRIMATE_COMPILER_ROOT}/build/lib:$LD_LIBRARY_PATH"``
+        clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -c -o <output-file> <cpp>``
+>>>>>>> f78e03c95ba1 ([ArchGen] Update readme with instructions.)
+
+By default Primate comes with a basic setup containing a Memory unit, IO unit, and 2 lanes of green functional units. 
+
+### Generating a new architecture
+
+Once you have run primate's archgen phase, you should be left with a `primate.cfg`, and a `BFU_list.txt`. 
+In order to compile code for the generated architecture you need to run `archgen2tablegen.py <path to BFU_list.txt> <path to primate.cfg>`.
+This will create a directory `primate-compiler-gen` with the tablegen files the compiler requires. 
+Then run `cpyTablegen.sh`, re-run `ninja`, and you'll be able to compile!
 
 ### Useful commands:
 
 dump the compile results:
 
         llvm-objdump –-arch-name=primate32 -d -t <obj-file> > debug.dsm
+
+### Giving back
+
+Primate compiler has some quirks that require ironing out. If you run into a backend crash is probably best to submit your IR, and primate config files as an issue on the project instead of attempting to debug.
+
+Another thing of interest is op-fusion. If you think there is an important scalar operation that is not currently fused, open an issue. 
 
 # The LLVM Compiler Infrastructure
 

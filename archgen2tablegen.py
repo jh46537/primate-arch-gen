@@ -1,17 +1,23 @@
 import re
 import os
+import sys
 
+if len(sys.argv) != 3: 
+    print("wrong number of arguments....")
+    print("Expected: " + sys.argv[0] + " <Path to BFU_list.txt> <Path to primate.cfg>")
+    
 gen_file_dir = "./primate-compiler-gen/"
 os.makedirs(gen_file_dir, exist_ok=True)
 
 def combStr(in_str, num_iter):
     return "".join([in_str.format(i) for i in range(num_iter)])
 
-with open("../../hw/bfu_list.txt") as f:
+
+with open(sys.argv[1]) as f:
     f_str = f.read()
     numBFUs = len(re.findall(r"(.+\n?)\{([^\}]*\n?)+\}", f_str))
 
-with open("primate.cfg") as f:
+with open(sys.argv[2]) as f:
     for line in f:
         toks = line.split("=")
         if toks[0] == "NUM_ALUS":
