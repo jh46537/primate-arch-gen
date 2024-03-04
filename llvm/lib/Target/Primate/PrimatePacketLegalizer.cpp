@@ -207,11 +207,11 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                             //scalar ops must be thinged
                             int extCheck = i + extOffset;
                             Register wideReg;
-                            if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(0).getReg())) {
-                                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+                            if(TRI->getRegClass(Primate::GPRRegClassID)->contains(op.getReg())) {
+                                wideReg = TRI->getMatchingSuperReg(op.getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
                             }
-                            else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
-                                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                            else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(op.getReg())) {
+                                wideReg = TRI->getMatchingSuperReg(op.getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
                             }
                             newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                                         PII->get(Primate::EXTRACT), 
