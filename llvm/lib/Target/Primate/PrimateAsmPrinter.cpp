@@ -451,7 +451,7 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
         }
 
         // Do any auto-generated pseudo lowerings.
-        if (emitPseudoExpansionLowering(*OutStreamer, &*MII))
+        if (emitPseudoExpansionLowering(*OutStreamer, &*MII) && !customLower)
           return;
 
         MCInst TmpInst;
