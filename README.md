@@ -22,26 +22,16 @@
 
 ### Ninja to actually compile
 
-<<<<<<< HEAD
-        ninja -C ${LLVM_ROOT}/build
-=======
         ninja -C {PRIMATE_COMPILER_ROOT}/build
->>>>>>> f78e03c95ba1 ([ArchGen] Update readme with instructions.)
     
 Note: may get some odd compile fails. This is potentially caused by OOM. just retry the build again.
 Note: if you fail due to some inline asm related to fsqrt or similar, ensure you are using clang
 
 ### Finally you can compile cpp into primate insts:
 
-<<<<<<< HEAD
-        export PATH="${LLVM_ROOT}/build/bin:$PATH"
-        export LD_LIBRARY_PATH="${LLVM_ROOT}/build/lib:$LD_LIBRARY_PATH"
-        clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -mno-relax -c -o <output-file> <cpp>
-=======
         export PATH="${PRIMATE_COMPILER_ROOT}/build/bin:$PATH"``
         export LD_LIBRARY_PATH="${PRIMATE_COMPILER_ROOT}/build/lib:$LD_LIBRARY_PATH"``
         clang++ -std=c++20 --target=primate32-linux-gnu -march=pr32i -c -o <output-file> <cpp>``
->>>>>>> f78e03c95ba1 ([ArchGen] Update readme with instructions.)
 
 By default Primate comes with a basic setup containing a Memory unit, IO unit, and 2 lanes of green functional units. 
 
