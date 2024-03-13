@@ -138,6 +138,16 @@ public:
     return getTM<PrimateTargetMachine>();
   }
 
+  createMachineScheduler(MachineSchedContext *C) const override {
+    const PrimateSubtarget &ST = C->MF->getSubtarget<PrimateSubtarget>();
+    ScheduleDAGMILive *DAG = createGenericSchedLive(C);
+    // DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
+    // if (ST.hasFusion())
+    //   DAG->addMutation(createAArch64MacroFusionDAGMutation());
+    return DAG;
+  }
+
+
   void addMachineSSAOptimization() override;
   void addIRPasses() override;
   bool addInstSelector() override;
