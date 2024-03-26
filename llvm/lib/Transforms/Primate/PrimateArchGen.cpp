@@ -1816,11 +1816,29 @@ namespace {
                             offset = (*pointerMap)[basePtr]->offset;
                             basePtr = (*pointerMap)[basePtr]->base;
                         }
-                        Type *type = inst->getSourceElementType();
+
+                        Value* curInst = inst->getPointerOperand();
+                        Type *type = nullptr; // boohoo
+                        while(true) {
+                            if(AllocaInst* allocaArg = dyn_cast<AllocaInst>(curInst)) {
+                                type = allocaArg->getAllocatedType();
+                                break;
+                            }
+                            else if(BitCastInst* bci = dyn_cast<BitCastInst>(curInst)) {
+                                curInst = bci->getOperand(0);
+                            }
+                            else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
+                                curInst = gepI->getPointerOperand(); 
+                            }
+                            else {
+                                curInst->dump();
+                                llvm_unreachable("can't follow a pointer...");
+                            }
+                        }
+
                         int i = 0;
                         for (auto idx = inst->idx_begin(); idx != inst->idx_end(); idx++) {
-                            if (isa<ConstantInt>(*idx)) {
-                                auto *idx_const = dyn_cast<ConstantInt>(idx);
+                            if (auto *idx_const = dyn_cast<ConstantInt>(idx)) {
                                 auto idx_val = idx_const->getValue();
                                 int idx_u = int(idx_val.getSExtValue());
                                 if (isa<StructType>(*type)) {
@@ -1854,8 +1872,10 @@ namespace {
                                     }
                                     i = 1;
                                 } else {
-                                    errs() << "Error: undefined type: ";
+                                    errs() << "Error: undefined type: inst: ";
                                     inst->print(errs());
+                                    errs() << "\nidx: ";
+                                    idx->get()->dump();
                                     errs() << "\n";
                                     exit(1);
                                 }
