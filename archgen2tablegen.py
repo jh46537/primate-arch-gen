@@ -1,3 +1,5 @@
+#!/bin/python3
+
 import re
 import os
 import sys
@@ -164,8 +166,8 @@ def PrimatePipes : ProcResGroup<[
   MemPipe,
   {PipeInstances}
 ]>;
-def GreenPipes : ProcResGroup<[{GreenFUnit}]>;
-def BluePipes : ProcResGroup<[{GreenFUnit}]>;
+def GreenPipes : ProcResGroup<[{PipeInstances}]>;
+def BluePipes : ProcResGroup<[{PipeInstances}]>;
 
 
 // Branching
@@ -1525,8 +1527,16 @@ let Itinerary = ItinIO in {{
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
-    PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins simm12:$imm12),
-        "inputread", "$rd, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+def INPUT_DONE :
+    PRInstI<0b100, OPC_PR_IO, (outs), (ins),
+        "inputdone", "">, Sched<[WriteIALU, ReadIALU]> {{
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0;
+}}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
@@ -1537,6 +1547,14 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_WRITE :
     PRInstI<0b010, OPC_PR_IO, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
         "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+
+def OUTPUT_DONE:
+    PRInstI<0b010, OPC_PR_IO, (outs), (ins),
+        "outputdone", "">, Sched<[WriteIALU, ReadIALU]> {{
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0;
+}}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_SEEK :
@@ -1554,6 +1572,16 @@ def EXTRACT :
 }}
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def EXTRACT_hang :
+    PRInstI<0b010, OPC_PR_REG, (outs GPR128:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
+        "extracth", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {{
+          let Itinerary = ItinGreen;
+}}
+
+def : Pat<(extract_value WIDEREG:$rs1, simm12:$rs2), (EXTRACT_hang WIDEREG:$rs1, simm12:$rs2)>;
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
     PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12),
         "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
@@ -1561,6 +1589,16 @@ def INSERT :
           let Constraints = "$rd = $rs1";
           let Itinerary = ItinInsert;
 }}
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def INSERT_hang :
+    PRInstI<0b011, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR128:$rs2, simm12:$imm12),
+        "inserth", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        {{
+          let Constraints = "$rd = $rs1";
+          let Itinerary = ItinGreen;
+}}
+def : Pat<(insert_value WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2), (INSERT_hang WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2)>;
 
 {BFUInstDefs}
 
@@ -1685,7 +1723,12 @@ def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
 def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
-def : Pat<(int_primate_input simm12:$imm), (INPUT_READ simm12:$imm)>;
+def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
+
+def : Pat<(int_primate_input simm12:$imm), (INPUT_READ X0, simm12:$imm)>;
+def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ GPR:$rs1, 0)>;
+def : Pat<(int_primate_input_done), (INPUT_DONE)>;
+
 {BFUInstPattern}
 
 let usesCustomInserter = 1 in
@@ -1887,6 +1930,44 @@ def PseudoADDIwsi : Pseudo<(outs WIDEREG:$rd),
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
       }}
+
+def PseudoANDIswi : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      []>;
+
+def PseudoANDIwwi : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, simm12:$imm2), 
+      []> {{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }}
+
+def PseudoANDIwsi : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1), 
+      []> {{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }}
+
+def PseudoANDsww : Pseudo<(outs GPR:$rd), 
+      (ins WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      []>{{
+        let Itinerary = ItinGreen;
+      }}
+
+def PseudoANDwww : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2), 
+      []>{{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }}
+
+def PseudoANDwss : Pseudo<(outs WIDEREG:$rd), 
+      (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2), 
+      []>{{
+        let Itinerary = ItinGreen;
+        let Constraints = "$rd = $rs0";
+      }}
 }}
 
 def : PatWideScalarImm<add, PseudoADDIwsi>;
@@ -1897,6 +1978,14 @@ def : PatWideScalarScalar<add, PseudoADDwss>;
 def : PatScalarWideWide<add, PseudoADDsww>;
 def : PatWideWideWide<add, PseudoADDwww>;
 
+def : PatWideScalarImm<and, PseudoANDIwsi>;
+def : PatScalarWideImm<and, PseudoANDIswi>;
+def : PatWideWideImm<and, PseudoANDIwwi>;
+
+def : PatWideScalarScalar<and, PseudoANDwss>;
+def : PatScalarWideWide<and, PseudoANDsww>;
+def : PatWideWideWide<and, PseudoANDwww>;
+
 // missed op patterns
 def : Pat<(extract_value WIDEREG:$rs1, simm12:$imm1), 
            (EXTRACT WIDEREG:$rs1, simm12:$imm1)>;
@@ -1905,8 +1994,7 @@ def : Pat<(insert_value WIDEREG:$rs1, GPR:$rs2, simm12:$imm1),
 
 
 
-// PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually
-// expand to auipc and jalr while encoding.
+// PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually// expand to auipc and jalr while encoding.
 // Define AsmString to print "tail" when compile with -S flag.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [X2],
     isCodeGenOnly = 0 in
@@ -2305,11 +2393,19 @@ let TargetPrefix = "primate" in {{
   def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_i32_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
-  
+                
+  def int_primate_input_done :  Intrinsic<[], // return val
+                  [], // Params: imm12
+		              [IntrNoMem, IntrHasSideEffects]>; // properties;
+    
   def int_primate_output :  Intrinsic<[], // return val
                   [llvm_any_ty, llvm_i32_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
-
+                
+  def int_primate_output_done :  Intrinsic<[], // return val
+                  [], // Params: imm12
+		              [IntrNoMem, IntrHasSideEffects]>; // properties;
+  
   {PrimateIntrinsDef}
 
   def int_primate_extract :  Intrinsic<[llvm_any_ty], // return val

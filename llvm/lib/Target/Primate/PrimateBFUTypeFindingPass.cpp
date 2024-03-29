@@ -53,6 +53,7 @@ PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalys
                         // lol 
                         if( dyn_cast<MDString>(attr->getOperand(0))->getString() == "blue") {
                             dbgs() << "Found a BFU Func\n";
+                            calledFunc->dump();
                             // StringRef BFU_name = dyn_cast<MDString>(attr->getOperand(1))->getString();
                             // TODO: Use the rest of the metadata in some way 
                             FunctionType* FT = calledFunc->getFunctionType();
@@ -71,17 +72,15 @@ PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalys
                                 }
                             }
                             dbgs() << "Checking the operands\n";
-                            dbgs() << "getNumOperands(): " << ci->getNumOperands();
+                            dbgs() << "getNumOperands(): " << ci->getNumOperands() << "\n";
                             // get param types. 
                             // first is ret. last is func called.
                             for(auto& a: ci->args()) {
                                 if(a->getType()->isPointerTy()) {
                                     a->getType()->dump();
-                                    if(KayvanfollowPointerForType(a)->isAggregateType()) {
-                                        dbgs() << "Found Primate Type: ";
-                                        KayvanfollowPointerForType(a)->dump();
-                                        BFUTypes.insert(KayvanfollowPointerForType(a));
-                                    }
+                                    dbgs() << "Found Primate Type: ";
+                                    KayvanfollowPointerForType(a)->dump();
+                                    BFUTypes.insert(KayvanfollowPointerForType(a));
                                 }
                             }
                         }

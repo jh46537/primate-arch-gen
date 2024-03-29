@@ -49,7 +49,7 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   switch (N->getOpcode()) {
   default:
 #ifndef NDEBUG
-    dbgs() << "PromoteIntegerResult #" << ResNo << ": ";
+    dbgs() << "[" << __FILE__ << ":" << __LINE__ << "]PromoteIntegerResult #" << ResNo << ": ";
     N->dump(&DAG); dbgs() << "\n";
 #endif
     llvm_unreachable("Do not know how to promote this operator!");

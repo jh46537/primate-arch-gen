@@ -918,6 +918,8 @@ bool DAGTypeLegalizer::CustomLowerNode(SDNode *N, EVT VT, bool LegalizeResult) {
     return false;
   }
 
+  LLVM_DEBUG(dbgs() << "Custom lowered node");
+
   SmallVector<SDValue, 8> Results;
   if (LegalizeResult)
     TLI.ReplaceNodeResults(N, Results, DAG);
