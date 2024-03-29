@@ -413,7 +413,7 @@ namespace {
             void printRegfileKnobs(Module &M) {
                 auto structTypes = M.getIdentifiedStructTypes();
                 unsigned maxRegWidth = 0;
-                gatherModes = new std::vector<unsigned>();
+                gatherModes = new std::vector<unsigned>(1,32);
                 fieldIndex = new std::map<unsigned, std::vector<unsigned>*>();
                 for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
                     unsigned regWidth = getStructWidth((**it), 0, true);
