@@ -179,31 +179,82 @@ namespace llvm {
                     if(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue") {
                         // Primate BFU
                         if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
-                            if(demangledName.find("PRIMATE::input") != std::string::npos) {
+                            if(demangledName.find("PRIMATE::input<") != std::string::npos) {
+                                bool needToExtract = false;
                                 dbgs() << "generating intrinsic for\n";
                                 inst->dump();
+                                Type* resultType = inst->getType();
+                                if(!resultType->isAggregateType()) {
+                                    // generate an aggregate of the scalar type
+                                    std::vector<Type *> structTypes = {
+                                        resultType
+                                    };
+                                    resultType = llvm::StructType::get(F.getContext(), structTypes, true);
+                                    needToExtract = true;
+                                }
                                 IRBuilder<> builder(inst);
                                 std::vector<Type *> insArgType = {
-                                    inst->getType()
+                                    resultType
                                 };
                                 std::vector<Value*> insArg = {
                                     inst->getOperand(0)
                                 };
                                 Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input, insArgType);
                                 CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                                Value* newInstr = newCi;
+                                if (needToExtract) {
+                                    dbgs() << "creating struct for: ";
+                                    resultType->dump();
+                                    newInstr = builder.CreateExtractValue(newCi, 0);
+                                }
+                                inst->replaceAllUsesWith(newInstr);
+                                instructionsToRemove.push_back(inst);
+                            }
+                            else if(demangledName.find("PRIMATE::input_done()") != std::string::npos) {
+                                dbgs() << "generating intrinsic for\n";
+                                inst->dump();
+                                IRBuilder<> builder(inst);
+                                std::vector<Type *> insArgType = {
+                                };
+                                std::vector<Value*> insArg = {
+                                };
+                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input_done, insArgType);
+                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
                                 inst->replaceAllUsesWith(newCi);
                                 instructionsToRemove.push_back(inst);
                             }
-                            else if(demangledName.find("PRIMATE::output") != std::string::npos) {
+                            else if(demangledName.find("PRIMATE::output<") != std::string::npos) {
                                 IRBuilder<> builder(inst);
+                                bool needToInsert = false;
+                                Type* inputType = inst->getOperand(0)->getType();
+                                Value* op0 = inst->getOperand(0);
+                                if(!inputType->isAggregateType()) {
+                                    // generate an aggregate of the scalar type
+                                    std::vector<Type *> structTypes = {
+                                        inputType
+                                    };
+                                    inputType = llvm::StructType::get(F.getContext(), structTypes, true);
+                                    needToInsert = true;
+                                    op0 = builder.CreateInsertValue(UndefValue::get(inputType), op0, 0); 
+                                }
+
                                 std::vector<Type *> insArgType = {
-                                    inst->getOperand(0)->getType()
+                                    inputType
                                 };
                                 std::vector<Value*> insArg = {
-                                    inst->getOperand(0),
+                                    op0,
                                     inst->getOperand(1)
                                 };
                                 Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output, insArgType);
+                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
+                                inst->replaceAllUsesWith(newCi);
+                                instructionsToRemove.push_back(inst);
+                            }
+                            else if(demangledName.find("PRIMATE::output_done(") != std::string::npos) {
+                                IRBuilder<> builder(inst);
+                                std::vector<Type *> insArgType = {};
+                                std::vector<Value*> insArg = {};
+                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output_done, insArgType);
                                 CallInst* newCi = builder.CreateCall(insFunc, insArg);
                                 inst->replaceAllUsesWith(newCi);
                                 instructionsToRemove.push_back(inst);

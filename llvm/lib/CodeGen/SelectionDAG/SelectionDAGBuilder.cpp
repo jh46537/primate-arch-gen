@@ -5117,6 +5117,7 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
     }
   }
 
+  LLVM_DEBUG(dbgs() << "Compute VTs for the outputs");
   SmallVector<EVT, 4> ValueVTs;
   ComputeValueVTs(TLI, DAG.getDataLayout(), I.getType(), ValueVTs);
 
@@ -5136,6 +5137,7 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
   // In some cases, custom collection of operands from CallInst I may be needed.
   TLI.CollectTargetIntrinsicOperands(I, Ops, DAG);
   if (IsTgtIntrinsic) {
+    LLVM_DEBUG(dbgs() << "visting as target memory instrinsic\n");
     // This is target intrinsic that touches memory
     //
     // TODO: We currently just fallback to address space 0 if getTgtMemIntrinsic
@@ -5149,10 +5151,13 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
                                      Info.memVT, MPI, Info.align, Info.flags,
                                      Info.size, I.getAAMetadata());
   } else if (!HasChain) {
+    LLVM_DEBUG(dbgs() << "visting as intrsinsic without chain\n");
     Result = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, getCurSDLoc(), VTs, Ops);
   } else if (!I.getType()->isVoidTy()) {
+    LLVM_DEBUG(dbgs() << "visting as intrsinsic with chain\n");
     Result = DAG.getNode(ISD::INTRINSIC_W_CHAIN, getCurSDLoc(), VTs, Ops);
   } else {
+    LLVM_DEBUG(dbgs() << "visting as void intrsinsic\n");
     Result = DAG.getNode(ISD::INTRINSIC_VOID, getCurSDLoc(), VTs, Ops);
   }
 
