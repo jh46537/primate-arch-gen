@@ -19,6 +19,7 @@
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
+#include "PrimateCustomSchedule.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -243,4 +244,5 @@ void PrimatePassConfig::addPreRegAlloc() {
     addPass(createPrimateMergeBaseOffsetOptPass());
 
   addPass(createPrimateInsertVSETVLIPass());
+  addPass(createPrimateCustomSchedule());
 }

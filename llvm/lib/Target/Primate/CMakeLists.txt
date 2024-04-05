@@ -43,6 +43,7 @@ add_llvm_target(PrimateCodeGen
   PrimateStructToRegPass.cpp
   PrimateGEPFilter.cpp
   PrimateStructToAggre.cpp
+  PrimateCustomSchedule.cpp
   PrimateRegisterNormalize.cpp
   PrimateExtMerge.cpp
   PrimateOpMerge.cpp
