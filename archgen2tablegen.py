@@ -1757,12 +1757,16 @@ def : BccPat<SETUGE, BGEU>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
-               PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>;
+               PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>{{
+  let Itinerary = ItinBranch;
+}}
 
 let Predicates = [HasFullI] in {{
 let isBarrier = 1, isBranch = 1, isIndirectBranch = 1, isTerminator = 1 in
 def PseudoBRIND : Pseudo<(outs), (ins GPRJALR:$rs1, simm12:$imm12), []>,
-                  PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>;
+                  PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>{{
+  let Itinerary = ItinBranch;
+}}
 
 def : Pat<(brind GPRJALR:$rs1), (PseudoBRIND GPRJALR:$rs1, 0)>;
 def : Pat<(brind (add GPRJALR:$rs1, simm12:$imm12)),
@@ -1779,6 +1783,7 @@ let isCall = 1, isBarrier = 1, isCodeGenOnly = 0, hasSideEffects = 0,
     mayStore = 0, mayLoad = 0 in
 def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {{
   let AsmString = "call\t$rd, $func";
+  let Itinerary = ItinBranch;
 }}
 
 // PseudoCALL is a pseudo instruction which will eventually expand to auipc
@@ -1790,6 +1795,7 @@ def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {{
 let isCall = 1, Defs = [X1], isCodeGenOnly = 0 in
 def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []> {{
   let AsmString = "call\t$func";
+  let Itinerary = ItinBranch;
 }}
 
 def : Pat<(primate_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
@@ -1802,11 +1808,15 @@ def : Pat<(primate_mret_flag), (MRET X0, X0)>;
 let isCall = 1, Defs = [X1] in
 def PseudoCALLIndirect : Pseudo<(outs), (ins GPRJALR:$rs1),
                                 [(primate_call GPRJALR:$rs1)]>,
-                         PseudoInstExpansion<(JALR X1, GPR:$rs1, 0)>;
+                         PseudoInstExpansion<(JALR X1, GPR:$rs1, 0)>{{
+  let Itinerary = ItinBranch;
+}}
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(primate_ret_flag)]>,
-                PseudoInstExpansion<(JALR X0, X1, 0)>;
+                PseudoInstExpansion<(JALR X0, X1, 0)> {{
+  let Itinerary = ItinBranch;
+}}
 
 class PatWideWideImm<SDPatternOperator OpNode, PRInst Inst>
     : Pat<
