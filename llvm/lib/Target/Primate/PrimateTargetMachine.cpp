@@ -19,10 +19,10 @@
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
-#include "PrimateCustomSchedule.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
@@ -139,14 +139,17 @@ public:
     return getTM<PrimateTargetMachine>();
   }
 
+  ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override {
     const PrimateSubtarget &ST = C->MF->getSubtarget<PrimateSubtarget>();
     ScheduleDAGMILive *DAG = createGenericSchedLive(C);
     // DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
+    // DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
     // if (ST.hasFusion())
     //   DAG->addMutation(createAArch64MacroFusionDAGMutation());
     return DAG;
   }
+
 
 
   void addMachineSSAOptimization() override;
@@ -244,5 +247,5 @@ void PrimatePassConfig::addPreRegAlloc() {
     addPass(createPrimateMergeBaseOffsetOptPass());
 
   addPass(createPrimateInsertVSETVLIPass());
-  addPass(createPrimateCustomSchedule());
+  addPass(createPrimateCustomSchedulePass());
 }
