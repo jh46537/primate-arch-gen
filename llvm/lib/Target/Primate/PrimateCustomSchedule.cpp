@@ -11,17 +11,18 @@ bool PrimateCustomSchedule::runOnMachineFunction(MachineFunction& MF) {
     return false;
 }
 
-MachineFunctionPass *createPrimateCustomSchedule();
-void initializePrimateCustomSchedule(PassRegistry&);
+MachineFunctionPass *createPrimateCustomSchedulePass();
+void initializePrimateCustomSchedulePass(PassRegistry&);
 }
 
 using namespace llvm;
 
 INITIALIZE_PASS_BEGIN(PrimateCustomSchedule, "PrimateCustomSchedule",
                       "Primate Custom Schedule", false, false)
+// temp
 INITIALIZE_PASS_END(PrimateCustomSchedule, "PrimateCustomSchedule",
                     "Primate Custom Schedule", false, false)
 
-llvm::MachineFunctionPass *llvm::createPrimateCustomSchedule() {
+llvm::MachineFunctionPass *llvm::createPrimateCustomSchedulePass() {
   return new llvm::PrimateCustomSchedule();
 }

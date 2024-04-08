@@ -60,8 +60,8 @@ void initializePrimateStructToRegPassPass(PassRegistry &);
 MachineFunctionPass *createPrimateOPMergePass();
 void initializePrimateOPMergePass(PassRegistry &);
 
-MachineFunctionPass *createPrimateCustomSchedule();
-void initializePrimateCustomSchedule(PassRegistry&);
+MachineFunctionPass *createPrimateCustomSchedulePass();
+void initializePrimateCustomSchedulePass(PassRegistry&);
 
 MachineFunctionPass *createPrimatePacketLegalizerPass();
 void initializePrimatePacketLegalizerPass(PassRegistry &);

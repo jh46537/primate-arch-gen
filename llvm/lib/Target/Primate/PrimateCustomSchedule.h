@@ -21,25 +21,14 @@ namespace llvm {
 class PrimateCustomSchedule : public MachineFunctionPass {
 public:
     static char ID;
-    PrimatePacketLegalizer() : MachineFunctionPass(ID){};
+    PrimateCustomSchedule() : MachineFunctionPass(ID){};
 
     bool runOnMachineFunction(MachineFunction& MF) override;
 
-private:
-    const PrimateTargetLowering *TLI;
-    const PrimateInstrInfo *PII;
-    const TargetRegisterInfo *TRI;
-    DFAPacketizer* ResourceTracker;
-    bool isWideReg(const Register) const;
-    void fixBundle(MachineInstr *BundleMI);
-    bool hasScalarRegs(MachineInstr*);
-    bool hasScalarDefs(MachineInstr*);
-    bool hasScalarOps(MachineInstr*);
-
 };
 
-char PrimatePacketLegalizer::ID = 0;
-static RegisterPass<PrimatePacketLegalizer> X("PrimatePacketLegalizer", "Primate Packet Legalizer",
+char PrimateCustomSchedule::ID = 0;
+static RegisterPass<PrimateCustomSchedule> X("PrimateCustomSchedule", "Primate Custom Schedule",
                              false /* Only looks at CFG */,
                              false /* Analysis Pass */);
 
