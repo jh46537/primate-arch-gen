@@ -446,14 +446,19 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
         // may need to emit multiple ops, and then advance the slot idx.
         bool customLower = false;
         if(emitPseudoExpansionCustomLowering(*OutStreamer, &*MII, &lastSlotIdx)) {
-          dbgs() << "custom lower instrucion\n";
+          dbgs() << "custom lower instruction\n";
           customLower = true;
         }
 
         // Do any auto-generated pseudo lowerings.
-        if (emitPseudoExpansionLowering(*OutStreamer, &*MII) && !customLower)
-          return;
+        // TODO: Fix the interface here to deal with multiple expand
+        // currently tablegen can only emit 1 anyway, so who cares
+        if (emitPseudoExpansionLowering(*OutStreamer, &*MII) && !customLower){
+          dbgs() << "tablegen lower instruction\n";
+          customLower = true;
+        }
 
+        // normal instruction lowering
         MCInst TmpInst;
         if (!lowerPrimateMachineInstrToMCInst(&*MII, TmpInst, *this) && !customLower)
           EmitToStreamer(*OutStreamer, TmpInst);
