@@ -19,6 +19,7 @@
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
+#include "PrimateScheduleStrategy.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -37,6 +38,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
+#include <memory>
 using namespace llvm;
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePrimateTarget() {
@@ -142,7 +144,7 @@ public:
   ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override {
     const PrimateSubtarget &ST = C->MF->getSubtarget<PrimateSubtarget>();
-    ScheduleDAGMILive *DAG = createGenericSchedLive(C);
+    ScheduleDAGMILive *DAG = new ScheduleDAGMILive(C, std::make_unique<PrimateSchedStrategy>());
     // DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
     // DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
     // if (ST.hasFusion())
@@ -205,6 +207,7 @@ bool PrimatePassConfig::addRegBankSelect() {
 }
 
 void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
+  dbgs() << "This is a string\n";
   PB.registerAnalysisRegistrationCallback([](ModuleAnalysisManager &C) {
     C.registerPass([](){
       return llvm::PrimateBFUTypeFinding();
@@ -247,5 +250,5 @@ void PrimatePassConfig::addPreRegAlloc() {
     addPass(createPrimateMergeBaseOffsetOptPass());
 
   addPass(createPrimateInsertVSETVLIPass());
-  addPass(createPrimateCustomSchedulePass());
+  addPass(createPrimateCustomSchedulePass(), true);
 }
