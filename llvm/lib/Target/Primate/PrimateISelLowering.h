@@ -358,9 +358,7 @@ public:
     return ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1));
   }
 
-  virtual bool supportedAggregate(StructType &STy) const override {
-    return true;
-  }
+  virtual bool supportedAggregate(StructType &STy) const override;
 
   // returns the EVT of a given aggregate if its supported by the target.
   virtual EVT getAggregateVT(StructType &STy) const override {
