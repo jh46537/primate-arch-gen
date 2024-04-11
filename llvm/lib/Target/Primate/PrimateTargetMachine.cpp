@@ -213,8 +213,8 @@ void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
       return llvm::PrimateBFUTypeFinding();
     });
   });
-  PB.registerPipelineStartEPCallback([](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt) {
-    MPM.addPass(llvm::PrimateStructToAggre());
+  PB.registerPipelineStartEPCallback([this](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt) {
+    MPM.addPass(llvm::PrimateStructToAggre(*this));
   });
   PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
     // FPM.addPass(llvm::PrimateGEPFilterPass());

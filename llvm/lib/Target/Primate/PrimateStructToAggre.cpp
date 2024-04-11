@@ -36,7 +36,13 @@ inline void rtrim(std::string &s) {
 namespace llvm {
 
     bool PrimateStructToAggre::isBFUType(Type* ty) {
-        return BFUTypes.find(ty) != BFUTypes.end();
+        if(ty->isSingleValueType()) {
+            return true;
+        }
+        if(StructType* STy = dyn_cast<StructType>(ty)) {
+            return TLI->supportedAggregate(*STy);
+        }
+        return false;
     }
 
     void PrimateStructToAggre::findBFUTypes(Module& M) {
@@ -75,6 +81,7 @@ namespace llvm {
             type->dump();
         }
         for(auto& F: M) {
+            TLI = TM.getSubtarget<PrimateSubtarget>(F).getTargetLowering();
             // first normalize all the function calls to the same form 
             // 1. revert all vectorized aggregates to structs
             LLVM_DEBUG(dbgs() << "looking for struct allocas in func: " << F.getName() << "\n");
@@ -160,7 +167,7 @@ namespace llvm {
         // TODO: MOVE TO CLANG
         // TODO: if you see this in the future and hate the if else tree just know me too. its a hack. 
         for(auto& F: M) {
-            LLVM_DEBUG(dbgs() << "looking for probable intrinics in func: " << F.getName() << "\n");
+            LLVM_DEBUG(dbgs() << "looking for intrinics in func: " << F.getName() << "\n");
             SmallVector<CallInst*> workList;
             for(auto& bb: F) {
                 workList.clear();
@@ -368,15 +375,16 @@ namespace llvm {
         Function* func = ci->getCalledFunction();
 
         bool needsReplace = false;
-        Type* retType = nullptr;
+        Type* retType = ci->getType();
         if(ci->hasStructRetAttr()) {
             // find where the pointer came from
             retType = followPointerForType(ci->getArgOperand(0));
-            if(isBFUType(retType))
+            if(isBFUType(retType)) {
                 needsReplace = true;
-        }
-        else {
-            retType = ci->getType();
+            }
+            else { 
+                retType = ci->getType();
+            }
         }
 
         SmallVector<Type*> argTypes;
@@ -389,7 +397,6 @@ namespace llvm {
             if(funcArg->hasReturnedAttr() || funcArg->hasStructRetAttr()) {
                 // returns have been handled above
                 continue;
-                dbgs() << "return: skip\n";
             }
             if(arg->get()->getType()->isPointerTy()) {
                 dbgs() << "ptr: ";

@@ -909,6 +909,25 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   }
 }
 
+bool PrimateTargetLowering::supportedAggregate(StructType &STy) const {
+  int bitPos = 0;
+  for(Type* eTy: STy.elements()) {
+    if(!(eTy->isSized())) {
+      llvm_unreachable("struct contains elements that are unsized types");
+    }
+    if(find(allSizes.begin(), allSizes.end(), eTy->getScalarSizeInBits()) == allSizes.end()) {
+      dbgs() << "struct failed to match regs due to element size unsupported\n";
+      return false;
+    }
+    if(find(allPoses.begin(), allPoses.end(), bitPos) == allPoses.end()) {
+      dbgs() << "struct failed to match regs due to element offset unsupported\n";
+      return false;
+    }
+    bitPos += eTy->getScalarSizeInBits();
+  }
+  return true;
+}
+
 EVT PrimateTargetLowering::getSetCCResultType(const DataLayout &DL,
                                             LLVMContext &Context,
                                             EVT VT) const {
