@@ -29,6 +29,9 @@ namespace llvm {
     SmallVector<Instruction*> instructionsToRemove;
     std::set<Type*> BFUTypes;
     std::map<std::string, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins;
+    const TargetLowering* TLI;
+    TargetMachine& TM; 
+    PrimateStructToAggre(TargetMachine& TM) : TM(TM){}
 
     PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
 
