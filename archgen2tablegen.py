@@ -7,6 +7,7 @@ import sys
 if len(sys.argv) != 3: 
     print("wrong number of arguments....")
     print("Expected: " + sys.argv[0] + " <Path to BFU_list.txt> <Path to primate.cfg>")
+    exit(-1)
     
 gen_file_dir = "./primate-compiler-gen/"
 os.makedirs(gen_file_dir, exist_ok=True)
@@ -19,6 +20,9 @@ with open(sys.argv[1]) as f:
     f_str = f.read()
     numBFUs = len(re.findall(r"(.+\n?)\{([^\}]*\n?)+\}", f_str))
 
+# add the slots for IO unit and LSU
+numBFUs += 2
+
 with open(sys.argv[2]) as f:
     for line in f:
         toks = line.split("=")
@@ -27,21 +31,113 @@ with open(sys.argv[2]) as f:
 
 numSlots = max(numBFUs, numALUs)
 
-print(numSlots)
+# BFUs and ALUs are merged starting with the last BFU slot. 
+if numALUs >= numBFUs:
+  hasGFU = [True] * numSlots
+  hasBFU = [True] * (numBFUs) + [False] * (numSlots-numBFUs)
+else:
+  hasGFU = [True] * (numALUs) + [False] * (numBFUs - numALUs)
+  hasBFU = [True] * numSlots
 
-FuncUnitDefTemplate = """
-def ExtractUnit{0}a      : FuncUnit;
-def ExtractUnit{0}b      : FuncUnit;
-def GreenBlueUnit{0}     : FuncUnit;
-def InsertUnit{0}        : FuncUnit;"""
+IOSlot = numBFUs - 1
+LSUSlot = numBFUs - 2
 
-InstrItinDataTemplate = "InstrItinData<ItinBlue{0},         [InstrStage<1, [GreenBlueUnit{0}]>]>,\n"
+print(f"hasGFU: {hasGFU}")
+print(f"hasBFU: {hasBFU}")
 
-GreenFUnitTemplate = "GreenBlueUnit{0},"
+unitDefTemplate = """def {0}      : FuncUnit;\n"""
+BFUItinDataTemplate = """InstrItinData<ItinBlue{0},         [InstrStage<1, [{1}]>]>,\n"""
 
-InsertFUnitTemplate = "InsertUnit{0},"
+extractaUnitDef = """ExtractUnit{0}a"""
+extractbUnitDef = """ExtractUnit{0}b"""
+insertUnitDef = """InsertUnit{0}"""
+mergedUnitDef = """GreenBlueUnit{0}"""
+greenUnitDef = """GreenUnit{0}"""
+blueUnitDef = """BlueUnit{0}"""
+LSUnitMergedDef = """GreenLSUUnit"""
+IOUnitMergedDef = """GreenIOUnit"""
+IOUnitDef = """IOUnit"""
+LSUnitDef = """LSUUnit"""
 
-ExtractFUnitTemplate = "ExtractUnit{0}a, ExtractUnit{0}b,"
+
+funcUnitDef = ""
+BFUItinData = ""
+allExtractUnitNames = []
+allInsertUnitNames = []
+allBFUnitNames = []
+allGFUnitNames = []
+allIOUnitNames = []
+allLSUnitNames = []
+packetOrderUnitNames = []
+for slot, (gfu, bfu) in enumerate(zip(hasGFU, hasBFU)):
+  if gfu:
+    allExtractUnitNames += [extractaUnitDef.format(slot), extractbUnitDef.format(slot)]
+    packetOrderUnitNames += [extractaUnitDef.format(slot), extractbUnitDef.format(slot)]
+    funcUnitDef += unitDefTemplate.format(extractaUnitDef).format(slot)
+    funcUnitDef += unitDefTemplate.format(extractbUnitDef).format(slot)
+  if gfu and bfu:
+    if slot == IOSlot:
+      allGFUnitNames += [IOUnitMergedDef.format(slot)]
+      allIOUnitNames += [IOUnitMergedDef.format(slot)]
+      packetOrderUnitNames += [IOUnitMergedDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(IOUnitMergedDef).format(slot)
+    elif slot == LSUSlot:
+      allGFUnitNames += [LSUnitMergedDef.format(slot)]
+      allLSUnitNames += [LSUnitMergedDef.format(slot)]
+      packetOrderUnitNames += [LSUnitMergedDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(LSUnitMergedDef).format(slot)
+    else:
+      BFUItinData += BFUItinDataTemplate.format(slot, mergedUnitDef.format(slot))
+      allGFUnitNames += [mergedUnitDef.format(slot)]
+      allBFUnitNames += [mergedUnitDef.format(slot)]
+      packetOrderUnitNames += [mergedUnitDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(mergedUnitDef).format(slot)
+  elif gfu:
+    allGFUnitNames += [greenUnitDef.format(slot)]
+    packetOrderUnitNames += [greenUnitDef.format(slot)]
+    funcUnitDef += unitDefTemplate.format(greenUnitDef).format(slot)
+  elif bfu:
+    if slot == IOSlot:
+      allIOUnitNames += [IOUnitDef.format(slot)]
+      packetOrderUnitNames += [IOUnitDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(IOUnitDef).format(slot)
+    elif slot == LSUSlot:
+      allLSUnitNames += [LSUnitDef.format(slot)]
+      packetOrderUnitNames += [LSUnitDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(LSUnitDef).format(slot)
+    else:
+      BFUItinData += BFUItinDataTemplate.format(slot, blueUnitDef.format(slot))
+      allBFUnitNames += [blueUnitDef.format(slot)]
+      packetOrderUnitNames += [blueUnitDef.format(slot)]
+      funcUnitDef += unitDefTemplate.format(blueUnitDef).format(slot)
+  else:
+    print("slot is neither GFU or BFU. Should never happen")
+    exit(-1)
+
+  if gfu:
+    allInsertUnitNames += [insertUnitDef.format(slot)]
+    packetOrderUnitNames += [insertUnitDef.format(slot)]
+    funcUnitDef += unitDefTemplate.format(insertUnitDef).format(slot)
+  funcUnitDef += "\n"
+
+print(funcUnitDef)
+print(packetOrderUnitNames)
+
+pipeDefTemplate = """def {0}         : ProcResource<1>;\n"""
+packetOrderPipes = []
+PipeDefs = ""
+greenPipes = []
+bluePipes = []
+for i in packetOrderUnitNames:
+  pipeName = i + "Pipe"
+  if i in allGFUnitNames:
+    greenPipes.append(pipeName)
+  if i in allBFUnitNames:
+    bluePipes.append(pipeName)
+  packetOrderPipes.append(pipeName)
+  PipeDefs += pipeDefTemplate.format(pipeName)
+
+print(PipeDefs)
 
 ProcItinTemplate = """
 InsertUnit{0},
@@ -61,26 +157,6 @@ GreenBluePipe{0},
 ExtractPipe{0}b,
 ExtractPipe{0}a,"""
 
-FuncUnitDef = combStr(FuncUnitDefTemplate, numSlots)
-    
-InstrItinData = combStr(InstrItinDataTemplate, numSlots)
-
-GreenFUnit = combStr(GreenFUnitTemplate, numSlots)
-GreenFUnit = GreenFUnit[:-1]
-
-InsertFUnit = combStr(InsertFUnitTemplate, numSlots)
-InsertFUnit = InsertFUnit[:-1]
-
-ExtractFUnit = combStr(ExtractFUnitTemplate, numSlots)
-ExtractFUnit = ExtractFUnit[:-1]
-
-ProcItin = combStr(ProcItinTemplate, numSlots)
-ProcItin = ProcItin[:-1]
-
-PipeDefs = combStr(PipeDefsTemplate, numSlots)
-
-PipeInstances = combStr(PipeInstancesTemplate, numSlots)
-    
 PrimateSchedPrimate = f"""//===- PrimateSchedPrimate.td - Primate Scheduling Defs ----*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -89,29 +165,25 @@ PrimateSchedPrimate = f"""//===- PrimateSchedPrimate.td - Primate Scheduling Def
 //
 //===---------------------------------r------------------------------------===//
 
-{FuncUnitDef}
-def IOUnit             : FuncUnit;
-def BranchUnit         : FuncUnit;
-def MemUnit            : FuncUnit;
+{funcUnitDef}
+def BranchUnit : FuncUnit;
 
 def PrimateItinList {{
   list<InstrItinData> ItinList = [
-    InstrItinData<ItinExtract,       [InstrStage<1, [{ExtractFUnit}]>]>,
-    InstrItinData<ItinInsert,        [InstrStage<1, [{InsertFUnit}]>]>,
-    InstrItinData<ItinGreen,         [InstrStage<1, [{GreenFUnit}]>]>,
-    {InstrItinData}
-    InstrItinData<ItinIO,            [InstrStage<1, [IOUnit]>]>,
+    InstrItinData<ItinExtract,       [InstrStage<1, [{",".join(allExtractUnitNames)}]>]>,
+    InstrItinData<ItinInsert,        [InstrStage<1, [{",".join(allInsertUnitNames)}]>]>,
+    InstrItinData<ItinGreen,         [InstrStage<1, [{",".join(allGFUnitNames)}]>]>,
+    {BFUItinData}
+    InstrItinData<ItinIO,            [InstrStage<1, [{",".join(allIOUnitNames)}]>]>,
     InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>,
-    InstrItinData<ItinMem,           [InstrStage<1, [MemUnit]>]>
+    InstrItinData<ItinMem,           [InstrStage<1, [{",".join(allLSUnitNames)}]>]>
   ];
 }}
 
 def PrimateItineraries :
-    ProcessorItineraries<[
-        BranchUnit,
-        IOUnit,
-        MemUnit,
-        {ProcItin}
+    ProcessorItineraries<[  
+        {",".join(packetOrderUnitNames)},
+        BranchUnit
     ],
     [],
     PrimateItinList.ItinList>;
@@ -154,20 +226,16 @@ def PrimateModel : SchedMachineModel {{
 
 let SchedModel = PrimateModel in {{
 let BufferSize = 0 in {{
-def BranchPipe         : ProcResource<1>;
-def IOPipe             : ProcResource<1>;
-def MemPipe            : ProcResource<1>;
 {PipeDefs}
+def BranchPipe         : ProcResource<1>;
 }}
 
 def PrimatePipes : ProcResGroup<[
-  BranchPipe,
-  IOPipe,
-  MemPipe,
-  {PipeInstances}
+  {",".join(packetOrderPipes)},
+  BranchPipe
 ]>;
-def GreenPipes : ProcResGroup<[{PipeInstances}]>;
-def BluePipes : ProcResGroup<[{PipeInstances}]>;
+def GreenPipes : ProcResGroup<[{",".join(greenPipes)}]>;
+def BluePipes : ProcResGroup<[{",".join(bluePipes)}]>;
 
 
 // Branching
