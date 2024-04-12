@@ -184,6 +184,9 @@ namespace llvm {
                     dbgs() << "demangled name: " << demangledName << "\n";
                     MDNode* priTop = inst->getCalledFunction()->getMetadata("primate");
                     if(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue") {
+                        if (!isBFUType(inst->getType())) {
+                            llvm_unreachable("Calling a blue functional unit with unsupported type. (regenerate architecture)");
+                        }
                         // Primate BFU
                         if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
                             if(demangledName.find("PRIMATE::input<") != std::string::npos) {
