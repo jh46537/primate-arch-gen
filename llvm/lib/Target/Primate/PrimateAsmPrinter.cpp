@@ -129,8 +129,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // Operand: imm12
       lowerOperand(MI->getOperand(3), MCOp);
       TmpInst.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, TmpInst);
       EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
       *lastSlotIdx += 1; 
       break;
     }
@@ -149,7 +149,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // imm
       lowerOperand(MI->getOperand(2), MCOp);
       InsertOpDest.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, InsertOpDest);
 
       TmpInst.setOpcode(Primate::ANDI);
       // rd
@@ -160,6 +159,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       lowerOperand(MI->getOperand(2), MCOp);
       TmpInst.addOperand(MCOp);
       EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertOpDest);
       *lastSlotIdx += 1; 
       break;
     }
@@ -180,7 +180,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // imm12
       lowerOperand(MI->getOperand(2), MCOp);
       InsertDest.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, InsertDest);
 
       TmpInst.setOpcode(Primate::ANDI);
       // Operand: rd
@@ -190,7 +189,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // Operand: imm12
       lowerOperand(MI->getOperand(5), MCOp);
       TmpInst.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, TmpInst);
 
 
       ExtractOp1.setOpcode(Primate::EXTRACT);
@@ -202,6 +200,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       lowerOperand(MI->getOperand(4), MCOp);
       ExtractOp1.addOperand(MCOp);
       EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertDest);
       *lastSlotIdx += 2; 
       break;
     }
@@ -225,8 +225,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // Operand: imm12
       lowerOperand(MI->getOperand(3), MCOp);
       TmpInst.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, TmpInst);
       EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
       *lastSlotIdx += 1; 
       break;
     }
@@ -245,7 +245,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // imm
       lowerOperand(MI->getOperand(2), MCOp);
       InsertOpDest.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, InsertOpDest);
 
       TmpInst.setOpcode(Primate::ADDI);
       // rd
@@ -256,6 +255,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       lowerOperand(MI->getOperand(2), MCOp);
       TmpInst.addOperand(MCOp);
       EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertOpDest);
       *lastSlotIdx += 1; 
       break;
     }
@@ -276,7 +276,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // imm12
       lowerOperand(MI->getOperand(2), MCOp);
       InsertDest.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, InsertDest);
 
       TmpInst.setOpcode(Primate::ADDI);
       // Operand: rd
@@ -286,7 +285,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // Operand: imm12
       lowerOperand(MI->getOperand(5), MCOp);
       TmpInst.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, TmpInst);
 
 
       ExtractOp1.setOpcode(Primate::EXTRACT);
@@ -298,6 +296,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       lowerOperand(MI->getOperand(4), MCOp);
       ExtractOp1.addOperand(MCOp);
       EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertDest);
       *lastSlotIdx += 2; 
       break;
     }
@@ -313,7 +313,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rd
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rs1
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); //rs2
-      EmitToStreamer(OutStreamer, TmpInst);
 
       ExtractOp1.setOpcode(Primate::EXTRACT);
       // rd
@@ -323,7 +322,6 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       // imm12
       lowerOperand(MI->getOperand(2), MCOp);
       ExtractOp1.addOperand(MCOp);
-      EmitToStreamer(OutStreamer, ExtractOp1);
 
       ExtractOp2.setOpcode(Primate::EXTRACT);
       // rd
@@ -334,6 +332,8 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       lowerOperand(MI->getOperand(4), MCOp);
       ExtractOp2.addOperand(MCOp);
       EmitToStreamer(OutStreamer, ExtractOp2);
+      EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
       *lastSlotIdx += 2; 
       break;
     }
@@ -352,13 +352,13 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       InsertDest.addOperand(MCOperand::createReg(Primate::X0));                // rs2
       lowerOperand(MI->getOperand(2), MCOp);
       InsertDest.addOperand(MCOp); // imm12
-      EmitToStreamer(OutStreamer, InsertDest);
 
       TmpInst.setOpcode(Primate::ADD);
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rd
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs1
       TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs2
       EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertDest);
       *lastSlotIdx += 1; 
       break;
     }

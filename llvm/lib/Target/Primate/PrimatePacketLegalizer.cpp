@@ -118,6 +118,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     for(unsigned i = 0; i < numSlots; i++) {
         MachineInstr *curInst = newBundle[i];
         if(newBundle[i] && hasScalarRegs(newBundle[i])) {
+            dbgs() << "fixing instruction in slot: " << i << " "; curInst->dump();
             if(newBundle[i]->getOpcode() == Primate::PseudoRET) {
                 continue;
             }
@@ -134,34 +135,38 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
                     wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
                 }
-                newBundle[i]->setSlotIdx(i+1);
-                newBundle[i+1] = newBundle[i];
-                newBundle[i] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                int extIndex = i-1;
+                int opIndex = i;
+                int insIndex = i+1; // fix up slots
+                newBundle[i]->setSlotIdx(extIndex);
+                newBundle[extIndex] = newBundle[i];
+                newBundle[opIndex] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                             PII->get(Primate::ADDI), 
                                             Primate::X0)
                                             .addReg(Primate::X0)
                                             .addImm(0);
-                newBundle[i]->setSlotIdx(i);
-                newBundle[i-1] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                newBundle[opIndex]->setSlotIdx(opIndex);
+                newBundle[insIndex] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                             PII->get(Primate::INSERT), 
                                             wideReg)
                                             .addReg(wideReg)
                                             .addReg(curInst->getOperand(0).getReg())
                                             .addImm(TLI->getScalarField());
-                newBundle[i-1]->setSlotIdx(i-1);
+                newBundle[insIndex]->setSlotIdx(insIndex);
                 MIBundleBuilder builder(BundleMI);
-                isNewInstr[i] = true;
-                isNewInstr[i-1] = true;
-                isNewInstr[i+1] = true;
-                builder.insert(++(curInst->getIterator()), newBundle[i]);
-                builder.insert(++(++(curInst->getIterator())), newBundle[i-1]);
+                isNewInstr[opIndex] = true;
+                isNewInstr[insIndex] = true;
+                isNewInstr[extIndex] = true;
+                // insert after instr
+                builder.insert(++(curInst->getIterator()), newBundle[opIndex]);
+                builder.insert(++(++(curInst->getIterator())), newBundle[insIndex]);
                 BundleMI->getParent()->dump();
                 break;
             }
             case Primate::INSERT_hang:
             case Primate::INSERT:{
                 // check if the op exists
-                int opCheck = i + 1;
+                int opCheck = i - 1;
                 // if no op there then just add it in. then the op clean up will clean it. 
                 if(!newBundle[opCheck]) {
                     dbgs() << "found bad insert\n";
@@ -175,7 +180,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     newBundle[opCheck]->setSlotIdx(opCheck);
                     MIBundleBuilder builder(BundleMI);
                     isNewInstr[opCheck] = true;
-                    builder.insert(++(curInst->getIterator()), newBundle[opCheck]);
+                    builder.insert((curInst->getIterator()), newBundle[opCheck]);
                     BundleMI->getParent()->dump();
                 }
                 break;
@@ -194,7 +199,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 // not insert, extract, or memory;
                 dbgs() << "op needs ins or ext";
                 curInst->dump();
-                int insCheck = i - 1;
+                int insCheck = i + 1;
                 int opNum = 0;
                 int extOffset = 1;
                 if(hasScalarOps(curInst)) {
@@ -205,7 +210,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                         }
                         if(!isWideReg(op.getReg())) {
                             //scalar ops must be thinged
-                            int extCheck = i + extOffset;
+                            int extCheck = i - extOffset;
                             Register wideReg;
                             if(TRI->getRegClass(Primate::GPRRegClassID)->contains(op.getReg())) {
                                 wideReg = TRI->getMatchingSuperReg(op.getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
@@ -221,8 +226,8 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                             MIBundleBuilder builder(BundleMI);
                             isNewInstr[extCheck] = true;
                             auto insertPoint = curInst->getIterator();
-                            for(int i = 0; i < extOffset; i++)
-                                insertPoint++;
+                            for(int i = 0; i < extOffset-1; i++)
+                                insertPoint--;
                             builder.insert(insertPoint, newBundle[extCheck]);
                             BundleMI->getParent()->dump();
                             extOffset++;
@@ -246,7 +251,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     newBundle[insCheck]->setSlotIdx(insCheck);   
                     MIBundleBuilder builder(BundleMI);
                     isNewInstr[insCheck] = true;
-                    builder.insert((curInst->getIterator()), newBundle[insCheck]);
+                    builder.insert(++(curInst->getIterator()), newBundle[insCheck]);
                     BundleMI->getParent()->dump();
                 }                  
                 break;
