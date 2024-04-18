@@ -36,6 +36,9 @@ inline void rtrim(std::string &s) {
 namespace llvm {
 
     bool PrimateStructToAggre::isBFUType(Type* ty) {
+        if(ty->isVoidTy()) {
+            return true;
+        }
         if(ty->isSingleValueType()) {
             return true;
         }
@@ -303,6 +306,7 @@ namespace llvm {
             bleh->eraseFromParent();
         }
 
+        M.dump();
 
         return PreservedAnalyses::none();
     }
@@ -372,6 +376,10 @@ namespace llvm {
         // if we already fixed this then we move on
         dbgs() << "converting call: "; ci->dump();
         if(fixedCalls.find(ci) != fixedCalls.end()) {
+            return;
+        }
+        // if its an instrinsic assume that it is done correctly already.
+        if(ci->getCalledFunction()->isIntrinsic()) {
             return;
         }
         // look for struct ret

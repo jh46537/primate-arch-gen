@@ -438,7 +438,7 @@ with open(os.path.join(gen_file_dir, "./PrimateSchedPrimate.td"), "w") as f:
 
 NewItinDefTemplate = "def ItinBlue{0}   : InstrItinClass;\n"
 
-NewItinDef = combStr(NewItinDefTemplate, numSlots)
+NewItinDef = combStr(NewItinDefTemplate, max(numBFUs-2, 1))
 
 PrimateSchedule = f"""
 //===- PrimateSchedule.td - Primate Scheduling Definitions -*- tablegen -*-===//
@@ -689,7 +689,7 @@ with open(os.path.join(gen_file_dir, "./PrimateSchedule.td"), "w") as f:
 
 BFUInstPatternTemplate = "def : Pat<(int_primate_BFU_{0} WIDEREG:$rs1), (BFU{0} WIDEREG:$rs1)>;\n"
 
-BFUInstPattern = combStr(BFUInstPatternTemplate, numSlots)
+BFUInstPattern = combStr(BFUInstPatternTemplate, max(numBFUs-2, 1))
 
 BFUInstDefsTemplate = """let Itinerary = ItinBlue{0} in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
@@ -698,7 +698,7 @@ def BFU{0} :
         "bfu{0}", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
 """
 
-BFUInstDefs = combStr(BFUInstDefsTemplate, numSlots)
+BFUInstDefs = combStr(BFUInstDefsTemplate, max(numBFUs-2, 1))
 
 PrimateInstrInfo = f"""
 //===- PrimateInstrInfo.td - Target Description for Primate *- tablegen -*-===//
@@ -1636,7 +1636,7 @@ def EXTRACT :
     PRInstI<0b000, OPC_PR_REG, (outs GPR:$rd), (ins WIDEREG:$rs1, simm12:$imm12),
         "extract", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> 
         {{
-          let Itinerary = ItinExtract;
+          let Itinerary = ItinGreen;
 }}
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
@@ -1655,7 +1655,7 @@ def INSERT :
         "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
         {{
           let Constraints = "$rd = $rs1";
-          let Itinerary = ItinInsert;
+          let Itinerary = ItinGreen;
 }}
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
@@ -2376,7 +2376,7 @@ PrimateIntrinsDefTemplate = """def int_primate_BFU_{0} :  Intrinsic<[llvm_any_ty
                   [llvm_any_ty], // Params: gpr w/ struct
 		              [IntrHasSideEffects]>; // properties;
                 """
-PrimateIntrinsDef = combStr(PrimateIntrinsDefTemplate, numSlots)
+PrimateIntrinsDef = combStr(PrimateIntrinsDefTemplate, max(numBFUs-2, 1))
     
 IntrinsicsPrimate = f"""
 //===- IntrinsicsPrimate.td - Defines Primate intrinsics ---*- tablegen -*-===//

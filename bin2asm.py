@@ -3,7 +3,8 @@ import re
 import sys
 
 # pkt size in bytes
-PACKET_SIZE_IN_BYTES = 15*4
+PACKET_SIZE_IN_INSTRS = 13
+PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_INSTRS*4
 # addresses per packet
 LOCATIONS_PER_PACKET = 1
 
@@ -29,6 +30,15 @@ outFile = open(oname, "w+")
 
 symPat = re.compile(r"[0-9a-f]{8} <..*:")
 symTable = {}
+
+def write_packet(packet):
+    for instr in currentPacket[::-1]:
+        iToks = instr.split()
+        instr_val = ""
+        for i in iToks[0:4][::-1]:
+            instr_val += i.strip()
+        outFile.write(instr_val)
+    outFile.write("\n")
 
 def fix_last_branch(packet, location, instr_pc):
     target = symTable[location]
@@ -110,19 +120,11 @@ with open(fname) as f:
                     loc = rest.split()[1]
                     fix_last_branch(currentPacket, loc, line_address)
                 else:
+                    if len(currentPacket) == PACKET_SIZE_IN_INSTRS:
+                        write_packet(currentPacket)
+                        currentPacket = []
                     currentPacket.append(rest)
             except ValueError as e:
                 print("error line " + str(e))
                 print(line)
-
-        if len(currentPacket) == 10:
-            #print(currentPacket)
-            for instr in currentPacket:
-                iToks = instr.split()
-                instr_val = ""
-                for i in iToks[0:4][::-1]:
-                    instr_val += i.strip()
-                outFile.write(instr_val)
-            outFile.write("\n")
-            currentPacket = []
             
