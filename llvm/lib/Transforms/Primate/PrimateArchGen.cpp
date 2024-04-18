@@ -43,10 +43,13 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 #include <stdlib.h>
 #include <algorithm>
 #include <math.h>
+#include <set>
 
 #define MAX_BR_LEVEL 2
 #define MAX_PERF 0
 #define BALANCE 1
+
+#define DEBUG_TYPE "primate-arch-gen"
 
 using namespace llvm;
 
@@ -79,8 +82,8 @@ namespace {
             ValueMap<const Instruction*, BitVector*> *instrInSet;     //IN set for an instruction inside basic block
             ValueMap<Value*, Value*> *aliasMap;
             ValueMap<Value*, int> *branchLevel;
-            std::vector<unsigned> *gatherModes;
-            std::map<unsigned, std::vector<unsigned>*> *fieldIndex;
+            std::set<unsigned> *gatherModes;
+            std::map<unsigned, std::set<unsigned>*> *fieldIndex;
             ValueMap<Value*, ptrInfo_t*> *pointerMap;
             ValueMap<Value*, std::map<Value*, bool>*> dependencyForest;
             ValueMap<Value*, std::map<Value*, bool>*> dependencyForestOp;
@@ -328,18 +331,16 @@ namespace {
                 if (isa<llvm::IntegerType>(*elem)) {
                     elemWidth = elem->getIntegerBitWidth();
                     // insert new gather mode if doesn't exist
-                    if (std::find(gatherModes->begin(), gatherModes->end(), elemWidth) == gatherModes->end()) {
-                        gatherModes->push_back(elemWidth);
-                    }
+                    gatherModes->insert(elemWidth);
                 }
                 for (int i = 0; i < a.getNumElements(); i++) {
                     if (fieldIndex->find(width) == fieldIndex->end()) {
-                        (*fieldIndex)[width] = new std::vector<unsigned>();
+                        (*fieldIndex)[width] = new std::set<unsigned>();
                     }
                     if (isa<llvm::IntegerType>(*elem)) {
                         // the width of all numbers possibly stored at each index
                         if (std::find((*fieldIndex)[width]->begin(), (*fieldIndex)[width]->end(), elemWidth) == (*fieldIndex)[width]->end()) {
-                            (*fieldIndex)[width]->push_back(elemWidth);
+                            (*fieldIndex)[width]->insert(elemWidth);
                         }
                         width += elemWidth;
                     } else if (isa<llvm::ArrayType>(*elem)) {
@@ -360,19 +361,17 @@ namespace {
                 for (auto elem = s.element_begin(); elem != s.element_end(); elem++) {
                     if (arcGen) {
                         if (fieldIndex->find(width) == fieldIndex->end()) {
-                            (*fieldIndex)[width] = new std::vector<unsigned>();
+                            (*fieldIndex)[width] = new std::set<unsigned>();
                         }
                     }
                     if (isa<llvm::IntegerType>(**elem)) {
                         unsigned elemWidth = (*elem)->getIntegerBitWidth();
                         if (arcGen) {
                             // insert new gather mode if doesn't exist
-                            if (std::find(gatherModes->begin(), gatherModes->end(), elemWidth) == gatherModes->end()) {
-                                gatherModes->push_back(elemWidth);
-                            }
+                            gatherModes->insert(elemWidth);
                             // the width of all numbers possibly stored at each index
                             if (std::find((*fieldIndex)[width]->begin(), (*fieldIndex)[width]->end(), elemWidth) == (*fieldIndex)[width]->end()) {
-                                (*fieldIndex)[width]->push_back(elemWidth);
+                                (*fieldIndex)[width]->insert(elemWidth);
                             }
                         }
                         width += elemWidth;
@@ -390,19 +389,27 @@ namespace {
                 }
                 if (arcGen) {
                     if (fieldIndex->find(width) == fieldIndex->end()) {
-                        (*fieldIndex)[width] = new std::vector<unsigned>();
+                        (*fieldIndex)[width] = new std::set<unsigned>();
                     }
                 }
                 return width;
             }
 
-            unsigned getTypeBitWidth(Type *ty) {
+            // why does this function need to have side-effects? 
+            unsigned getTypeBitWidth(Type *ty, bool trackSizes = false) {
                 unsigned size;
                 if (ty->isIntegerTy()) {
                     size = ty->getIntegerBitWidth();
+                    if (fieldIndex->find(0) == fieldIndex->end()) {
+                        (*fieldIndex)[0] = new std::set<unsigned>();
+                    }
+                    if (trackSizes)  {
+                        (fieldIndex->at(0))->insert(size);
+                        gatherModes->insert(size);
+                    }
                 } else if (ty->isStructTy()) {
                     StructType *sty = dyn_cast<StructType>(ty);
-                    size = getStructWidth(*sty, 0, false);
+                    size = getStructWidth(*sty, 0, trackSizes);
                 } else if (ty->isArrayTy()) {
                     ArrayType *aty = dyn_cast<ArrayType>(ty);
                     size = getArrayWidth(*aty, 0);
@@ -413,16 +420,54 @@ namespace {
             void printRegfileKnobs(Module &M) {
                 auto structTypes = M.getIdentifiedStructTypes();
                 unsigned maxRegWidth = 0;
-                gatherModes = new std::vector<unsigned>(1,32);
-                fieldIndex = new std::map<unsigned, std::vector<unsigned>*>();
-                for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
-                    unsigned regWidth = getStructWidth((**it), 0, true);
-                    if (regWidth > maxRegWidth) {
-                        maxRegWidth = regWidth;
+                gatherModes = new std::set<unsigned>();
+                gatherModes->insert(32);
+                fieldIndex = new std::map<unsigned, std::set<unsigned>*>();
+
+                // need to check functions that are marked as BFUs for types, not the structs themselves.
+                for (auto& F: M) {
+                    MDNode* primateMD = F.getMetadata("primate");
+                    if(primateMD && dyn_cast<MDString>(primateMD->getOperand(0))->getString() == "blue") {
+                        LLVM_DEBUG(dbgs() << "found primate type: "; F.dump(););
+                        for(auto& arg: F.args()) {
+                            // this uses the type of pointers. 
+                            // we need to use the call instruction 
+                            // so we don't use the type of the pointer :/
+                            Type *argTy = nullptr;
+                            if(arg.getType()->isPointerTy()) {
+                                argTy = arg.getType()->getPointerElementType();
+                            }
+                            else {
+                                argTy = arg.getType();
+                            }
+                            unsigned regWidth = getTypeBitWidth(argTy, true); 
+                            if (regWidth > maxRegWidth) {
+                                maxRegWidth = regWidth;
+                            }
+                            LLVM_DEBUG(dbgs() << "reg width of type : "; argTy->dump(););
+                            LLVM_DEBUG(dbgs() << regWidth << "\n";);
+                        }
                     }
                 }
+
+                // for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
+                //     LLVM_DEBUG(dbgs() << "reg width of type " << (*it)->getName() << "  " << getStructWidth((**it), 0, true) <<  "\n");
+                //     unsigned regWidth = getStructWidth((**it), 0, true); 
+                //     if (regWidth > maxRegWidth) {
+                //         maxRegWidth = regWidth;
+                //     }
+                // }
                 // errs() << "Max regfile width: " << maxRegWidth << "\n";
                 primateCFG << "REG_WIDTH=" << maxRegWidth << "\n";
+
+                dbgs() << "after checking all function calls we have field index mappings: \n";
+                for(const auto& [index, value]: *fieldIndex) {
+                    dbgs() << "index: " << index << " field: ";
+                    for(const auto& vv: *value) { 
+                        dbgs() << vv << ", ";
+                    }
+                    dbgs() << "\n";
+                }
 
                 // errs() << "reg block:";
                 primateCFG << "REG_BLOCK_WIDTH=";
@@ -452,21 +497,26 @@ namespace {
 
                 primateCFG << "SRC_MODE=";
                 assemblerHeader << "static std::map<std::string, int> srcType_dict {\n";
-                std::sort(gatherModes->begin(), gatherModes->end());
+                dbgs() << "gather modes: ";
+                for(auto& gather: *gatherModes) {
+                    dbgs() << gather << " ";
+                }
+                dbgs() << "\n";
                 std::map<unsigned, unsigned> gatherEncode;
                 int last_mode;
-                for (int i = 0; i < gatherModes->size(); i++) {
-                    gatherEncode[(*gatherModes)[i]] = i;
-                    last_mode = (*gatherModes)[i];
-                    primateCFG << (*gatherModes)[i] << " ";
-                    assemblerHeader << "    {\"uint" << (*gatherModes)[i] << "\", " << i << "},\n";
+                auto it_gather = gatherModes->begin();
+                for (int i = 0; i < gatherModes->size(); i++, it_gather++) {
+                    gatherEncode[*it_gather] = i;
+                    last_mode = *it_gather;
+                    primateCFG << *it_gather << " ";
+                    assemblerHeader << "    {\"uint" << *it_gather << "\", " << i << "},\n";
                 }
                 gatherEncode[maxRegWidth] = gatherModes->size();
                 primateCFG << last_mode << " " << "\n";
                 assemblerHeader << "    {\"uint\", " << gatherModes->size() << "},\n";
                 assemblerHeader << "    {\"uimm\", " << gatherModes->size()+1 << "}\n};\n";
 
-                primateCFG << "MAX_FIELD_WIDTH=" << (*gatherModes).back() << "\n";
+                primateCFG << "MAX_FIELD_WIDTH=" << *(--it_gather) << "\n";
 
                 primateCFG << "NUM_SRC_POS=" << fieldIndex->size()-1 << "\n";
                 assemblerHeader << "#define NUM_SRC_POS " << fieldIndex->size()-1 << "\n";
@@ -493,13 +543,10 @@ namespace {
                 int numBlocks = fieldIndex->size();
                 i = 0;
                 for (auto it = fieldIndex->begin(); it != fieldIndex->end(); it++) {
-                    if (it->second->size() > 1) {
-                        std::sort(it->second->begin(), it->second->end());
-                    }
                     for (int j = 0; j < it->second->size(); j++) {
-                        primateCFG << i << " " << gatherEncode[(*(it->second))[j]] << ";";
-                        errs() << (it->first) + (*(it->second))[j] << "\n";
-                        int blocks = indexEncode[(it->first) + (*(it->second))[j]] - i;
+                        primateCFG << i << " " << gatherEncode[*std::next(it->second->begin(), j)] << ";";
+                        errs() << (it->first) + *std::next(it->second->begin(), j) << "\n";
+                        int blocks = indexEncode[(it->first) + *std::next(it->second->begin(), j)] - i;
                         scatterWbens.push_back(((1 << blocks) - 1) << i);
                     }
                     if (i == 0) {
@@ -526,8 +573,8 @@ namespace {
             void generate_header(Module &M) {
                 auto structTypes = M.getIdentifiedStructTypes();
                 unsigned maxRegWidth = 0;
-                gatherModes = new std::vector<unsigned>();
-                fieldIndex = new std::map<unsigned, std::vector<unsigned>*>();
+                gatherModes = new std::set<unsigned>();
+                fieldIndex = new std::map<unsigned, std::set<unsigned>*>();
                 primateHeader << "import chisel3._\nimport chisel3.util._\n\n";
                 for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
                     if ((*it)->getName().contains("input_t")) {
@@ -726,7 +773,7 @@ namespace {
                             Value* srcPtr = inst->getOperand(0);
                             PointerType *ptrType = dyn_cast<PointerType>(srcPtr->getType());
                             Type *pteType = ptrType->getElementType();
-                            unsigned size = getTypeBitWidth(pteType);
+                            unsigned size = getTypeBitWidth(pteType, false);
                             loadInsts[&*inst].push_back({srcPtr, size});
                             memInstAddRAWDep(inst, srcPtr, size, storeInsts);
                         } else if (isa<StoreInst>(*inst)) {
@@ -743,7 +790,7 @@ namespace {
                             }
                             PointerType *ptrType = dyn_cast<PointerType>(ptrOp->getType());
                             Type *pteType = ptrType->getElementType();
-                            unsigned size = getTypeBitWidth(pteType);
+                            unsigned size = getTypeBitWidth(pteType, false);
                             storeInsts[&*inst].push_back({ptrOp, size});
                             memInstAddWARDep(inst, ptrOp, size, loadInsts);
                         } else if (isa<CallInst>(*inst)) {
@@ -779,7 +826,7 @@ namespace {
                                             Value *srcPtr = *op;
                                             PointerType *ptrType = dyn_cast<PointerType>(op_type);
                                             Type *pteType = ptrType->getElementType();
-                                            unsigned size = getTypeBitWidth(pteType);
+                                            unsigned size = getTypeBitWidth(pteType, false);
                                             inOps.push_back({srcPtr, size});
                                             memInstAddRAWDep(inst, srcPtr, size, storeInsts);
                                         }
