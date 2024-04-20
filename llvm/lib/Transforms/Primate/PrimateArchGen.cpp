@@ -387,11 +387,11 @@ namespace {
                         width = elemWidth;
                     }
                 }
-                if (arcGen) {
-                    if (fieldIndex->find(width) == fieldIndex->end()) {
-                        (*fieldIndex)[width] = new std::set<unsigned>();
-                    }
-                }
+                // if (arcGen) {
+                //     if (fieldIndex->find(width) == fieldIndex->end()) {
+                //         (*fieldIndex)[width] = new std::set<unsigned>();
+                //     }
+                // }
                 return width;
             }
 
@@ -422,7 +422,7 @@ namespace {
                 unsigned maxRegWidth = 0;
                 gatherModes = new std::set<unsigned>();
                 gatherModes->insert(32);
-                fieldIndex = new std::map<unsigned, std::set<unsigned>*>();
+                fieldIndex = new std::map<unsigned, std::set<unsigned>*>(); // offset -> sizes
 
                 // need to check functions that are marked as BFUs for types, not the structs themselves.
                 for (auto& F: M) {
@@ -449,18 +449,12 @@ namespace {
                         }
                     }
                 }
+                fieldIndex->at(0)->insert(maxRegWidth);
+                // fieldIndex contains the sizes and offsets of all fields in all Primate Structs
 
-                // for (auto it = structTypes.begin(); it != structTypes.end(); it++) {
-                //     LLVM_DEBUG(dbgs() << "reg width of type " << (*it)->getName() << "  " << getStructWidth((**it), 0, true) <<  "\n");
-                //     unsigned regWidth = getStructWidth((**it), 0, true); 
-                //     if (regWidth > maxRegWidth) {
-                //         maxRegWidth = regWidth;
-                //     }
-                // }
-                // errs() << "Max regfile width: " << maxRegWidth << "\n";
                 primateCFG << "REG_WIDTH=" << maxRegWidth << "\n";
 
-                dbgs() << "after checking all function calls we have field index mappings: \n";
+                LLVM_DEBUG(dbgs() << "after checking all function calls we have field index mappings: \n";
                 for(const auto& [index, value]: *fieldIndex) {
                     dbgs() << "index: " << index << " field: ";
                     for(const auto& vv: *value) { 
@@ -468,99 +462,112 @@ namespace {
                     }
                     dbgs() << "\n";
                 }
+                dbgs() << "max reg width: " << maxRegWidth << "\n";); 
 
-                // errs() << "reg block:";
+                std::set<unsigned> allBitEnds;
+                for (const auto& [offset, sizes]: *fieldIndex) {
+                    for(const auto& size: *sizes) {
+                        allBitEnds.insert(offset + size);
+                    }
+                }
+
                 primateCFG << "REG_BLOCK_WIDTH=";
-                auto lastIt = fieldIndex->begin();
-                for (auto it = (++fieldIndex->begin()); it != fieldIndex->end(); ++it) {
-                    primateCFG << (it->first) - (lastIt->first) << " ";
-                    lastIt = it;
+                auto lastBlockEnd = 0;
+                std::vector<std::pair<unsigned, unsigned>> regBlockWidths; // (width, mask)
+                unsigned mask = 1;
+                for (auto currentBlock: allBitEnds) {
+                    regBlockWidths.push_back({currentBlock - lastBlockEnd, mask});
+                    primateCFG << currentBlock - lastBlockEnd << " ";
+                    lastBlockEnd = currentBlock;
+                    mask = (mask << 1);
                 }
                 primateCFG << "\n";
 
                 primateCFG << "NUM_REGBLOCKS=" << fieldIndex->size() - 1 << "\n";
-                // for (int i = 1; i < regBlockWidth->size(); i++) {
-                //     errs() << " " << (*regBlockWidth)[i] - (*regBlockWidth)[i-1];
-                // }
-                // errs() << "\n";
                 primateCFG << "SRC_POS=";
-                std::map<unsigned, unsigned> indexEncode;
-                int i = 0;
+                std::set<unsigned> allOffsets;
                 auto it = fieldIndex->begin();
-                for (; it != std::prev(fieldIndex->end()); ++it) {
-                    primateCFG << (it->first) << " ";
-                    indexEncode[it->first] = i;
-                    i++;
+                for (const auto& [offset, sizes]: *fieldIndex) {
+                    allOffsets.insert(offset);
+                    primateCFG << (offset) << " ";
                 }
-                indexEncode[it->first] = i;
                 primateCFG << "\n";
 
                 primateCFG << "SRC_MODE=";
-                assemblerHeader << "static std::map<std::string, int> srcType_dict {\n";
-                dbgs() << "gather modes: ";
-                for(auto& gather: *gatherModes) {
-                    dbgs() << gather << " ";
+
+                std::set<unsigned> allSizes;
+                for (const auto& [offset, sizes]: *fieldIndex) {
+                    for(const auto& size: *sizes) {
+                        allSizes.insert(size);
+                    }
                 }
-                dbgs() << "\n";
-                std::map<unsigned, unsigned> gatherEncode;
+
                 int last_mode;
-                auto it_gather = gatherModes->begin();
-                for (int i = 0; i < gatherModes->size(); i++, it_gather++) {
-                    gatherEncode[*it_gather] = i;
-                    last_mode = *it_gather;
-                    primateCFG << *it_gather << " ";
-                    assemblerHeader << "    {\"uint" << *it_gather << "\", " << i << "},\n";
+                for (auto &size: allSizes) {
+                    primateCFG << size << " ";
                 }
-                gatherEncode[maxRegWidth] = gatherModes->size();
-                primateCFG << last_mode << " " << "\n";
-                assemblerHeader << "    {\"uint\", " << gatherModes->size() << "},\n";
-                assemblerHeader << "    {\"uimm\", " << gatherModes->size()+1 << "}\n};\n";
+                primateCFG << "\n";
+                primateCFG << "MAX_FIELD_WIDTH=" << *(--allSizes.end()) << "\n";
+                primateCFG << "NUM_SRC_POS=" << allOffsets.size() << "\n";
+                primateCFG << "NUM_SRC_MODES=" << allSizes.size() << "\n";
 
-                primateCFG << "MAX_FIELD_WIDTH=" << *(--it_gather) << "\n";
-
-                primateCFG << "NUM_SRC_POS=" << fieldIndex->size()-1 << "\n";
-                assemblerHeader << "#define NUM_SRC_POS " << fieldIndex->size()-1 << "\n";
-                assemblerHeader << "#define NUM_SRC_POS_LG int(ceil(log2(NUM_SRC_POS)))\n";
-
-                primateCFG << "NUM_SRC_MODES=" << gatherModes->size()+1 << "\n";
-                assemblerHeader << "#define NUM_SRC_MODE " << gatherModes->size()+1 << "\n";
-                assemblerHeader << "#define NUM_SRC_MODE_LG int(ceil(log2(NUM_SRC_MODE)))\n";
-
+                // offset positions
                 primateCFG << "DST_POS=";
-                for (auto it = fieldIndex->begin(); it != std::prev(fieldIndex->end()); ++it) {
-                    primateCFG << (it->first) << " ";
+                for (auto &offset: allOffsets) {
+                    primateCFG << (offset) << " ";
                 }
                 primateCFG << "\n";
 
+                // DST_ENCODE is a field representing the encoding of the 
                 primateCFG << "DST_ENCODE=";
-                for (i = 0; i < fieldIndex->size() - 1; i++) {
+                for (int i = 0; i < allOffsets.size(); i++) {
                     primateCFG << i << " ";
+                } 
+                primateCFG << "\n";
+
+                // Enable encoding for each offset. 
+                // formatted: offest size; offset size; offset size; ...
+                primateCFG << "DST_EN_ENCODE=";
+                int offsetEncode = 0;
+                for (const auto& [offset, sizes] : *fieldIndex) {
+                    for (const auto& size: *sizes) {
+                        primateCFG << offsetEncode << " " << std::distance(allSizes.begin(), allSizes.find(size)) << ";";
+                    }
+                    offsetEncode++;
                 }
                 primateCFG << "\n";
 
-                primateCFG << "DST_EN_ENCODE=";
-                std::vector<unsigned> scatterWbens;
-                int numBlocks = fieldIndex->size();
-                i = 0;
-                for (auto it = fieldIndex->begin(); it != fieldIndex->end(); it++) {
-                    for (int j = 0; j < it->second->size(); j++) {
-                        primateCFG << i << " " << gatherEncode[*std::next(it->second->begin(), j)] << ";";
-                        errs() << (it->first) + *std::next(it->second->begin(), j) << "\n";
-                        int blocks = indexEncode[(it->first) + *std::next(it->second->begin(), j)] - i;
-                        scatterWbens.push_back(((1 << blocks) - 1) << i);
+                // DST_EN is a field representing the block write enables required to cover an offset, size pair
+                std::vector<unsigned> scatterWbens; 
+                int numBlocks = regBlockWidths.size();
+                for (const auto& [offset, sizes] : *fieldIndex) {
+                    // skip blocks until we match offset
+                    unsigned offsetTemp = offset;
+                    int maskSkippedBlocks = 0;
+                    auto blockIterator = regBlockWidths.begin();
+                    while (offsetTemp > 0) {
+                        maskSkippedBlocks += 1;
+                        offsetTemp -= blockIterator->first;
+                        blockIterator++;
                     }
-                    if (i == 0) {
-                        // primateCFG << "0 " << gatherEncode[maxRegWidth] << ";";
-                        primateCFG << "0 -1;";
-                        scatterWbens.push_back((1 << numBlocks) - 1);
+
+                    // enable blocks until we cover the size
+                    for(const auto& size: *sizes) {
+                        unsigned blockMask = 0;
+                        unsigned sizeCounter = size;
+                        auto sizeBlockIterator = blockIterator;
+                        while(sizeCounter > 0 && sizeBlockIterator != regBlockWidths.end()) {
+                            blockMask |= sizeBlockIterator->second << maskSkippedBlocks;
+                            sizeCounter -= sizeBlockIterator->first;
+                            sizeBlockIterator++;
+                        } 
+                        assert(sizeCounter == 0 && "failed to enable for the given reg blocks and the size");
+                        scatterWbens.push_back(blockMask);
                     }
-                    i++;
                 }
-                primateCFG << "\n";
 
                 primateCFG << "DST_EN=";
-                for (i = 0; i < scatterWbens.size(); i++) {
-                    // errs() << " " << format_hex(scatterWbens[i], 8) << ",";
+                for (int i = 0; i < scatterWbens.size(); i++) {
                     primateCFG << scatterWbens[i] << " ";
                 }
                 primateCFG << "\n";
