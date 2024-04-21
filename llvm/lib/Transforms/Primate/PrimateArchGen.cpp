@@ -2112,7 +2112,7 @@ namespace {
                 assemblerHeader << "#define NUM_FUS " << maxNumALU + bfu2bf.size() - 1 << "\n";
                 assemblerHeader << "#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))\n";
 
-                primateCFG << "IP_WIDTH=" << int(ceil(log2(maxNumInst))) << "\n";
+                primateCFG << "IP_WIDTH=" << 32 << "\n"; // int(ceil(log2(maxNumInst))) << "\n";
                 assemblerHeader << "#define IP_W " << int(ceil(log2(maxNumInst))) << "\n";
                 errs() << "Number of instructions: " << maxNumInst << "\n";
 
