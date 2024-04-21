@@ -694,8 +694,10 @@ BFUInstPattern = combStr(BFUInstPatternTemplate, max(numBFUs-2, 1))
 BFUInstDefsTemplate = """let Itinerary = ItinBlue{0} in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def BFU{0} :
-    PRInstI<0b000, OPC_PR_MPSM, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-        "bfu{0}", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
+        "bfu{0}", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]> {{
+          let IsBFUInstruction = 1;
+        }}
 """
 
 BFUInstDefs = combStr(BFUInstDefsTemplate, max(numBFUs-2, 1))
@@ -1595,39 +1597,50 @@ let Itinerary = ItinIO in {{
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
-    PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b011, OPC_PR_INPUT, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {{
+          let IsBFUInstruction = 1;
+        }}
 
 def INPUT_DONE :
-    PRInstI<0b100, OPC_PR_IO, (outs), (ins),
+    PRInstI<0b100, OPC_PR_INPUT, (outs), (ins),
         "inputdone", "">, Sched<[WriteIALU, ReadIALU]> {{
   let rs1 = 0;
   let rd = 0;
   let imm12 = 0;
+  let IsBFUInstruction = 1;
 }}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
-    PRInstI<0b001, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b001, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {{
+          let IsBFUInstruction = 1;
+        }}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_WRITE :
-    PRInstI<0b010, OPC_PR_IO, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
-        "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b001, OPC_PR_OUTPUT, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
+        "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {{
+          let rd = 0;
+          let IsBFUInstruction = 1;
+        }}
 
 def OUTPUT_DONE:
-    PRInstI<0b010, OPC_PR_IO, (outs), (ins),
+    PRInstI<0b010, OPC_PR_OUTPUT, (outs), (ins),
         "outputdone", "">, Sched<[WriteIALU, ReadIALU]> {{
   let rs1 = 0;
   let rd = 0;
   let imm12 = 0;
+  let IsBFUInstruction = 1;
 }}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_SEEK :
-    PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b011, OPC_PR_OUTPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {{
+      let IsBFUInstruction = 1;
+    }}
 }}
 
 
@@ -1882,7 +1895,7 @@ def PseudoCALLIndirect : Pseudo<(outs), (ins GPRJALR:$rs1),
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(primate_ret_flag)]>,
-                PseudoInstExpansion<(JALR X0, X1, 0)> {{
+                PseudoInstExpansion<(JAL X0, -2)> {{
   let Itinerary = ItinBranch;
 }}
 

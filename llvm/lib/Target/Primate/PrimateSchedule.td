@@ -1,3 +1,4 @@
+
 //===- PrimateSchedule.td - Primate Scheduling Definitions -*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,9 +10,9 @@
 def ItinExtract : InstrItinClass;
 def ItinInsert  : InstrItinClass;
 def ItinGreen   : InstrItinClass;
-def ItinMem     : InstrItinClass;
 def ItinBlue0   : InstrItinClass;
-def ItinBlue1   : InstrItinClass;
+
+def ItinMem     : InstrItinClass;
 def ItinIO      : InstrItinClass;
 def ItinBranch  : InstrItinClass;
 
@@ -240,3 +241,4 @@ def : ReadAdvance<ReadFSqrt16, 0>;
 // Include the scheduler resources for other instruction extensions.
 include "PrimateScheduleB.td"
 include "PrimateScheduleV.td"
+

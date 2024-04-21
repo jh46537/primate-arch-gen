@@ -1,3 +1,4 @@
+
 //===- PrimateInstrInfo.td - Target Description for Primate *- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -485,14 +486,12 @@ def JALR : PRInstI<0b000, OPC_JALR, (outs GPR:$rd),
            Sched<[WriteJalr, ReadJalr]>;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
-let Itinerary = ItinBranch in {
 def BEQ  : BranchCC_rri<0b000, "beq">;
 def BNE  : BranchCC_rri<0b001, "bne">;
 def BLT  : BranchCC_rri<0b100, "blt">;
 def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
 def BGEU : BranchCC_rri<0b111, "bgeu">;
-}
 
 let Predicates = [HasFullI], Itinerary = ItinMem in {
 def LB  : Load_ri<0b000, "lb">, Sched<[WriteLDB, ReadMemBase]>;
@@ -894,23 +893,50 @@ let Itinerary = ItinIO in {
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_READ :
-    PRInstI<0b000, OPC_PR_IO, (outs WIDEREG:$rd), (ins simm12:$imm12),
-        "inputread", "$rd, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b011, OPC_PR_INPUT, (outs WIDEREG:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputread", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+          let IsBFUInstruction = 1;
+        }
+
+def INPUT_DONE :
+    PRInstI<0b100, OPC_PR_INPUT, (outs), (ins),
+        "inputdone", "">, Sched<[WriteIALU, ReadIALU]> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0;
+  let IsBFUInstruction = 1;
+}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def INPUT_SEEK :
-    PRInstI<0b001, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b001, OPC_PR_INPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "inputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+          let IsBFUInstruction = 1;
+        }
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_WRITE :
-    PRInstI<0b010, OPC_PR_IO, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
-        "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b001, OPC_PR_OUTPUT, (outs), (ins WIDEREG:$rs1, simm12:$imm12),
+        "outputwrite", "$rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+          let rd = 0;
+          let IsBFUInstruction = 1;
+        }
+
+def OUTPUT_DONE:
+    PRInstI<0b010, OPC_PR_OUTPUT, (outs), (ins),
+        "outputdone", "">, Sched<[WriteIALU, ReadIALU]> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0;
+  let IsBFUInstruction = 1;
+}
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def OUTPUT_SEEK :
-    PRInstI<0b011, OPC_PR_IO, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
-        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]>;
+    PRInstI<0b011, OPC_PR_OUTPUT, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+        "outputseek", "$rd, $rs1, $imm12">, Sched<[WriteIALU, ReadIALU]> {
+      let IsBFUInstruction = 1;
+    }
 }
 
 
@@ -954,14 +980,14 @@ def : Pat<(insert_value WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2), (INSERT_hang WI
 let Itinerary = ItinBlue0 in
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
 def BFU0 :
-    PRInstI<0b000, OPC_PR_MPSM, (outs GPR:$rd), (ins WIDEREG:$rs1),
-        "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
-
-let Itinerary = ItinBlue1 in
-let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
-def BFU1 :
     PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-        "bf1", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]>;
+        "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]> {
+          let IsBFUInstruction = 1;
+        }
+
+
+def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
+
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -977,7 +1003,6 @@ class PatGpr<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
 class PatGprGpr<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
-
 
 class PatGprImm<SDPatternOperator OpNode, PRInst Inst, ImmLeaf ImmType>
     : Pat<(XLenVT (OpNode (XLenVT GPR:$rs1), ImmType:$imm)),
@@ -1083,9 +1108,14 @@ def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
 def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
-def : Pat<(int_primate_input simm12:$imm), (INPUT_READ simm12:$imm)>;
+def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
+
+def : Pat<(int_primate_input simm12:$imm), (INPUT_READ X0, simm12:$imm)>;
+def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ GPR:$rs1, 0)>;
+def : Pat<(int_primate_input_done), (INPUT_DONE)>;
+
 def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
-def : Pat<(int_primate_BFU_1 WIDEREG:$rs1), (BFU1 WIDEREG:$rs1)>;
+
 
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
@@ -1113,12 +1143,16 @@ def : BccPat<SETUGE, BGEU>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
-               PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>;
+               PseudoInstExpansion<(JAL X0, simm21_lsb0_jal:$imm20)>{
+  let Itinerary = ItinBranch;
+}
 
 let Predicates = [HasFullI] in {
 let isBarrier = 1, isBranch = 1, isIndirectBranch = 1, isTerminator = 1 in
 def PseudoBRIND : Pseudo<(outs), (ins GPRJALR:$rs1, simm12:$imm12), []>,
-                  PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>;
+                  PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>{
+  let Itinerary = ItinBranch;
+}
 
 def : Pat<(brind GPRJALR:$rs1), (PseudoBRIND GPRJALR:$rs1, 0)>;
 def : Pat<(brind (add GPRJALR:$rs1, simm12:$imm12)),
@@ -1134,7 +1168,8 @@ let Predicates = [HasFullI] in {
 let isCall = 1, isBarrier = 1, isCodeGenOnly = 0, hasSideEffects = 0,
     mayStore = 0, mayLoad = 0 in
 def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {
-  let AsmString = "call\t$rd, $func";
+  let AsmString = "call	$rd, $func";
+  let Itinerary = ItinBranch;
 }
 
 // PseudoCALL is a pseudo instruction which will eventually expand to auipc
@@ -1145,7 +1180,8 @@ def PseudoCALLReg : Pseudo<(outs GPR:$rd), (ins call_symbol:$func), []> {
 // Define isCodeGenOnly = 0 to support parsing assembly "call" instruction.
 let isCall = 1, Defs = [X1], isCodeGenOnly = 0 in
 def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []> {
-  let AsmString = "call\t$func";
+  let AsmString = "call	$func";
+  let Itinerary = ItinBranch;
 }
 
 def : Pat<(primate_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
@@ -1158,11 +1194,15 @@ def : Pat<(primate_mret_flag), (MRET X0, X0)>;
 let isCall = 1, Defs = [X1] in
 def PseudoCALLIndirect : Pseudo<(outs), (ins GPRJALR:$rs1),
                                 [(primate_call GPRJALR:$rs1)]>,
-                         PseudoInstExpansion<(JALR X1, GPR:$rs1, 0)>;
+                         PseudoInstExpansion<(JALR X1, GPR:$rs1, 0)>{
+  let Itinerary = ItinBranch;
+}
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(primate_ret_flag)]>,
-                PseudoInstExpansion<(JALR X0, X1, 0)>;
+                PseudoInstExpansion<(JAL X0, -2)> {
+  let Itinerary = ItinBranch;
+}
 
 class PatWideWideImm<SDPatternOperator OpNode, PRInst Inst>
     : Pat<
@@ -1324,7 +1364,6 @@ def PseudoANDwss : Pseudo<(outs WIDEREG:$rd),
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
       }
-
 }
 
 def : PatWideScalarImm<add, PseudoADDIwsi>;
@@ -1351,13 +1390,12 @@ def : Pat<(insert_value WIDEREG:$rs1, GPR:$rs2, simm12:$imm1),
 
 
 
-// PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually
-// expand to auipc and jalr while encoding.
+// PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually// expand to auipc and jalr while encoding.
 // Define AsmString to print "tail" when compile with -S flag.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [X2],
     isCodeGenOnly = 0 in
 def PseudoTAIL : Pseudo<(outs), (ins call_symbol:$dst), []> {
-  let AsmString = "tail\t$dst";
+  let AsmString = "tail	$dst";
 }
 
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [X2] in
@@ -1374,7 +1412,7 @@ def : Pat<(primate_tail (iPTR texternalsym:$dst)),
 let isCall = 0, isBarrier = 1, isBranch = 1, isTerminator = 1,
     isCodeGenOnly = 0, hasSideEffects = 0, mayStore = 0, mayLoad = 0 in
 def PseudoJump : Pseudo<(outs GPR:$rd), (ins pseudo_jump_symbol:$target), []> {
-  let AsmString = "jump\t$target, $rd";
+  let AsmString = "jump	$target, $rd";
 }
 
 let Predicates = [HasFullI] in {
@@ -1646,3 +1684,4 @@ include "PrimateInstrInfoC.td"
 include "PrimateInstrInfoB.td"
 include "PrimateInstrInfoV.td"
 include "PrimateInstrInfoZfh.td"
+

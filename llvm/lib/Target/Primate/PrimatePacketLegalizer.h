@@ -33,6 +33,7 @@ private:
     DFAPacketizer* ResourceTracker;
     bool isWideReg(const Register) const;
     void fixBundle(MachineInstr *BundleMI);
+    void fixBFUInstr(SmallVector<MachineInstr*>& newBundle, SmallVector<bool>& isNewInstr, MachineInstr* BundleMI, int slotIdx);
     bool hasScalarRegs(MachineInstr*);
     bool hasScalarDefs(MachineInstr*);
     bool hasScalarOps(MachineInstr*);

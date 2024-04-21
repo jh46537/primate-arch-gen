@@ -6,7 +6,7 @@ import sys
 PACKET_SIZE_IN_INSTRS = 13
 PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_INSTRS*4
 # addresses per packet
-LOCATIONS_PER_PACKET = 1
+LOCATIONS_PER_PACKET = 4
 
 ANOTATION_STR = "			"
 HANDLED_FIXUPS = ["R_PRIMATE_BRANCH",
@@ -41,6 +41,7 @@ def write_packet(packet):
     outFile.write("\n")
 
 def fix_last_branch(packet, location, instr_pc):
+    instr_pc += 4
     target = symTable[location]
     offset = target - instr_pc
     offset = offset & 0xFFFFFFFF
@@ -90,6 +91,7 @@ with open(symname) as f:
             print("Packet size:", PACKET_SIZE)
             exit(-1)
         addr = int(int(toks[0], 16) / PACKET_SIZE)
+        print(f"sym {toks[-1]} at {addr}")
         sym = toks[-1]
         symTable[sym] = addr
 
@@ -127,4 +129,5 @@ with open(fname) as f:
             except ValueError as e:
                 print("error line " + str(e))
                 print(line)
-            
+    assert(len(currentPacket) == PACKET_SIZE_IN_INSTRS)
+    write_packet(currentPacket)

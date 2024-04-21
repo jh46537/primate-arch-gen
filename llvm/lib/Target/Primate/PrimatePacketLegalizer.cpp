@@ -81,6 +81,20 @@ bool PrimatePacketLegalizer::hasScalarDefs(MachineInstr* curInst) {
     }
     return false;
 }
+
+bool hasRegDefs(MachineInstr* curInst) {
+    bool ret = false;
+    for(auto &res: curInst->defs()) {
+        if(!res.isReg()) {
+            continue; // wtf?
+        } 
+        else {
+            ret = true;
+        }
+    }
+    return ret;
+}
+
 bool PrimatePacketLegalizer::hasScalarOps(MachineInstr* curInst) {
         // check operands to generate extracts
     for(auto &op: curInst->uses()) {
@@ -93,6 +107,80 @@ bool PrimatePacketLegalizer::hasScalarOps(MachineInstr* curInst) {
         }
     }
     return false;
+}
+
+void PrimatePacketLegalizer::fixBFUInstr(SmallVector<MachineInstr*>& newBundle, SmallVector<bool>& isNewInstr, MachineInstr* BundleMI, int slotIdx) {
+    dbgs() << "attempt BFU fix up for slotID: " << slotIdx << "\n";
+    newBundle[slotIdx]->dump();
+    if (TLI->isSlotMergedFU(slotIdx)) {
+        // merged slots need inserts and extracts for operands q.q
+        MachineInstr* curInst = newBundle[slotIdx];
+        dbgs() << "BFU inst needs ins or ext " << slotIdx;
+        curInst->dump();
+        int insCheck = slotIdx + 1;
+        int opNum = 0;
+        int extOffset = 2;
+        dbgs() << "op needs extract!\n";
+        for (auto &op: curInst->uses()) {
+            if (!op.isReg() || op.getReg() == Primate::X0) {
+                extOffset--;
+                continue;
+            }
+            if (op.isReg()) {
+                //scalar ops must be thinged
+                int extCheck = slotIdx - extOffset;
+                Register wideReg;
+                if(TRI->getRegClass(Primate::GPRRegClassID)->contains(op.getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(op.getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+                }
+                else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(op.getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(op.getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                }
+                else {
+                    wideReg = curInst->getOperand(0).getReg();
+                }
+                newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                            PII->get(Primate::EXTRACT), 
+                                            op.getReg()).addReg(wideReg).addImm(TLI->getWholeRegField());
+                newBundle[extCheck]->dump();   
+                newBundle[extCheck]->setSlotIdx(extCheck);   
+                MIBundleBuilder builder(BundleMI);
+                isNewInstr[extCheck] = true;
+                auto insertPoint = curInst->getIterator();
+                for(int i = 0; i < extOffset-1; i++)
+                    if (newBundle[slotIdx-i-1])
+                        insertPoint--;
+                builder.insert(insertPoint, newBundle[extCheck]);
+                BundleMI->getParent()->dump();
+                extOffset--;
+            } else {
+                extOffset--;
+            }
+            opNum++;
+        }
+        if (!newBundle[insCheck] && hasRegDefs(curInst)) {
+            dbgs() << "op needs insert\n";
+            Register wideReg;
+            if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(0).getReg())) {
+                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
+            }
+            else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
+                wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+            }
+            else {
+                wideReg = curInst->getOperand(0).getReg();
+            }
+            newBundle[insCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                        PII->get(Primate::INSERT), 
+                                        wideReg).addReg(wideReg).addReg(curInst->getOperand(0).getReg()).addImm(TLI->getWholeRegField());
+            newBundle[insCheck]->dump();   
+            newBundle[insCheck]->setSlotIdx(insCheck);   
+            MIBundleBuilder builder(BundleMI);
+            isNewInstr[insCheck] = true;
+            builder.insert(++(curInst->getIterator()), newBundle[insCheck]);
+            BundleMI->getParent()->dump();
+        }                  
+    }
 }
 
 void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
@@ -109,15 +197,15 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     for(auto curInst = pktStart; curInst != pktEnd; curInst++) {
         if(curInst->isCFIInstruction() || curInst->isImplicitDef())
             continue;
-        dbgs() << "Looking at instr: ";
+        dbgs() << "Adding instr to tracking: ";
         curInst->dump();
-        dbgs() << "Has slot: " << curInst->getSlotIdx() << "\n";
+        dbgs() << "with slot: " << curInst->getSlotIdx() << "\n";
         newBundle[curInst->getSlotIdx()] = &*curInst;
         isNewInstr[curInst->getSlotIdx()] = false;
     }
     for(unsigned i = 0; i < numSlots; i++) {
         MachineInstr *curInst = newBundle[i];
-        if(newBundle[i] && hasScalarRegs(newBundle[i])) {
+        if(newBundle[i] && (hasScalarRegs(newBundle[i]) || PrimateII::isBFUInstr(newBundle[i]->getDesc().TSFlags))) {
             dbgs() << "fixing instruction in slot: " << i << " "; curInst->dump();
             if(newBundle[i]->getOpcode() == Primate::PseudoRET) {
                 continue;
@@ -160,7 +248,6 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 // insert after instr
                 builder.insert(++(curInst->getIterator()), newBundle[opIndex]);
                 builder.insert(++(++(curInst->getIterator())), newBundle[insIndex]);
-                BundleMI->getParent()->dump();
                 break;
             }
             case Primate::INSERT_hang:
@@ -181,7 +268,6 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     MIBundleBuilder builder(BundleMI);
                     isNewInstr[opCheck] = true;
                     builder.insert((curInst->getIterator()), newBundle[opCheck]);
-                    BundleMI->getParent()->dump();
                 }
                 break;
             }
@@ -196,16 +282,21 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     dbgs() << "ran into branch. already handled...\n";
                     continue;
                 }
+                if(PrimateII::isBFUInstr(curInst->getDesc().TSFlags)) {
+                    fixBFUInstr(newBundle, isNewInstr, BundleMI, i);
+                    continue;
+                }
                 // not insert, extract, or memory;
                 dbgs() << "op needs ins or ext";
                 curInst->dump();
                 int insCheck = i + 1;
                 int opNum = 0;
-                int extOffset = 1;
-                if(hasScalarOps(curInst)) {
+                int extOffset = 2;
+                if(hasScalarOps(curInst) || TLI->isSlotGFU(i) || TLI->isSlotMergedFU(i)) {
                     dbgs() << "op needs extract!\n";
                     for(auto &op: curInst->uses()) {
                         if(!op.isReg() || op.getReg() == Primate::X0) {
+                            extOffset--;
                             continue;
                         }
                         if(!isWideReg(op.getReg())) {
@@ -226,11 +317,14 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                             MIBundleBuilder builder(BundleMI);
                             isNewInstr[extCheck] = true;
                             auto insertPoint = curInst->getIterator();
-                            for(int i = 0; i < extOffset-1; i++)
-                                insertPoint--;
+                            for(int j = 0; j < extOffset-1; j++)
+                                if (newBundle[i-j-1])
+                                    insertPoint--;
                             builder.insert(insertPoint, newBundle[extCheck]);
-                            BundleMI->getParent()->dump();
-                            extOffset++;
+                            extOffset--;
+                        }
+                        else {
+                            extOffset--;
                         }
                         opNum++;
                     }
@@ -252,11 +346,12 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     MIBundleBuilder builder(BundleMI);
                     isNewInstr[insCheck] = true;
                     builder.insert(++(curInst->getIterator()), newBundle[insCheck]);
-                    BundleMI->getParent()->dump();
                 }                  
                 break;
             }
             }
+        } else if(newBundle[i]) {
+            dbgs() << "no fix needed for slot: " << i << " "; newBundle[i]->dump();
         }
     }
 

@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PrimateISelLowering.h"
 #include "PrimateVLIWPacketizer.h"
 #include "Primate.h"
 #include "PrimateInstrInfo.h"
@@ -119,6 +120,7 @@ PrimatePacketizerList::PrimatePacketizerList(MachineFunction &MF,
     : VLIWPacketizerList(MF, MLI, AA), MBPI(MBPI), MLI(&MLI) {
   PII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
   PRI = MF.getSubtarget<PrimateSubtarget>().getRegisterInfo();
+  PLI = MF.getSubtarget<PrimateSubtarget>().getTargetLowering();
 }
 
 bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
@@ -298,8 +300,16 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
           // skip non-reg
           if (!otherOperand.isReg())
             continue;
+          // if the reg is X0 then look for a NOP
+          if (operand.getReg() == Primate::X0 && otherMI->getOpcode() == Primate::ADDI && (otherMI->operands().begin() + 1)->getReg() == Primate::X0) { 
+            dbgs() << "found NOP for branch operand\n";
+            operand.setReg(Primate::X0 + otherMI->getSlotIdx());
+            found_producer = true;
+            break;
+          }
           // if the reg indices match, the producer has been found
-          if (otherOperand.getReg() == operand.getReg()) {
+          else if (operand.getReg() != Primate::X0 && otherOperand.getReg() == operand.getReg()) {
+            dbgs() << "found producer for branch operand\n";
             operand.setReg(Primate::X0 + otherMI->getSlotIdx());
             if (operand.isKill()) {
               otherOperand.setReg(Primate::X0);
@@ -424,6 +434,7 @@ bool PrimatePacketizerList::isLegalToPacketizeTogether(SUnit *SUI, SUnit *SUJ) {
     });
     return true;
   }
+  return false;
 
   // if SUI IS a successor to SUJ, then we should check the kind of successor
   // if the dependency between SUI and SUJ is a data then we can packetize. otherwise we cannot.

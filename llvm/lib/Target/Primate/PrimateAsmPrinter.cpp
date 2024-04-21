@@ -398,6 +398,7 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
   if (MI->isBundle()) {
     const MachineBasicBlock* MBB = MI->getParent();
     MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
+    LLVM_DEBUG(dbgs() << MBB->getFullName() << " " << MBB->getName() << "\n"; MBB->printAsOperand(dbgs(), false));
     LLVM_DEBUG(dbgs() << "========== Bundle ===========\n");
     unsigned lastSlotIdx = 0;
     std::vector<const MachineInstr*> ordered_machine_instrs;

@@ -879,7 +879,8 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine(ISD::SRL);
     setTargetDAGCombine(ISD::SHL);
   }
-
+  int alucount = 0;
+  int bfucount = 0;
   // Need to read in the archgen params for the reg file.
   dbgs() << "reading in register indexing parameters\n";
   std::ifstream archgenParams ("primate.cfg");
@@ -906,7 +907,67 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
         allSizes.push_back(std::stoi(str));
       }
     }
+    else if(name == "NUM_ALUS") {
+      alucount = std::stoi(value);
+      dbgs() << "number of ALUs found: " << alucount << "\n";
+    }
+    else if(name == "NUM_BFUS") {
+      bfucount = std::stoi(value) + 2;
+      dbgs() << "number of BFUs found: " << bfucount << "\n";
+    }
   }
+
+  int functionalUnitIdx = 0;
+  int slotIdx = 0;
+  while(true) {
+    if (alucount > 0 && bfucount > 0) {
+      dbgs() << "Merged slot idx: " << functionalUnitIdx << "\n";
+      alucount--;
+      bfucount--;
+      allSlotInfo.push_back(SlotTypes::EXTRACT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::EXTRACT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::MERGED);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::INSERT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      
+    }
+    else if(alucount > 0) {
+      dbgs() << "ALU slot idx: " << functionalUnitIdx << "\n";
+      alucount--;
+      allSlotInfo.push_back(SlotTypes::EXTRACT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::EXTRACT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::GREEN);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+      allSlotInfo.push_back(SlotTypes::INSERT);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+    }
+    else if(bfucount > 0) {
+      dbgs() << "BFU slot idx: " << functionalUnitIdx << "\n";
+      bfucount--;
+      allSlotInfo.push_back(SlotTypes::BLUE);
+      slotToFUIndex[slotIdx] = functionalUnitIdx;
+      slotIdx++;
+    }
+    else if(alucount == 0 && bfucount == 0) {
+      break;
+    }
+    functionalUnitIdx++;
+  }
+  allSlotInfo.push_back(SlotTypes::BRANCH);
+  slotToFUIndex[slotIdx] = functionalUnitIdx;
 }
 
 bool PrimateTargetLowering::supportedAggregate(StructType &STy) const {

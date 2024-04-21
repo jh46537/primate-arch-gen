@@ -1,3 +1,4 @@
+
 //===- IntrinsicsPrimate.td - Defines Primate intrinsics ---*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -87,7 +88,6 @@ let TargetPrefix = "primate" in {
 		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
 
   // primate ops
-    // primate ops
   def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_i32_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
@@ -103,14 +103,11 @@ let TargetPrefix = "primate" in {
   def int_primate_output_done :  Intrinsic<[], // return val
                   [], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
-
+  
   def int_primate_BFU_0 :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: gpr w/ struct
 		              [IntrHasSideEffects]>; // properties;
-  def int_primate_BFU_1 :  Intrinsic<[llvm_any_ty], // return val
-                  [llvm_any_ty], // Params: gpr w/ struct
-		              [IntrHasSideEffects]>; // properties;
-
+                
 
   def int_primate_extract :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty, llvm_i32_ty], // Params: gpr w/ struct, imm12
@@ -1286,3 +1283,4 @@ let TargetPrefix = "primate" in {
   }
 
 } // TargetPrefix = "primate"
+
