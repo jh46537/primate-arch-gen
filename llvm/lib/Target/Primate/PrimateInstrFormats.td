@@ -132,9 +132,9 @@ def OPC_BRANCH    : PrimateOpcode<0b1100011>;
 def OPC_JALR      : PrimateOpcode<0b1100111>;
 def OPC_JAL       : PrimateOpcode<0b1101111>;
 def OPC_SYSTEM    : PrimateOpcode<0b1110011>;
-def OPC_PR_IO     : PrimateOpcode<0b0001011>;
+def OPC_PR_INPUT  : PrimateOpcode<0b0001011>;
+def OPC_PR_OUTPUT : PrimateOpcode<0b1101011>; 
 def OPC_PR_REG    : PrimateOpcode<0b0101011>;
-def OPC_PR_MPSM   : PrimateOpcode<0b1011011>;
 def OPC_PR_ASCII  : PrimateOpcode<0b1111011>;
 
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
@@ -183,6 +183,9 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
 
   bit HasVLOp = 0;
   let TSFlags{15} = HasVLOp;
+
+  bit IsBFUInstruction = 0;
+  let TSFlags{16} = IsBFUInstruction;
 }
 
 // Pseudo instructions

@@ -294,6 +294,17 @@ class PrimateTargetLowering : public TargetLowering {
 
   std::vector<int> allSizes;
   std::vector<int> allPoses;
+  std::vector<int> allSlotInfo;
+  std::map<unsigned, unsigned> slotToFUIndex; // maps a subinstruction slot to the Functional unit slot
+
+  enum SlotTypes{
+    GREEN,
+    BLUE,
+    MERGED,
+    EXTRACT,
+    INSERT,
+    BRANCH
+  };
 
 public:
   explicit PrimateTargetLowering(const TargetMachine &TM,
@@ -318,6 +329,7 @@ public:
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
 
+  // size 32 pos 0
   unsigned int getScalarField() const {
     int posBits = 32 - __builtin_clz(allPoses.size());
     int sizeBits = 32 - __builtin_clz(allSizes.size());
@@ -330,6 +342,57 @@ public:
     dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posBits: " << posBits << "\n";
 
     return (sizeIdx & ((1 << sizeBits) - 1)) << posBits;
+  }
+
+  // max size pos 0
+  unsigned int getWholeRegField() const {
+    int posBits = 32 - __builtin_clz(allPoses.size());
+    int sizeBits = 32 - __builtin_clz(allSizes.size());
+    int sizeIdx = allSizes.size() - 1;
+
+    dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";
+    dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posBits: " << posBits << "\n";
+
+    return (sizeIdx & ((1 << sizeBits) - 1)) << posBits;
+  }
+
+  virtual unsigned int getSlotFUIndex(unsigned int slotIdx) const {
+    if(slotIdx > slotToFUIndex.size()) {
+      llvm_unreachable("tried to get FU index of a to large slot");
+    }
+    return slotToFUIndex.at(slotIdx);
+  }
+  
+  // TODO: Move to subtarget
+  virtual bool isSlotBFU(unsigned int slotIdx) const {
+    if(slotIdx > allSlotInfo.size()) {
+      llvm_unreachable("tried to check slot info of a to large slot");
+    }
+    return allSlotInfo[slotIdx] == SlotTypes::BLUE;
+  }
+  virtual bool isSlotGFU(unsigned int slotIdx) const {
+    if(slotIdx > allSlotInfo.size()) {
+      llvm_unreachable("tried to check slot info of a to large slot");
+    }
+    return allSlotInfo[slotIdx] == SlotTypes::GREEN;
+  }
+  virtual bool isSlotMergedFU(unsigned int slotIdx) const {
+    if(slotIdx > allSlotInfo.size()) {
+      llvm_unreachable("tried to check slot info of a to large slot");
+    }
+    return allSlotInfo[slotIdx] == SlotTypes::MERGED;
+  }
+  virtual bool isSlotExtract(unsigned int slotIdx) const {
+    if(slotIdx > allSlotInfo.size()) {
+      llvm_unreachable("tried to check slot info of a to large slot");
+    }
+    return allSlotInfo[slotIdx] == SlotTypes::EXTRACT;
+  }
+  virtual bool isSlotInsert(unsigned int slotIdx) const {
+    if(slotIdx > allSlotInfo.size()) {
+      llvm_unreachable("tried to check slot info of a to large slot");
+    }
+    return allSlotInfo[slotIdx] == SlotTypes::INSERT;
   }
   
   virtual unsigned int linearToAggregateIndex(StructType &STy, unsigned int linearIndex) const override {
@@ -353,6 +416,7 @@ public:
     
     dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";
     dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posIdx: " << posIdx << " posBits: " << posBits << "\n";
+    dbgs() << "final index is: " << ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1)) << "\n";
 
 
     return ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1));

@@ -76,6 +76,11 @@ enum {
   // explicit operand. Used by PRV Pseudos.
   HasVLOpShift = HasSEWOpShift + 1,
   HasVLOpMask = 1 << HasVLOpShift,
+
+  // Does this instruction have a VL operand. It will be the second to last
+  // explicit operand. Used by PRV Pseudos.
+  isBFUShift = HasVLOpShift + 1,
+  isBFUMask = 1 << isBFUShift,
 };
 
 // Match with the definitions in PrimateInstrFormatsV.td
@@ -130,6 +135,10 @@ static inline bool hasSEWOp(uint64_t TSFlags) {
 /// \returns true if there is a VL operand for the instruction.
 static inline bool hasVLOp(uint64_t TSFlags) {
   return TSFlags & HasVLOpMask;
+}
+
+static inline bool isBFUInstr(uint64_t TSFlags) {
+  return TSFlags & isBFUMask;
 }
 
 // Primate Specific Machine Operand Flags

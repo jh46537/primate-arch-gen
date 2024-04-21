@@ -33,6 +33,7 @@ protected:
 private:
   const PrimateInstrInfo *PII;
   const PrimateRegisterInfo *PRI;
+  const PrimateTargetLowering *PLI;
 
   bool insertBypassOps(MachineInstr* br_inst, llvm::SmallVector<MachineInstr*, 2>& generated_bypass_ops);
 
