@@ -120,7 +120,7 @@ namespace {
 
             //print functions
 			//live variables before each basic block
-            virtual void emitBasicBlockStartAnnot(const BasicBlock *bb, formatted_raw_ostream &os) {
+            virtual void emitBasicBlockStartAnnot(const BasicBlock *bb, formatted_raw_ostream &os) override {
                 os << "; ";
                 if (!isa<PHINode>(*(bb))) {
                     const BitVector *bv = (*in)[&*bb];
@@ -136,7 +136,7 @@ namespace {
             }
 
 			//live variables before each instruction: used for computing histogram
-            virtual void emitInstructionAnnot(const Instruction *i, formatted_raw_ostream &os) {
+            virtual void emitInstructionAnnot(const Instruction *i, formatted_raw_ostream &os) override {
                 os << "; ";
                 if (!isa<PHINode>(*(i))) {
                     const BitVector *bv = (*instrInSet)[&*i];
@@ -159,17 +159,17 @@ namespace {
 
             //set the boundary condition for block
             //explicit constructor of BitVector
-            virtual void setBoundaryCondition(BitVector *blockBoundary) {
+            virtual void setBoundaryCondition(BitVector *blockBoundary) override {
                 *blockBoundary = BitVector(domainSize, false); 
             }
 
             //union (bitwise OR) operator '|=' overriden in BitVector class
-            virtual void meetOp(BitVector* lhs, const BitVector* rhs){
+            virtual void meetOp(BitVector* lhs, const BitVector* rhs) override {
                 *lhs |= *rhs; 
             }
 
             //empty set initially; each bit represent a value
-            virtual BitVector* initializeFlowValue(BasicBlock& b, SetType setType){ 
+            virtual BitVector* initializeFlowValue(BasicBlock& b, SetType setType) override{ 
                 return new BitVector(domainSize, false); 
             }
 
@@ -177,7 +177,7 @@ namespace {
             //transfer function:
             //IN[n] = USE[n] U (OUT[n] - DEF[n])
             
-            virtual BitVector* transferFn(BasicBlock& bb) {
+            virtual BitVector* transferFn(BasicBlock& bb) override {
                 BitVector* outNowIn = new BitVector(*((*out)[&bb]));
                                    
                 BitVector* immIn = outNowIn; // for empty blocks
@@ -1597,7 +1597,6 @@ namespace {
             }
 
             void initializeBBWeight(Function &F) {
-                int numBB;
                 for (Function::iterator bi = F.begin(); bi != F.end(); bi++) {
                     BasicBlock *bb = &*bi;
                     bbWeight[bb] = 1.0;
@@ -1667,7 +1666,6 @@ namespace {
             void initializeBFCMeta(Module &M) {
                 // Collect info about blue functions
                 numBFs = 0;
-                int numBFUs = 0;
                 numALU_min = 1;
                 for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
                     MDNode *metadata = MI->getMetadata("primate");
@@ -1707,7 +1705,7 @@ namespace {
             void generateInterconnect(int numALU) {
                 std::map<std::string, int> bfuIdx;
                 std::map<std::string, std::set<int>> bfuALUassigned;
-                int id;
+                int id = -1;
                 for (int i = 0; i < numBFs; i++) {
                     blueFunctions[i]->print(errs());
                     errs() << '\n';
@@ -1902,8 +1900,8 @@ namespace {
                                         offset += idx_u * elemWidth;
                                     } else {
                                         int j = 0;
-                                        Type *tmp;
-                                        for (auto elem = stype->element_begin(); elem != stype->element_end(), j <= idx_u; elem++, j++) {
+                                        Type *tmp = nullptr;
+                                        for (auto elem = stype->element_begin(); elem != stype->element_end() && j <= idx_u; elem++, j++) {
                                             if (j == idx_u) {
                                                 tmp = (*elem);
                                                 break;
@@ -2057,7 +2055,7 @@ namespace {
                 return false;
             }
             
-            virtual bool runOnModule(Module &M){
+            virtual bool runOnModule(Module &M) override {
             	std::fill_n(live,50,0);
 
                 primateCFG.open("primate.cfg");
