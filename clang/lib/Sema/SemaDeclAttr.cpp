@@ -5941,7 +5941,7 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
        !ArmCdeAliasValid(BuiltinID, AliasName)) ||
       (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
       (IsPrimate && !PrimateAliasValid(BuiltinID, AliasName)) ||
-      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !isPrimate))
+      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !IsPrimate)) {
     S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
     return;
   }

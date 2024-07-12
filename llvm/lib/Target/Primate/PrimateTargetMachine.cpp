@@ -36,7 +36,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
 #include <memory>
 using namespace llvm;
@@ -47,9 +47,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePrimateTarget() {
   auto *PR = PassRegistry::getPassRegistry();
   initializePrimateStructToRegPassPass(*PR); // needs to run on IR with struct information
   initializeGlobalISel(*PR);
+  initializePrimateDAGToDAGISelPass(*PR);
   initializePrimateMergeBaseOffsetOptPass(*PR);
   initializePrimateExpandPseudoPass(*PR);
-  initializePrimateInsertVSETVLIPass(*PR);
   initializePrimatePacketizerPass(*PR);
 }
 
@@ -61,8 +61,8 @@ static StringRef computeDataLayout(const Triple &TT) {
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
-                                           Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
+                                           std::optional<Reloc::Model> RM) {
+  if (!RM.has_value())
     return Reloc::Static;
   return *RM;
 }
@@ -70,9 +70,9 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
 PrimateTargetMachine::PrimateTargetMachine(const Target &T, const Triple &TT,
                                        StringRef CPU, StringRef FS,
                                        const TargetOptions &Options,
-                                       Optional<Reloc::Model> RM,
-                                       Optional<CodeModel::Model> CM,
-                                       CodeGenOpt::Level OL, bool JIT)
+                                       std::optional<Reloc::Model> RM,
+                                       std::optional<CodeModel::Model> CM,
+                                       CodeGenOptLevel OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(TT, RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
@@ -118,7 +118,7 @@ PrimateTargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo
-PrimateTargetMachine::getTargetTransformInfo(const Function &F) {
+PrimateTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(PrimateTTIImpl(this, F));
 }
 
@@ -186,7 +186,7 @@ void PrimatePassConfig::addIRPasses() {
 }
 
 bool PrimatePassConfig::addInstSelector() {
-  addPass(createPrimateISelDag(getPrimateTargetMachine()));
+  addPass(createPrimateISelDag(getPrimateTargetMachine(), getOptLevel()));
 
   return false;
 }
@@ -206,17 +206,17 @@ bool PrimatePassConfig::addRegBankSelect() {
   return false;
 }
 
-void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB) {
+void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB, bool PopulateClassToPassNames=true) {
   dbgs() << "This is a string\n";
   PB.registerAnalysisRegistrationCallback([](ModuleAnalysisManager &C) {
     C.registerPass([](){
       return llvm::PrimateBFUTypeFinding();
     });
   });
-  PB.registerPipelineStartEPCallback([this](llvm::ModulePassManager& MPM, PassBuilder::OptimizationLevel opt) {
+  PB.registerPipelineStartEPCallback([this](llvm::ModulePassManager& MPM, OptimizationLevel opt) {
     MPM.addPass(llvm::PrimateStructToAggre(*this));
   });
-  PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, llvm::PassBuilder::OptimizationLevel Level){
+  PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, OptimizationLevel Level){
     // FPM.addPass(llvm::PrimateGEPFilterPass());
     // FPM.addPass(llvm::PrimateStructLoadCombinerPass());
   });
@@ -233,8 +233,8 @@ void PrimatePassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
 
   // two passes that form a pseudo super pass
-  addPass(createPrimatePacketizer(), false);
-  addPass(createPrimatePacketLegalizerPass(), true);
+  addPass(createPrimatePacketizer());
+  addPass(createPrimatePacketLegalizerPass());
 }
 
 void PrimatePassConfig::addPreEmitPass2() {
@@ -246,9 +246,8 @@ void PrimatePassConfig::addPreEmitPass2() {
 }
 
 void PrimatePassConfig::addPreRegAlloc() {
-  if (TM->getOptLevel() != CodeGenOpt::None)
+  if (TM->getOptLevel() != CodeGenOptLevel::None)
     addPass(createPrimateMergeBaseOffsetOptPass());
 
-  addPass(createPrimateInsertVSETVLIPass());
-  addPass(createPrimateCustomSchedulePass(), true);
+  addPass(createPrimateCustomSchedulePass());
 }

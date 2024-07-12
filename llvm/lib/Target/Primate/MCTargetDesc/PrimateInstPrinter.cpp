@@ -70,7 +70,7 @@ void PrimateInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   const MCInst *NewMI = MI;
   MCInst UncompressedMI;
   if (PrintAliases && !NoAliases)
-    Res = uncompressInst(UncompressedMI, *MI, MRI, STI);
+    Res = uncompressInst(UncompressedMI, *MI, STI);
   if (Res)
     NewMI = const_cast<MCInst *>(&UncompressedMI);
   if (!PrintAliases || NoAliases || !printAliasInstr(NewMI, Address, STI, O))
@@ -78,7 +78,7 @@ void PrimateInstPrinter::printInst(const MCInst *MI, uint64_t Address,
   printAnnotation(O, Annot);
 }
 
-void PrimateInstPrinter::printRegName(raw_ostream &O, unsigned RegNo) const {
+void PrimateInstPrinter::printRegName(raw_ostream &O, MCRegister RegNo) const {
   O << getRegisterName(RegNo);
 }
 
@@ -156,6 +156,13 @@ void PrimateInstPrinter::printFRMArg(const MCInst *MI, unsigned OpNo,
   O << PrimateFPRndMode::roundingModeToString(FRMArg);
 }
 
+void PrimateInstPrinter::printFRMArgLegacy(const MCInst *MI, unsigned OpNo,
+                                   const MCSubtargetInfo &STI, raw_ostream &O) {
+  auto FRMArg =
+      static_cast<PrimateFPRndMode::RoundingMode>(MI->getOperand(OpNo).getImm());
+  O << PrimateFPRndMode::roundingModeToString(FRMArg);
+}
+
 void PrimateInstPrinter::printAtomicMemOp(const MCInst *MI, unsigned OpNo,
                                         const MCSubtargetInfo &STI,
                                         raw_ostream &O) {
@@ -186,7 +193,7 @@ void PrimateInstPrinter::printVMaskReg(const MCInst *MI, unsigned OpNo,
   O << ".t";
 }
 
-const char *PrimateInstPrinter::getRegisterName(unsigned RegNo) {
+const char *PrimateInstPrinter::getRegisterName(MCRegister RegNo) {
   return getRegisterName(RegNo, ArchRegNames ? Primate::NoRegAltName
                                              : Primate::ABIRegAltName);
 }

@@ -8144,36 +8144,3 @@ void Parser::DiagnoseBitIntUse(const Token &Tok) {
       Diag(Loc, diag::ext_bit_int) << getLangOpts().CPlusPlus;
   }
 }
-
-SourceLocation Parser::ParsePragmaPrimate(DeclSpec &DS) {
-  // Create attribute list.
-  ParsedAttributesWithRange Attrs(AttrFactory);
-
-  SourceLocation StartLoc = Tok.getLocation();
-  SourceLocation EndLoc = SourceLocation{};
-
-  if (!Tok.is(tok::annot_pragma_primate)) {
-    DS.SetTypeSpecError();
-    return EndLoc;
-  }
-
-  // Get primate pragmas and consume annotated token.
-  PrimatePragma Pragma;
-
-  if (!HandlePragmaPrimate(Pragma)) {
-    DS.SetTypeSpecError();
-    return EndLoc;
-  }
-  EndLoc = Pragma.Range.getEnd();
-
-  ArgsUnion ArgsPragma[] = {Pragma.PragmaNameLoc, Pragma.OptionLoc,
-                            Pragma.FuncNameLoc,
-                            ArgsUnion(Pragma.ValueXput),
-                            ArgsUnion(Pragma.ValueCount)};
-  Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
-               Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
-               ParsedAttr::AS_Pragma);
-  DS.takeAttributesFrom(Attrs);
-
-  return EndLoc;
-}

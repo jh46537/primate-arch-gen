@@ -41,6 +41,7 @@
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+#include "llvm/IR/Value.h"
 #include <optional>
 
 namespace llvm {
@@ -4401,12 +4402,11 @@ public:
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
-  void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
   llvm::Value *EmitPrimateBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                       ReturnValueSlot ReturnValue);
-  bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
-                               llvm::AtomicOrdering &AO,
-                               llvm::SyncScope::ID &SSID);
+  void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
+                                              llvm::AtomicOrdering &AO,
+                                              llvm::SyncScope::ID &SSID);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);

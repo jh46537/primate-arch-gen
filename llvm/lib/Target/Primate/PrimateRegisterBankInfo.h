@@ -13,7 +13,7 @@
 #ifndef LLVM_LIB_TARGET_PRIMATE_PRIMATEREGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_PRIMATE_PRIMATEREGISTERBANKINFO_H
 
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "PrimateGenRegisterBank.inc"

@@ -17,15 +17,20 @@
 #include "PrimateMachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/IR/IntrinsicsPrimate.h"
+#include "llvm/Support/TypeSize.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Pass.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "primate-isel"
+#define PASS_NAME "Primate DAG->DAG Pattern Instruction Selection"
+
+
 
 namespace llvm {
 namespace Primate {
@@ -63,11 +68,11 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     //   }
     // }
 
-    // Lower SPLAT_VECTOR_SPLIT_I64 to two scalar stores and a stride 0 vector
-    // load. Done after lowering and combining so that we have a chance to
-    // optimize this to VMV_V_X_VL when the upper bits aren't needed.
-    if (N->getOpcode() != PrimateISD::SPLAT_VECTOR_SPLIT_I64_VL)
-      continue;
+    // // Lower SPLAT_VECTOR_SPLIT_I64 to two scalar stores and a stride 0 vector
+    // // load. Done after lowering and combining so that we have a chance to
+    // // optimize this to VMV_V_X_VL when the upper bits aren't needed.
+    // if (N->getOpcode() != PrimateISD::SPLAT_VECTOR_SPLIT_I64_VL)
+    //   continue;
 
     assert(N->getNumOperands() == 3 && "Unexpected number of operands");
     MVT VT = N->getSimpleValueType(0);
@@ -93,7 +98,7 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     Lo = CurDAG->getStore(Chain, DL, Lo, StackSlot, MPI, Align(8));
 
     SDValue OffsetSlot =
-        CurDAG->getMemBasePlusOffset(StackSlot, TypeSize::Fixed(4), DL);
+        CurDAG->getMemBasePlusOffset(StackSlot, TypeSize::getFixed(4), DL);
     Hi = CurDAG->getStore(Chain, DL, Hi, OffsetSlot, MPI.getWithOffset(4),
                           Align(8));
 
@@ -123,6 +128,43 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
   }
 }
 
+/// Look for various patterns that can be done with a SHL that can be folded
+/// into a SHXADD_UW. \p ShAmt contains 1, 2, or 3 and is set based on which
+/// SHXADD_UW we are trying to match.
+bool PrimateDAGToDAGISel::selectSHXADD_UWOp(SDValue N, unsigned ShAmt,
+                                          SDValue &Val) {
+  if (N.getOpcode() == ISD::AND && isa<ConstantSDNode>(N.getOperand(1)) &&
+      N.hasOneUse()) {
+    SDValue N0 = N.getOperand(0);
+    if (N0.getOpcode() == ISD::SHL && isa<ConstantSDNode>(N0.getOperand(1)) &&
+        N0.hasOneUse()) {
+      uint64_t Mask = N.getConstantOperandVal(1);
+      unsigned C2 = N0.getConstantOperandVal(1);
+
+      Mask &= maskTrailingZeros<uint64_t>(C2);
+
+      // Look for (and (shl y, c2), c1) where c1 is a shifted mask with
+      // 32-ShAmt leading zeros and c2 trailing zeros. We can use SLLI by
+      // c2-ShAmt followed by SHXADD_UW with ShAmt for the X amount.
+      if (isShiftedMask_64(Mask)) {
+        unsigned Leading = llvm::countl_zero(Mask);
+        unsigned Trailing = llvm::countr_zero(Mask);
+        if (Leading == 32 - ShAmt && Trailing == C2 && Trailing > ShAmt) {
+          SDLoc DL(N);
+          EVT VT = N.getValueType();
+          Val = SDValue(CurDAG->getMachineNode(
+                            Primate::SLLI, DL, VT, N0.getOperand(0),
+                            CurDAG->getTargetConstant(C2 - ShAmt, DL, VT)),
+                        0);
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 void PrimateDAGToDAGISel::PostprocessISelDAG() {
   doPeepholeLoadStoreADDI();
 }
@@ -131,19 +173,19 @@ static SDNode *selectImm(SelectionDAG *CurDAG, const SDLoc &DL, int64_t Imm,
                          const PrimateSubtarget &Subtarget) {
   MVT XLenVT = Subtarget.getXLenVT();
   PrimateMatInt::InstSeq Seq =
-      PrimateMatInt::generateInstSeq(Imm, Subtarget.getFeatureBits());
+      PrimateMatInt::generateInstSeq(Imm, Subtarget);
 
   SDNode *Result = nullptr;
   SDValue SrcReg = CurDAG->getRegister(Primate::X0, XLenVT);
   for (PrimateMatInt::Inst &Inst : Seq) {
-    SDValue SDImm = CurDAG->getTargetConstant(Inst.Imm, DL, XLenVT);
-    if (Inst.Opc == Primate::LUI)
+    SDValue SDImm = CurDAG->getTargetConstant(Inst.getImm(), DL, XLenVT);
+    if (Inst.getOpcode() == Primate::LUI)
       Result = CurDAG->getMachineNode(Primate::LUI, DL, XLenVT, SDImm);
-    else if (Inst.Opc == Primate::ADDUW)
-      Result = CurDAG->getMachineNode(Primate::ADDUW, DL, XLenVT, SrcReg,
+    else if (Inst.getOpcode() == Primate::ADD_UW)
+      Result = CurDAG->getMachineNode(Primate::ADD_UW, DL, XLenVT, SrcReg,
                                       CurDAG->getRegister(Primate::X0, XLenVT));
     else
-      Result = CurDAG->getMachineNode(Inst.Opc, DL, XLenVT, SrcReg, SDImm);
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, XLenVT, SrcReg, SDImm);
 
     // Only the first instruction has X0 as its source.
     SrcReg = SDValue(Result, 0);
@@ -251,203 +293,26 @@ void PrimateDAGToDAGISel::addVectorLoadStoreOperands(
 
 void PrimateDAGToDAGISel::selectVLSEG(SDNode *Node, bool IsMasked,
                                     bool IsStrided) {
-  SDLoc DL(Node);
-  unsigned NF = Node->getNumValues() - 1;
-  MVT VT = Node->getSimpleValueType(0);
-  unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-  PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-
-  unsigned CurOp = 2;
-  SmallVector<SDValue, 8> Operands;
-  if (IsMasked) {
-    SmallVector<SDValue, 8> Regs(Node->op_begin() + CurOp,
-                                 Node->op_begin() + CurOp + NF);
-    SDValue MaskedOff = createTuple(*CurDAG, Regs, NF, LMUL);
-    Operands.push_back(MaskedOff);
-    CurOp += NF;
-  }
-
-  addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked, IsStrided,
-                             Operands);
-
-  const Primate::VLSEGPseudo *P =
-      Primate::getVLSEGPseudo(NF, IsMasked, IsStrided, /*FF*/ false, Log2SEW,
-                            static_cast<unsigned>(LMUL));
-  MachineSDNode *Load =
-      CurDAG->getMachineNode(P->Pseudo, DL, MVT::Untyped, MVT::Other, Operands);
-
-  if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-    CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-  SDValue SuperReg = SDValue(Load, 0);
-  for (unsigned I = 0; I < NF; ++I) {
-    unsigned SubRegIdx = PrimateTargetLowering::getSubregIndexByMVT(VT, I);
-    ReplaceUses(SDValue(Node, I),
-                CurDAG->getTargetExtractSubreg(SubRegIdx, DL, VT, SuperReg));
-  }
-
-  ReplaceUses(SDValue(Node, NF), SDValue(Load, 1));
-  CurDAG->RemoveDeadNode(Node);
+  llvm_unreachable("should never see VLSeg inst");
 }
 
 void PrimateDAGToDAGISel::selectVLSEGFF(SDNode *Node, bool IsMasked) {
-  SDLoc DL(Node);
-  unsigned NF = Node->getNumValues() - 2; // Do not count VL and Chain.
-  MVT VT = Node->getSimpleValueType(0);
-  MVT XLenVT = Subtarget->getXLenVT();
-  unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-  PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-
-  unsigned CurOp = 2;
-  SmallVector<SDValue, 7> Operands;
-  if (IsMasked) {
-    SmallVector<SDValue, 8> Regs(Node->op_begin() + CurOp,
-                                 Node->op_begin() + CurOp + NF);
-    SDValue MaskedOff = createTuple(*CurDAG, Regs, NF, LMUL);
-    Operands.push_back(MaskedOff);
-    CurOp += NF;
-  }
-
-  addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                             /*IsStridedOrIndexed*/ false, Operands);
-
-  const Primate::VLSEGPseudo *P =
-      Primate::getVLSEGPseudo(NF, IsMasked, /*Strided*/ false, /*FF*/ true,
-                            Log2SEW, static_cast<unsigned>(LMUL));
-  MachineSDNode *Load = CurDAG->getMachineNode(P->Pseudo, DL, MVT::Untyped,
-                                               MVT::Other, MVT::Glue, Operands);
-  SDNode *ReadVL = CurDAG->getMachineNode(Primate::PseudoReadVL, DL, XLenVT,
-                                          /*Glue*/ SDValue(Load, 2));
-
-  if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-    CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-  SDValue SuperReg = SDValue(Load, 0);
-  for (unsigned I = 0; I < NF; ++I) {
-    unsigned SubRegIdx = PrimateTargetLowering::getSubregIndexByMVT(VT, I);
-    ReplaceUses(SDValue(Node, I),
-                CurDAG->getTargetExtractSubreg(SubRegIdx, DL, VT, SuperReg));
-  }
-
-  ReplaceUses(SDValue(Node, NF), SDValue(ReadVL, 0));   // VL
-  ReplaceUses(SDValue(Node, NF + 1), SDValue(Load, 1)); // Chain
-  CurDAG->RemoveDeadNode(Node);
+  llvm_unreachable("should never see VLSEGFF inst in primate");
 }
 
 void PrimateDAGToDAGISel::selectVLXSEG(SDNode *Node, bool IsMasked,
                                      bool IsOrdered) {
-  SDLoc DL(Node);
-  unsigned NF = Node->getNumValues() - 1;
-  MVT VT = Node->getSimpleValueType(0);
-  unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-  PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-
-  unsigned CurOp = 2;
-  SmallVector<SDValue, 8> Operands;
-  if (IsMasked) {
-    SmallVector<SDValue, 8> Regs(Node->op_begin() + CurOp,
-                                 Node->op_begin() + CurOp + NF);
-    SDValue MaskedOff = createTuple(*CurDAG, Regs, NF, LMUL);
-    Operands.push_back(MaskedOff);
-    CurOp += NF;
-  }
-
-  MVT IndexVT;
-  addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                             /*IsStridedOrIndexed*/ true, Operands, &IndexVT);
-
-  assert(VT.getVectorElementCount() == IndexVT.getVectorElementCount() &&
-         "Element count mismatch");
-
-  PrimateII::VLMUL IndexLMUL = PrimateTargetLowering::getLMUL(IndexVT);
-  unsigned IndexLog2EEW = Log2_32(IndexVT.getScalarSizeInBits());
-  const Primate::VLXSEGPseudo *P = Primate::getVLXSEGPseudo(
-      NF, IsMasked, IsOrdered, IndexLog2EEW, static_cast<unsigned>(LMUL),
-      static_cast<unsigned>(IndexLMUL));
-  MachineSDNode *Load =
-      CurDAG->getMachineNode(P->Pseudo, DL, MVT::Untyped, MVT::Other, Operands);
-
-  if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-    CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-  SDValue SuperReg = SDValue(Load, 0);
-  for (unsigned I = 0; I < NF; ++I) {
-    unsigned SubRegIdx = PrimateTargetLowering::getSubregIndexByMVT(VT, I);
-    ReplaceUses(SDValue(Node, I),
-                CurDAG->getTargetExtractSubreg(SubRegIdx, DL, VT, SuperReg));
-  }
-
-  ReplaceUses(SDValue(Node, NF), SDValue(Load, 1));
-  CurDAG->RemoveDeadNode(Node);
+  llvm_unreachable("should never see VLSEG inst in primate");
 }
 
 void PrimateDAGToDAGISel::selectVSSEG(SDNode *Node, bool IsMasked,
                                     bool IsStrided) {
-  SDLoc DL(Node);
-  unsigned NF = Node->getNumOperands() - 4;
-  if (IsStrided)
-    NF--;
-  if (IsMasked)
-    NF--;
-  MVT VT = Node->getOperand(2)->getSimpleValueType(0);
-  unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-  PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-  SmallVector<SDValue, 8> Regs(Node->op_begin() + 2, Node->op_begin() + 2 + NF);
-  SDValue StoreVal = createTuple(*CurDAG, Regs, NF, LMUL);
-
-  SmallVector<SDValue, 8> Operands;
-  Operands.push_back(StoreVal);
-  unsigned CurOp = 2 + NF;
-
-  addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked, IsStrided,
-                             Operands);
-
-  const Primate::VSSEGPseudo *P = Primate::getVSSEGPseudo(
-      NF, IsMasked, IsStrided, Log2SEW, static_cast<unsigned>(LMUL));
-  MachineSDNode *Store =
-      CurDAG->getMachineNode(P->Pseudo, DL, Node->getValueType(0), Operands);
-
-  if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-    CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
-
-  ReplaceNode(Node, Store);
+  llvm_unreachable("should never see VSSEG inst in primate");
 }
 
 void PrimateDAGToDAGISel::selectVSXSEG(SDNode *Node, bool IsMasked,
                                      bool IsOrdered) {
-  SDLoc DL(Node);
-  unsigned NF = Node->getNumOperands() - 5;
-  if (IsMasked)
-    --NF;
-  MVT VT = Node->getOperand(2)->getSimpleValueType(0);
-  unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-  PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-  SmallVector<SDValue, 8> Regs(Node->op_begin() + 2, Node->op_begin() + 2 + NF);
-  SDValue StoreVal = createTuple(*CurDAG, Regs, NF, LMUL);
-
-  SmallVector<SDValue, 8> Operands;
-  Operands.push_back(StoreVal);
-  unsigned CurOp = 2 + NF;
-
-  MVT IndexVT;
-  addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                             /*IsStridedOrIndexed*/ true, Operands, &IndexVT);
-
-  assert(VT.getVectorElementCount() == IndexVT.getVectorElementCount() &&
-         "Element count mismatch");
-
-  PrimateII::VLMUL IndexLMUL = PrimateTargetLowering::getLMUL(IndexVT);
-  unsigned IndexLog2EEW = Log2_32(IndexVT.getScalarSizeInBits());
-  const Primate::VSXSEGPseudo *P = Primate::getVSXSEGPseudo(
-      NF, IsMasked, IsOrdered, IndexLog2EEW, static_cast<unsigned>(LMUL),
-      static_cast<unsigned>(IndexLMUL));
-  MachineSDNode *Store =
-      CurDAG->getMachineNode(P->Pseudo, DL, Node->getValueType(0), Operands);
-
-  if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-    CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
-
-  ReplaceNode(Node, Store);
+  llvm_unreachable("should never see VSXSEG inst in primate");
 }
 
 
@@ -473,7 +338,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
   switch (Opcode) {
   case ISD::Constant: {
     auto *ConstNode = cast<ConstantSDNode>(Node);
-    if (VT == XLenVT && ConstNode->isNullValue()) {
+    if (VT == XLenVT && ConstNode->isZero()) {
       SDValue New =
           CurDAG->getCopyFromReg(CurDAG->getEntryNode(), DL, Primate::X0, XLenVT);
       ReplaceNode(Node, New.getNode());
@@ -492,7 +357,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
   }
   case ISD::SRL: {
     // We don't need this transform if zext.h is supported.
-    if (Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp())
+    if (Subtarget->hasStdExtZbb())
       break;
     // Optimize (srl (and X, 0xffff), C) ->
     //          (srli (slli X, (XLen-16), (XLen-16) + C)
@@ -548,7 +413,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     // Keep track of whether this is a andi, zext.h, or zext.w.
     bool ZExtOrANDI = isInt<12>(N1C->getSExtValue());
     if (C1 == UINT64_C(0xFFFF) &&
-        (Subtarget->hasStdExtZbb() || Subtarget->hasStdExtZbp()))
+        (Subtarget->hasStdExtZbb()))
       ZExtOrANDI = true;
     if (C1 == UINT64_C(0xFFFFFFFF) && Subtarget->hasStdExtZba())
       ZExtOrANDI = true;
@@ -568,7 +433,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     // Turn (and (srl x, c2) c1) -> (srli (slli x, c3-c2), c3) if c1 is a mask
     // with c3 leading zeros.
     if (!LeftShift && isMask_64(C1)) {
-      uint64_t C3 = XLen - (64 - countLeadingZeros(C1));
+      uint64_t C3 = XLen - (llvm::bit_width(C1));
       if (C2 < C3) {
         // If the number of leading zeros is C2+32 this can be SRLIW.
         if (C2 + 32 == C3) {
@@ -614,14 +479,14 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     // Turn (and (shl x, c2) c1) -> (srli (slli c2+c3), c3) if c1 is a mask
     // shifted by c2 bits with c3 leading zeros.
     if (LeftShift && isShiftedMask_64(C1)) {
-      uint64_t C3 = XLen - (64 - countLeadingZeros(C1));
+      uint64_t C3 = XLen - (llvm::bit_width(C1));
 
       if (C2 + C3 < XLen &&
           C1 == (maskTrailingOnes<uint64_t>(XLen - (C2 + C3)) << C2)) {
         // Use slli.uw when possible.
         if ((XLen - (C2 + C3)) == 32 && Subtarget->hasStdExtZba()) {
           SDNode *SLLIUW =
-              CurDAG->getMachineNode(Primate::SLLIUW, DL, XLenVT, X,
+              CurDAG->getMachineNode(Primate::SLLI_UW, DL, XLenVT, X,
                                      CurDAG->getTargetConstant(C2, DL, XLenVT));
           ReplaceNode(Node, SLLIUW);
           return;
@@ -707,40 +572,13 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       default:
         llvm_unreachable("Unexpected LMUL!");
       case PrimateII::VLMUL::LMUL_F8:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF8 : Primate::PseudoVMSLT_VX_MF8;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_MF8;
-        break;
       case PrimateII::VLMUL::LMUL_F4:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF4 : Primate::PseudoVMSLT_VX_MF4;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_MF4;
-        break;
       case PrimateII::VLMUL::LMUL_F2:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF2 : Primate::PseudoVMSLT_VX_MF2;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_MF2;
-        break;
       case PrimateII::VLMUL::LMUL_1:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M1 : Primate::PseudoVMSLT_VX_M1;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_M1;
-        break;
       case PrimateII::VLMUL::LMUL_2:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M2 : Primate::PseudoVMSLT_VX_M2;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_M2;
-        break;
       case PrimateII::VLMUL::LMUL_4:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M4 : Primate::PseudoVMSLT_VX_M4;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_M4;
-        break;
       case PrimateII::VLMUL::LMUL_8:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M8 : Primate::PseudoVMSLT_VX_M8;
-        VMNANDOpcode = Primate::PseudoVMNAND_MM_M8;
-        break;
+        llvm_unreachable("Primate should not generate VMSGE or VMSGEU Intrinsics");
       }
       SDValue SEW = CurDAG->getTargetConstant(
           Log2_32(Src1VT.getScalarSizeInBits()), DL, XLenVT);
@@ -776,80 +614,26 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       default:
         llvm_unreachable("Unexpected LMUL!");
       case PrimateII::VLMUL::LMUL_F8:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF8 : Primate::PseudoVMSLT_VX_MF8;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_MF8_MASK
-                                     : Primate::PseudoVMSLT_VX_MF8_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_F4:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF4 : Primate::PseudoVMSLT_VX_MF4;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_MF4_MASK
-                                     : Primate::PseudoVMSLT_VX_MF4_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_F2:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_MF2 : Primate::PseudoVMSLT_VX_MF2;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_MF2_MASK
-                                     : Primate::PseudoVMSLT_VX_MF2_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_1:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M1 : Primate::PseudoVMSLT_VX_M1;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_M1_MASK
-                                     : Primate::PseudoVMSLT_VX_M1_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_2:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M2 : Primate::PseudoVMSLT_VX_M2;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_M2_MASK
-                                     : Primate::PseudoVMSLT_VX_M2_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_4:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M4 : Primate::PseudoVMSLT_VX_M4;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_M4_MASK
-                                     : Primate::PseudoVMSLT_VX_M4_MASK;
-        break;
       case PrimateII::VLMUL::LMUL_8:
-        VMSLTOpcode =
-            IsUnsigned ? Primate::PseudoVMSLTU_VX_M8 : Primate::PseudoVMSLT_VX_M8;
-        VMSLTMaskOpcode = IsUnsigned ? Primate::PseudoVMSLTU_VX_M8_MASK
-                                     : Primate::PseudoVMSLT_VX_M8_MASK;
-        break;
+        llvm_unreachable("Primate should not generate VMSGE{U}_MASK intrinsics");
       }
       // Mask operations use the LMUL from the mask type.
       switch (PrimateTargetLowering::getLMUL(VT)) {
       default:
         llvm_unreachable("Unexpected LMUL!");
       case PrimateII::VLMUL::LMUL_F8:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_MF8;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_MF8;
-        break;
       case PrimateII::VLMUL::LMUL_F4:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_MF4;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_MF4;
-        break;
       case PrimateII::VLMUL::LMUL_F2:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_MF2;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_MF2;
-        break;
       case PrimateII::VLMUL::LMUL_1:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_M1;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_M1;
-        break;
       case PrimateII::VLMUL::LMUL_2:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_M2;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_M2;
-        break;
       case PrimateII::VLMUL::LMUL_4:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_M4;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_M4;
-        break;
       case PrimateII::VLMUL::LMUL_8:
-        VMXOROpcode = Primate::PseudoVMXOR_MM_M8;
-        VMANDNOTOpcode = Primate::PseudoVMANDNOT_MM_M8;
-        break;
+        llvm_unreachable("Primate should not generate VMSGE{U}_MASK intrinsics");
       }
       SDValue SEW = CurDAG->getTargetConstant(
           Log2_32(Src1VT.getScalarSizeInBits()), DL, XLenVT);
@@ -925,48 +709,7 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
 
     case Intrinsic::primate_vsetvli:
     case Intrinsic::primate_vsetvlimax: {
-      if (!Subtarget->hasStdExtV())
-        break;
-
-      bool VLMax = IntNo == Intrinsic::primate_vsetvlimax;
-      unsigned Offset = VLMax ? 2 : 3;
-
-      assert(Node->getNumOperands() == Offset + 2 &&
-             "Unexpected number of operands");
-
-      unsigned SEW =
-          PrimateVType::decodeVSEW(Node->getConstantOperandVal(Offset) & 0x7);
-      PrimateII::VLMUL VLMul = static_cast<PrimateII::VLMUL>(
-          Node->getConstantOperandVal(Offset + 1) & 0x7);
-
-      unsigned VTypeI = PrimateVType::encodeVTYPE(
-          VLMul, SEW, /*TailAgnostic*/ true, /*MaskAgnostic*/ false);
-      SDValue VTypeIOp = CurDAG->getTargetConstant(VTypeI, DL, XLenVT);
-
-      SDValue VLOperand;
-      if (VLMax) {
-        VLOperand = CurDAG->getRegister(Primate::X0, XLenVT);
-      } else {
-        VLOperand = Node->getOperand(2);
-
-        if (auto *C = dyn_cast<ConstantSDNode>(VLOperand)) {
-          uint64_t AVL = C->getZExtValue();
-          if (isUInt<5>(AVL)) {
-            SDValue VLImm = CurDAG->getTargetConstant(AVL, DL, XLenVT);
-            ReplaceNode(
-                Node, CurDAG->getMachineNode(Primate::PseudoVSETIVLI, DL, XLenVT,
-                                             MVT::Other, VLImm, VTypeIOp,
-                                             /* Chain */ Node->getOperand(0)));
-            return;
-          }
-        }
-      }
-
-      ReplaceNode(Node,
-                  CurDAG->getMachineNode(Primate::PseudoVSETVLI, DL, XLenVT,
-                                         MVT::Other, VLOperand, VTypeIOp,
-                                         /* Chain */ Node->getOperand(0)));
-      return;
+      llvm_unreachable("Primate should not generate VSETVLI{MAX} intrinsics");
     }
     case Intrinsic::primate_vlseg2:
     case Intrinsic::primate_vlseg3:
@@ -1068,109 +811,18 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     case Intrinsic::primate_vloxei_mask:
     case Intrinsic::primate_vluxei:
     case Intrinsic::primate_vluxei_mask: {
-      bool IsMasked = IntNo == Intrinsic::primate_vloxei_mask ||
-                      IntNo == Intrinsic::primate_vluxei_mask;
-      bool IsOrdered = IntNo == Intrinsic::primate_vloxei ||
-                       IntNo == Intrinsic::primate_vloxei_mask;
-
-      MVT VT = Node->getSimpleValueType(0);
-      unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-
-      unsigned CurOp = 2;
-      SmallVector<SDValue, 8> Operands;
-      if (IsMasked)
-        Operands.push_back(Node->getOperand(CurOp++));
-
-      MVT IndexVT;
-      addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                                 /*IsStridedOrIndexed*/ true, Operands,
-                                 &IndexVT);
-
-      assert(VT.getVectorElementCount() == IndexVT.getVectorElementCount() &&
-             "Element count mismatch");
-
-      PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-      PrimateII::VLMUL IndexLMUL = PrimateTargetLowering::getLMUL(IndexVT);
-      unsigned IndexLog2EEW = Log2_32(IndexVT.getScalarSizeInBits());
-      const Primate::VLX_VSXPseudo *P = Primate::getVLXPseudo(
-          IsMasked, IsOrdered, IndexLog2EEW, static_cast<unsigned>(LMUL),
-          static_cast<unsigned>(IndexLMUL));
-      MachineSDNode *Load =
-          CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
-
-      if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-        CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-      ReplaceNode(Node, Load);
-      return;
+      llvm_unreachable("Primate Should not generate VL{U/O}XEI{_MASK} Intrinsics");
     }
     case Intrinsic::primate_vle1:
     case Intrinsic::primate_vle:
     case Intrinsic::primate_vle_mask:
     case Intrinsic::primate_vlse:
     case Intrinsic::primate_vlse_mask: {
-      bool IsMasked = IntNo == Intrinsic::primate_vle_mask ||
-                      IntNo == Intrinsic::primate_vlse_mask;
-      bool IsStrided =
-          IntNo == Intrinsic::primate_vlse || IntNo == Intrinsic::primate_vlse_mask;
-
-      MVT VT = Node->getSimpleValueType(0);
-      unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-
-      unsigned CurOp = 2;
-      SmallVector<SDValue, 8> Operands;
-      if (IsMasked)
-        Operands.push_back(Node->getOperand(CurOp++));
-
-      addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked, IsStrided,
-                                 Operands);
-
-      PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-      const Primate::VLEPseudo *P =
-          Primate::getVLEPseudo(IsMasked, IsStrided, /*FF*/ false, Log2SEW,
-                              static_cast<unsigned>(LMUL));
-      MachineSDNode *Load =
-          CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
-
-      if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-        CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-      ReplaceNode(Node, Load);
-      return;
+      llvm_unreachable("Primate should not generate VL{S}E_MASK Intrinsics");
     }
     case Intrinsic::primate_vleff:
     case Intrinsic::primate_vleff_mask: {
-      bool IsMasked = IntNo == Intrinsic::primate_vleff_mask;
-
-      MVT VT = Node->getSimpleValueType(0);
-      unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-
-      unsigned CurOp = 2;
-      SmallVector<SDValue, 7> Operands;
-      if (IsMasked)
-        Operands.push_back(Node->getOperand(CurOp++));
-
-      addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                                 /*IsStridedOrIndexed*/ false, Operands);
-
-      PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-      const Primate::VLEPseudo *P =
-          Primate::getVLEPseudo(IsMasked, /*Strided*/ false, /*FF*/ true, Log2SEW,
-                              static_cast<unsigned>(LMUL));
-      MachineSDNode *Load =
-          CurDAG->getMachineNode(P->Pseudo, DL, Node->getValueType(0),
-                                 MVT::Other, MVT::Glue, Operands);
-      SDNode *ReadVL = CurDAG->getMachineNode(Primate::PseudoReadVL, DL, XLenVT,
-                                              /*Glue*/ SDValue(Load, 2));
-
-      if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-        CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
-
-      ReplaceUses(SDValue(Node, 0), SDValue(Load, 0));
-      ReplaceUses(SDValue(Node, 1), SDValue(ReadVL, 0)); // VL
-      ReplaceUses(SDValue(Node, 2), SDValue(Load, 1));   // Chain
-      CurDAG->RemoveDeadNode(Node);
-      return;
+      llvm_unreachable("Primate should not generate VLEFF{_MASK} Intrincs");
     }
     }
     break;
@@ -1258,71 +910,73 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     case Intrinsic::primate_vsoxei_mask:
     case Intrinsic::primate_vsuxei:
     case Intrinsic::primate_vsuxei_mask: {
-      bool IsMasked = IntNo == Intrinsic::primate_vsoxei_mask ||
-                      IntNo == Intrinsic::primate_vsuxei_mask;
-      bool IsOrdered = IntNo == Intrinsic::primate_vsoxei ||
-                       IntNo == Intrinsic::primate_vsoxei_mask;
+      llvm_unreachable("Primate should not generate VS{O/U}XEI{_MASK} Intrinsics");
+      // bool IsMasked = IntNo == Intrinsic::primate_vsoxei_mask ||
+      //                 IntNo == Intrinsic::primate_vsuxei_mask;
+      // bool IsOrdered = IntNo == Intrinsic::primate_vsoxei ||
+      //                  IntNo == Intrinsic::primate_vsoxei_mask;
 
-      MVT VT = Node->getOperand(2)->getSimpleValueType(0);
-      unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
+      // MVT VT = Node->getOperand(2)->getSimpleValueType(0);
+      // unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
 
-      unsigned CurOp = 2;
-      SmallVector<SDValue, 8> Operands;
-      Operands.push_back(Node->getOperand(CurOp++)); // Store value.
+      // unsigned CurOp = 2;
+      // SmallVector<SDValue, 8> Operands;
+      // Operands.push_back(Node->getOperand(CurOp++)); // Store value.
 
-      MVT IndexVT;
-      addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
-                                 /*IsStridedOrIndexed*/ true, Operands,
-                                 &IndexVT);
+      // MVT IndexVT;
+      // addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked,
+      //                            /*IsStridedOrIndexed*/ true, Operands,
+      //                            &IndexVT);
 
-      assert(VT.getVectorElementCount() == IndexVT.getVectorElementCount() &&
-             "Element count mismatch");
+      // assert(VT.getVectorElementCount() == IndexVT.getVectorElementCount() &&
+      //        "Element count mismatch");
 
-      PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-      PrimateII::VLMUL IndexLMUL = PrimateTargetLowering::getLMUL(IndexVT);
-      unsigned IndexLog2EEW = Log2_32(IndexVT.getScalarSizeInBits());
-      const Primate::VLX_VSXPseudo *P = Primate::getVSXPseudo(
-          IsMasked, IsOrdered, IndexLog2EEW, static_cast<unsigned>(LMUL),
-          static_cast<unsigned>(IndexLMUL));
-      MachineSDNode *Store =
-          CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
+      // PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
+      // PrimateII::VLMUL IndexLMUL = PrimateTargetLowering::getLMUL(IndexVT);
+      // unsigned IndexLog2EEW = Log2_32(IndexVT.getScalarSizeInBits());
+      // const Primate::VLX_VSXPseudo *P = Primate::getVSXPseudo(
+      //     IsMasked, IsOrdered, IndexLog2EEW, static_cast<unsigned>(LMUL),
+      //     static_cast<unsigned>(IndexLMUL));
+      // MachineSDNode *Store =
+      //     CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
 
-      if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-        CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
+      // if (auto *MemOp = dyn_cast<MemSDNode>(Node))
+      //   CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
 
-      ReplaceNode(Node, Store);
-      return;
+      // ReplaceNode(Node, Store);
+      // return;
     }
     case Intrinsic::primate_vse1:
     case Intrinsic::primate_vse:
     case Intrinsic::primate_vse_mask:
     case Intrinsic::primate_vsse:
     case Intrinsic::primate_vsse_mask: {
-      bool IsMasked = IntNo == Intrinsic::primate_vse_mask ||
-                      IntNo == Intrinsic::primate_vsse_mask;
-      bool IsStrided =
-          IntNo == Intrinsic::primate_vsse || IntNo == Intrinsic::primate_vsse_mask;
+      llvm_unreachable("Primate should not generate VS{S}E{_MASK} Intrincs");
+      // bool IsMasked = IntNo == Intrinsic::primate_vse_mask ||
+      //                 IntNo == Intrinsic::primate_vsse_mask;
+      // bool IsStrided =
+      //     IntNo == Intrinsic::primate_vsse || IntNo == Intrinsic::primate_vsse_mask;
 
-      MVT VT = Node->getOperand(2)->getSimpleValueType(0);
-      unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
+      // MVT VT = Node->getOperand(2)->getSimpleValueType(0);
+      // unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
 
-      unsigned CurOp = 2;
-      SmallVector<SDValue, 8> Operands;
-      Operands.push_back(Node->getOperand(CurOp++)); // Store value.
+      // unsigned CurOp = 2;
+      // SmallVector<SDValue, 8> Operands;
+      // Operands.push_back(Node->getOperand(CurOp++)); // Store value.
 
-      addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked, IsStrided,
-                                 Operands);
+      // addVectorLoadStoreOperands(Node, Log2SEW, DL, CurOp, IsMasked, IsStrided,
+      //                            Operands);
 
-      PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-      const Primate::VSEPseudo *P = Primate::getVSEPseudo(
-          IsMasked, IsStrided, Log2SEW, static_cast<unsigned>(LMUL));
-      MachineSDNode *Store =
-          CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
-      if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-        CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
+      // PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
+      // const Primate::VSEPseudo *P = Primate::getVSEPseudo(
+      //     IsMasked, IsStrided, Log2SEW, static_cast<unsigned>(LMUL));
+      // MachineSDNode *Store =
+      //     CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
+      // if (auto *MemOp = dyn_cast<MemSDNode>(Node))
+      //   CurDAG->setNodeMemRefs(Store, {MemOp->getMemOperand()});
 
-      ReplaceNode(Node, Store);
-      return;
+      // ReplaceNode(Node, Store);
+      // return;
     }
     }
     break;
@@ -1437,44 +1091,44 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
     ReplaceNode(Node, Extract.getNode());
     return;
   }
-  case PrimateISD::VMV_V_X_VL:
-  case PrimateISD::VFMV_V_F_VL: {
-    // Try to match splat of a scalar load to a strided load with stride of x0.
-    SDValue Src = Node->getOperand(0);
-    auto *Ld = dyn_cast<LoadSDNode>(Src);
-    if (!Ld)
-      break;
-    EVT MemVT = Ld->getMemoryVT();
-    // The memory VT should be the same size as the element type.
-    if (MemVT.getStoreSize() != VT.getVectorElementType().getStoreSize())
-      break;
-    if (!IsProfitableToFold(Src, Node, Node) ||
-        !IsLegalToFold(Src, Node, Node, TM.getOptLevel()))
-      break;
+  // case PrimateISD::VMV_V_X_VL:
+  // case PrimateISD::VFMV_V_F_VL: {
+  //   // Try to match splat of a scalar load to a strided load with stride of x0.
+  //   SDValue Src = Node->getOperand(0);
+  //   auto *Ld = dyn_cast<LoadSDNode>(Src);
+  //   if (!Ld)
+  //     break;
+  //   EVT MemVT = Ld->getMemoryVT();
+  //   // The memory VT should be the same size as the element type.
+  //   if (MemVT.getStoreSize() != VT.getVectorElementType().getStoreSize())
+  //     break;
+  //   if (!IsProfitableToFold(Src, Node, Node) ||
+  //       !IsLegalToFold(Src, Node, Node, TM.getOptLevel()))
+  //     break;
 
-    SDValue VL;
-    selectVLOp(Node->getOperand(1), VL);
+  //   SDValue VL;
+  //   selectVLOp(Node->getOperand(1), VL);
 
-    unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
-    SDValue SEW = CurDAG->getTargetConstant(Log2SEW, DL, XLenVT);
+  //   unsigned Log2SEW = Log2_32(VT.getScalarSizeInBits());
+  //   SDValue SEW = CurDAG->getTargetConstant(Log2SEW, DL, XLenVT);
 
-    SDValue Operands[] = {Ld->getBasePtr(),
-                          CurDAG->getRegister(Primate::X0, XLenVT), VL, SEW,
-                          Ld->getChain()};
+  //   SDValue Operands[] = {Ld->getBasePtr(),
+  //                         CurDAG->getRegister(Primate::X0, XLenVT), VL, SEW,
+  //                         Ld->getChain()};
 
-    PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
-    const Primate::VLEPseudo *P = Primate::getVLEPseudo(
-        /*IsMasked*/ false, /*IsStrided*/ true, /*FF*/ false, Log2SEW,
-        static_cast<unsigned>(LMUL));
-    MachineSDNode *Load =
-        CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
+  //   PrimateII::VLMUL LMUL = PrimateTargetLowering::getLMUL(VT);
+  //   const Primate::VLEPseudo *P = Primate::getVLEPseudo(
+  //       /*IsMasked*/ false, /*IsStrided*/ true, /*FF*/ false, Log2SEW,
+  //       static_cast<unsigned>(LMUL));
+  //   MachineSDNode *Load =
+  //       CurDAG->getMachineNode(P->Pseudo, DL, Node->getVTList(), Operands);
 
-    if (auto *MemOp = dyn_cast<MemSDNode>(Node))
-      CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
+  //   if (auto *MemOp = dyn_cast<MemSDNode>(Node))
+  //     CurDAG->setNodeMemRefs(Load, {MemOp->getMemOperand()});
 
-    ReplaceNode(Node, Load);
-    return;
-  }
+  //   ReplaceNode(Node, Load);
+  //   return;
+  // }
   // case ISD::EXTRACT_VALUE: {
   //   // This is used for things
   //   SmallVector<SDValue> operands;
@@ -1503,18 +1157,180 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
 }
 
 bool PrimateDAGToDAGISel::SelectInlineAsmMemoryOperand(
-    const SDValue &Op, unsigned ConstraintID, std::vector<SDValue> &OutOps) {
+    const SDValue &Op, InlineAsm::ConstraintCode ConstraintID,
+    std::vector<SDValue> &OutOps) {
+  // Always produce a register and immediate operand, as expected by
+  // PrimateAsmPrinter::PrintAsmMemoryOperand.
   switch (ConstraintID) {
-  case InlineAsm::Constraint_m:
-    // We just support simple memory operands that have a single address
-    // operand and need no special handling.
-    OutOps.push_back(Op);
+  case InlineAsm::ConstraintCode::o:
+  case InlineAsm::ConstraintCode::m: {
+    SDValue Op0, Op1;
+    bool Found = SelectAddrRegImm(Op, Op0, Op1);
+    assert(Found && "SelectAddrRegImm should always succeed");
+    (void)Found;
+    OutOps.push_back(Op0);
+    OutOps.push_back(Op1);
     return false;
-  case InlineAsm::Constraint_A:
+  }
+  case InlineAsm::ConstraintCode::A:
     OutOps.push_back(Op);
+    OutOps.push_back(
+        CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getXLenVT()));
     return false;
   default:
-    break;
+    report_fatal_error("Unexpected asm memory constraint " +
+                       InlineAsm::getMemConstraintName(ConstraintID));
+  }
+
+  return true;
+}
+
+// bool PrimateDAGToDAGISel::SelectInlineAsmMemoryOperand(
+//     const SDValue &Op, unsigned ConstraintID, std::vector<SDValue> &OutOps) {
+//   switch (ConstraintID) {
+//   case InlineAsm::Constraint_m:
+//     // We just support simple memory operands that have a single address
+//     // operand and need no special handling.
+//     OutOps.push_back(Op);
+//     return false;
+//   case InlineAsm::Constraint_A:
+//     OutOps.push_back(Op);
+//     return false;
+//   default:
+//     break;
+//   }
+
+//   return true;
+// }
+
+static SDValue selectImmSeq(SelectionDAG *CurDAG, const SDLoc &DL, const MVT VT,
+                            PrimateMatInt::InstSeq &Seq) {
+  SDValue SrcReg = CurDAG->getRegister(Primate::X0, VT);
+  for (const PrimateMatInt::Inst &Inst : Seq) {
+    SDValue SDImm = CurDAG->getTargetConstant(Inst.getImm(), DL, VT);
+    SDNode *Result = nullptr;
+    switch (Inst.getOpndKind()) {
+    case PrimateMatInt::Imm:
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SDImm);
+      break;
+    case PrimateMatInt::RegX0:
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg,
+                                      CurDAG->getRegister(Primate::X0, VT));
+      break;
+    case PrimateMatInt::RegReg:
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg, SrcReg);
+      break;
+    case PrimateMatInt::RegImm:
+      Result = CurDAG->getMachineNode(Inst.getOpcode(), DL, VT, SrcReg, SDImm);
+      break;
+    }
+
+    // Only the first instruction has X0 as its source.
+    SrcReg = SDValue(Result, 0);
+  }
+
+  return SrcReg;
+}
+
+static SDValue selectImm(SelectionDAG *CurDAG, const SDLoc &DL, const MVT VT,
+                         int64_t Imm, const PrimateSubtarget &Subtarget) {
+  PrimateMatInt::InstSeq Seq = PrimateMatInt::generateInstSeq(Imm, Subtarget);
+
+  // See if we can create this constant as (ADD (SLLI X, C), X) where X is at
+  // worst an LUI+ADDIW. This will require an extra register, but avoids a
+  // constant pool.
+  // If we have Zba we can use (ADD_UW X, (SLLI X, 32)) to handle cases where
+  // low and high 32 bits are the same and bit 31 and 63 are set.
+  if (Seq.size() > 3) {
+    unsigned ShiftAmt, AddOpc;
+    PrimateMatInt::InstSeq SeqLo =
+        PrimateMatInt::generateTwoRegInstSeq(Imm, Subtarget, ShiftAmt, AddOpc);
+    if (!SeqLo.empty() && (SeqLo.size() + 2) < Seq.size()) {
+      SDValue Lo = selectImmSeq(CurDAG, DL, VT, SeqLo);
+
+      SDValue SLLI = SDValue(
+          CurDAG->getMachineNode(Primate::SLLI, DL, VT, Lo,
+                                 CurDAG->getTargetConstant(ShiftAmt, DL, VT)),
+          0);
+      return SDValue(CurDAG->getMachineNode(AddOpc, DL, VT, Lo, SLLI), 0);
+    }
+  }
+
+  // Otherwise, use the original sequence.
+  return selectImmSeq(CurDAG, DL, VT, Seq);
+}
+
+// Fold constant addresses.
+static bool selectConstantAddr(SelectionDAG *CurDAG, const SDLoc &DL,
+                               const MVT VT, const PrimateSubtarget *Subtarget,
+                               SDValue Addr, SDValue &Base, SDValue &Offset,
+                               bool IsPrefetch = false) {
+  if (!isa<ConstantSDNode>(Addr))
+    return false;
+
+  int64_t CVal = cast<ConstantSDNode>(Addr)->getSExtValue();
+
+  // If the constant is a simm12, we can fold the whole constant and use X0 as
+  // the base. If the constant can be materialized with LUI+simm12, use LUI as
+  // the base. We can't use generateInstSeq because it favors LUI+ADDIW.
+  int64_t Lo12 = SignExtend64<12>(CVal);
+  int64_t Hi = (uint64_t)CVal - (uint64_t)Lo12;
+  if (!Subtarget->is64Bit() || isInt<32>(Hi)) {
+    if (IsPrefetch && (Lo12 & 0b11111) != 0)
+      return false;
+
+    if (Hi) {
+      int64_t Hi20 = (Hi >> 12) & 0xfffff;
+      Base = SDValue(
+          CurDAG->getMachineNode(Primate::LUI, DL, VT,
+                                 CurDAG->getTargetConstant(Hi20, DL, VT)),
+          0);
+    } else {
+      Base = CurDAG->getRegister(Primate::X0, VT);
+    }
+    Offset = CurDAG->getTargetConstant(Lo12, DL, VT);
+    return true;
+  }
+
+  // Ask how constant materialization would handle this constant.
+  PrimateMatInt::InstSeq Seq = PrimateMatInt::generateInstSeq(CVal, *Subtarget);
+
+  // If the last instruction would be an ADDI, we can fold its immediate and
+  // emit the rest of the sequence as the base.
+  if (Seq.back().getOpcode() != Primate::ADDI)
+    return false;
+  Lo12 = Seq.back().getImm();
+  if (IsPrefetch && (Lo12 & 0b11111) != 0)
+    return false;
+
+  // Drop the last instruction.
+  Seq.pop_back();
+  assert(!Seq.empty() && "Expected more instructions in sequence");
+
+  Base = selectImmSeq(CurDAG, DL, VT, Seq);
+  Offset = CurDAG->getTargetConstant(Lo12, DL, VT);
+  return true;
+}
+
+// Is this ADD instruction only used as the base pointer of scalar loads and
+// stores?
+static bool isWorthFoldingAdd(SDValue Add) {
+  for (auto *Use : Add->uses()) {
+    if (Use->getOpcode() != ISD::LOAD && Use->getOpcode() != ISD::STORE &&
+        Use->getOpcode() != ISD::ATOMIC_LOAD &&
+        Use->getOpcode() != ISD::ATOMIC_STORE)
+      return false;
+    EVT VT = cast<MemSDNode>(Use)->getMemoryVT();
+    if (!VT.isScalarInteger() && VT != MVT::f16 && VT != MVT::f32 &&
+        VT != MVT::f64)
+      return false;
+    // Don't allow stores of the value. It must be used as the address.
+    if (Use->getOpcode() == ISD::STORE &&
+        cast<StoreSDNode>(Use)->getValue() == Add)
+      return false;
+    if (Use->getOpcode() == ISD::ATOMIC_STORE &&
+        cast<AtomicSDNode>(Use)->getVal() == Add)
+      return false;
   }
 
   return true;
@@ -1569,6 +1385,176 @@ bool PrimateDAGToDAGISel::selectShiftMask(SDValue N, unsigned ShiftWidth,
   return true;
 }
 
+bool PrimateDAGToDAGISel::SelectAddrFrameIndex(SDValue Addr, SDValue &Base,
+                                             SDValue &Offset) {
+  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
+    Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), Subtarget->getXLenVT());
+    Offset = CurDAG->getTargetConstant(0, SDLoc(Addr), Subtarget->getXLenVT());
+    return true;
+  }
+
+  return false;
+}
+
+bool PrimateDAGToDAGISel::SelectAddrRegImm(SDValue Addr, SDValue &Base,
+                                         SDValue &Offset, bool IsINX) {
+  if (SelectAddrFrameIndex(Addr, Base, Offset))
+    return true;
+
+  SDLoc DL(Addr);
+  MVT VT = Addr.getSimpleValueType();
+
+  if (Addr.getOpcode() == PrimateISD::ADD_LO) {
+    Base = Addr.getOperand(0);
+    Offset = Addr.getOperand(1);
+    return true;
+  }
+
+  int64_t RV32ZdinxRange = IsINX ? 4 : 0;
+  if (CurDAG->isBaseWithConstantOffset(Addr)) {
+    int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
+    if (isInt<12>(CVal) && isInt<12>(CVal + RV32ZdinxRange)) {
+      Base = Addr.getOperand(0);
+      if (Base.getOpcode() == PrimateISD::ADD_LO) {
+        SDValue LoOperand = Base.getOperand(1);
+        if (auto *GA = dyn_cast<GlobalAddressSDNode>(LoOperand)) {
+          // If the Lo in (ADD_LO hi, lo) is a global variable's address
+          // (its low part, really), then we can rely on the alignment of that
+          // variable to provide a margin of safety before low part can overflow
+          // the 12 bits of the load/store offset. Check if CVal falls within
+          // that margin; if so (low part + CVal) can't overflow.
+          const DataLayout &DL = CurDAG->getDataLayout();
+          Align Alignment = commonAlignment(
+              GA->getGlobal()->getPointerAlignment(DL), GA->getOffset());
+          if (CVal == 0 || Alignment > CVal) {
+            int64_t CombinedOffset = CVal + GA->getOffset();
+            Base = Base.getOperand(0);
+            Offset = CurDAG->getTargetGlobalAddress(
+                GA->getGlobal(), SDLoc(LoOperand), LoOperand.getValueType(),
+                CombinedOffset, GA->getTargetFlags());
+            return true;
+          }
+        }
+      }
+
+      if (auto *FIN = dyn_cast<FrameIndexSDNode>(Base))
+        Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
+      Offset = CurDAG->getTargetConstant(CVal, DL, VT);
+      return true;
+    }
+  }
+
+  // Handle ADD with large immediates.
+  if (Addr.getOpcode() == ISD::ADD && isa<ConstantSDNode>(Addr.getOperand(1))) {
+    int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
+    assert(!(isInt<12>(CVal) && isInt<12>(CVal + RV32ZdinxRange)) &&
+           "simm12 not already handled?");
+
+    // Handle immediates in the range [-4096,-2049] or [2048, 4094]. We can use
+    // an ADDI for part of the offset and fold the rest into the load/store.
+    // This mirrors the AddiPair PatFrag in PrimateInstrInfo.td.
+    if (isInt<12>(CVal / 2) && isInt<12>(CVal - CVal / 2)) {
+      int64_t Adj = CVal < 0 ? -2048 : 2047;
+      Base = SDValue(
+          CurDAG->getMachineNode(Primate::ADDI, DL, VT, Addr.getOperand(0),
+                                 CurDAG->getTargetConstant(Adj, DL, VT)),
+          0);
+      Offset = CurDAG->getTargetConstant(CVal - Adj, DL, VT);
+      return true;
+    }
+
+    // For larger immediates, we might be able to save one instruction from
+    // constant materialization by folding the Lo12 bits of the immediate into
+    // the address. We should only do this if the ADD is only used by loads and
+    // stores that can fold the lo12 bits. Otherwise, the ADD will get iseled
+    // separately with the full materialized immediate creating extra
+    // instructions.
+    if (isWorthFoldingAdd(Addr) &&
+        selectConstantAddr(CurDAG, DL, VT, Subtarget, Addr.getOperand(1), Base,
+                           Offset)) {
+      // Insert an ADD instruction with the materialized Hi52 bits.
+      Base = SDValue(
+          CurDAG->getMachineNode(Primate::ADD, DL, VT, Addr.getOperand(0), Base),
+          0);
+      return true;
+    }
+  }
+
+  if (selectConstantAddr(CurDAG, DL, VT, Subtarget, Addr, Base, Offset))
+    return true;
+
+  Base = Addr;
+  Offset = CurDAG->getTargetConstant(0, DL, VT);
+  return true;
+}
+
+/// Similar to SelectAddrRegImm, except that the least significant 5 bits of
+/// Offset shoule be all zeros.
+bool PrimateDAGToDAGISel::SelectAddrRegImmLsb00000(SDValue Addr, SDValue &Base,
+                                                 SDValue &Offset) {
+  if (SelectAddrFrameIndex(Addr, Base, Offset))
+    return true;
+
+  SDLoc DL(Addr);
+  MVT VT = Addr.getSimpleValueType();
+
+  if (CurDAG->isBaseWithConstantOffset(Addr)) {
+    int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
+    if (isInt<12>(CVal)) {
+      Base = Addr.getOperand(0);
+
+      // Early-out if not a valid offset.
+      if ((CVal & 0b11111) != 0) {
+        Base = Addr;
+        Offset = CurDAG->getTargetConstant(0, DL, VT);
+        return true;
+      }
+
+      if (auto *FIN = dyn_cast<FrameIndexSDNode>(Base))
+        Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
+      Offset = CurDAG->getTargetConstant(CVal, DL, VT);
+      return true;
+    }
+  }
+
+  // Handle ADD with large immediates.
+  if (Addr.getOpcode() == ISD::ADD && isa<ConstantSDNode>(Addr.getOperand(1))) {
+    int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
+    assert(!(isInt<12>(CVal) && isInt<12>(CVal)) &&
+           "simm12 not already handled?");
+
+    // Handle immediates in the range [-4096,-2049] or [2017, 4065]. We can save
+    // one instruction by folding adjustment (-2048 or 2016) into the address.
+    if ((-2049 >= CVal && CVal >= -4096) || (4065 >= CVal && CVal >= 2017)) {
+      int64_t Adj = CVal < 0 ? -2048 : 2016;
+      int64_t AdjustedOffset = CVal - Adj;
+      Base = SDValue(CurDAG->getMachineNode(
+                         Primate::ADDI, DL, VT, Addr.getOperand(0),
+                         CurDAG->getTargetConstant(AdjustedOffset, DL, VT)),
+                     0);
+      Offset = CurDAG->getTargetConstant(Adj, DL, VT);
+      return true;
+    }
+
+    if (selectConstantAddr(CurDAG, DL, VT, Subtarget, Addr.getOperand(1), Base,
+                           Offset, true)) {
+      // Insert an ADD instruction with the materialized Hi52 bits.
+      Base = SDValue(
+          CurDAG->getMachineNode(Primate::ADD, DL, VT, Addr.getOperand(0), Base),
+          0);
+      return true;
+    }
+  }
+
+  if (selectConstantAddr(CurDAG, DL, VT, Subtarget, Addr, Base, Offset, true))
+    return true;
+
+  Base = Addr;
+  Offset = CurDAG->getTargetConstant(0, DL, VT);
+  return true;
+}
+
+
 bool PrimateDAGToDAGISel::selectSExti32(SDValue N, SDValue &Val) {
   if (N.getOpcode() == ISD::SIGN_EXTEND_INREG &&
       cast<VTSDNode>(N.getOperand(1))->getVT() == MVT::i32) {
@@ -1616,12 +1602,13 @@ bool PrimateDAGToDAGISel::selectVLOp(SDValue N, SDValue &VL) {
 }
 
 bool PrimateDAGToDAGISel::selectVSplat(SDValue N, SDValue &SplatVal) {
-  if (N.getOpcode() != ISD::SPLAT_VECTOR &&
-      N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
-      N.getOpcode() != PrimateISD::VMV_V_X_VL)
-    return false;
-  SplatVal = N.getOperand(0);
-  return true;
+  llvm_unreachable("Primate should not select a VSplat");
+  // if (N.getOpcode() != ISD::SPLAT_VECTOR &&
+  //     N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
+  //     N.getOpcode() != PrimateISD::VMV_V_X_VL)
+  //   return false;
+  // SplatVal = N.getOperand(0);
+  // return true;
 }
 
 using ValidateFn = bool (*)(int64_t);
@@ -1630,33 +1617,34 @@ static bool selectVSplatSimmHelper(SDValue N, SDValue &SplatVal,
                                    SelectionDAG &DAG,
                                    const PrimateSubtarget &Subtarget,
                                    ValidateFn ValidateImm) {
-  if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
-       N.getOpcode() != PrimateISD::VMV_V_X_VL) ||
-      !isa<ConstantSDNode>(N.getOperand(0)))
-    return false;
+  llvm_unreachable("Primate should not select a VSplatSimmHelper");
+  // if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
+  //      N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
+  //      N.getOpcode() != PrimateISD::VMV_V_X_VL) ||
+  //     !isa<ConstantSDNode>(N.getOperand(0)))
+  //   return false;
 
-  int64_t SplatImm = cast<ConstantSDNode>(N.getOperand(0))->getSExtValue();
+  // int64_t SplatImm = cast<ConstantSDNode>(N.getOperand(0))->getSExtValue();
 
-  // ISD::SPLAT_VECTOR, PrimateISD::SPLAT_VECTOR_I64 and PrimateISD::VMV_V_X_VL
-  // share semantics when the operand type is wider than the resulting vector
-  // element type: an implicit truncation first takes place. Therefore, perform
-  // a manual truncation/sign-extension in order to ignore any truncated bits
-  // and catch any zero-extended immediate.
-  // For example, we wish to match (i8 -1) -> (XLenVT 255) as a simm5 by first
-  // sign-extending to (XLenVT -1).
-  MVT XLenVT = Subtarget.getXLenVT();
-  assert(XLenVT == N.getOperand(0).getSimpleValueType() &&
-         "Unexpected splat operand type");
-  MVT EltVT = N.getSimpleValueType().getVectorElementType();
-  if (EltVT.bitsLT(XLenVT))
-    SplatImm = SignExtend64(SplatImm, EltVT.getSizeInBits());
+  // // ISD::SPLAT_VECTOR, PrimateISD::SPLAT_VECTOR_I64 and PrimateISD::VMV_V_X_VL
+  // // share semantics when the operand type is wider than the resulting vector
+  // // element type: an implicit truncation first takes place. Therefore, perform
+  // // a manual truncation/sign-extension in order to ignore any truncated bits
+  // // and catch any zero-extended immediate.
+  // // For example, we wish to match (i8 -1) -> (XLenVT 255) as a simm5 by first
+  // // sign-extending to (XLenVT -1).
+  // MVT XLenVT = Subtarget.getXLenVT();
+  // assert(XLenVT == N.getOperand(0).getSimpleValueType() &&
+  //        "Unexpected splat operand type");
+  // MVT EltVT = N.getSimpleValueType().getVectorElementType();
+  // if (EltVT.bitsLT(XLenVT))
+  //   SplatImm = SignExtend64(SplatImm, EltVT.getSizeInBits());
 
-  if (!ValidateImm(SplatImm))
-    return false;
+  // if (!ValidateImm(SplatImm))
+  //   return false;
 
-  SplatVal = DAG.getTargetConstant(SplatImm, SDLoc(N), XLenVT);
-  return true;
+  // SplatVal = DAG.getTargetConstant(SplatImm, SDLoc(N), XLenVT);
+  // return true;
 }
 
 bool PrimateDAGToDAGISel::selectVSplatSimm5(SDValue N, SDValue &SplatVal) {
@@ -1679,21 +1667,22 @@ bool PrimateDAGToDAGISel::selectVSplatSimm5Plus1NonZero(SDValue N,
 }
 
 bool PrimateDAGToDAGISel::selectVSplatUimm5(SDValue N, SDValue &SplatVal) {
-  if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
-       N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
-       N.getOpcode() != PrimateISD::VMV_V_X_VL) ||
-      !isa<ConstantSDNode>(N.getOperand(0)))
-    return false;
+  llvm_unreachable("Primate should not select a VSplatUimm5");
+  // if ((N.getOpcode() != ISD::SPLAT_VECTOR &&
+  //      N.getOpcode() != PrimateISD::SPLAT_VECTOR_I64 &&
+  //      N.getOpcode() != PrimateISD::VMV_V_X_VL) ||
+  //     !isa<ConstantSDNode>(N.getOperand(0)))
+  //   return false;
 
-  int64_t SplatImm = cast<ConstantSDNode>(N.getOperand(0))->getSExtValue();
+  // int64_t SplatImm = cast<ConstantSDNode>(N.getOperand(0))->getSExtValue();
 
-  if (!isUInt<5>(SplatImm))
-    return false;
+  // if (!isUInt<5>(SplatImm))
+  //   return false;
 
-  SplatVal =
-      CurDAG->getTargetConstant(SplatImm, SDLoc(N), Subtarget->getXLenVT());
+  // SplatVal =
+  //     CurDAG->getTargetConstant(SplatImm, SDLoc(N), Subtarget->getXLenVT());
 
-  return true;
+  // return true;
 }
 
 bool PrimateDAGToDAGISel::selectPRVSimm5(SDValue N, unsigned Width,
@@ -1826,6 +1815,11 @@ void PrimateDAGToDAGISel::doPeepholeLoadStoreADDI() {
 
 // This pass converts a legalized DAG into a Primate-specific DAG, ready
 // for instruction scheduling.
-FunctionPass *llvm::createPrimateISelDag(PrimateTargetMachine &TM) {
-  return new PrimateDAGToDAGISel(TM);
+FunctionPass *llvm::createPrimateISelDag(PrimateTargetMachine &TM,
+                                         CodeGenOptLevel OptLevel) {
+  return new PrimateDAGToDAGISel(TM, OptLevel);
 }
+
+char PrimateDAGToDAGISel::ID = 0;
+
+INITIALIZE_PASS(PrimateDAGToDAGISel, DEBUG_TYPE, PASS_NAME, false, false)

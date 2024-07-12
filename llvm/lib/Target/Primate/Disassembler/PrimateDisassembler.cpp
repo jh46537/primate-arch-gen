@@ -15,13 +15,13 @@
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
-#include "llvm/MC/MCFixedLenDisassembler.h"
+#include "llvm/MC/MCDecoderOps.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -65,7 +65,7 @@ static DecodeStatus DecodeWIDEREGRegisterClass(MCInst &Inst, uint64_t RegNo,
       static_cast<const MCDisassembler *>(Decoder)
           ->getSubtargetInfo()
           .getFeatureBits();
-  bool IsPR32E = FeatureBits[Primate::FeaturePR32E];
+  bool IsPR32E = FeatureBits[Primate::FeaturePRE];
 
   if (RegNo >= 32 || (IsPR32E && RegNo >= 16))
     return MCDisassembler::Fail;
@@ -82,7 +82,7 @@ static DecodeStatus DecodeGPR128RegisterClass(MCInst &Inst, uint64_t RegNo,
       static_cast<const MCDisassembler *>(Decoder)
           ->getSubtargetInfo()
           .getFeatureBits();
-  bool IsPR32E = FeatureBits[Primate::FeaturePR32E];
+  bool IsPR32E = FeatureBits[Primate::FeaturePRE];
 
   if (RegNo >= 32 || (IsPR32E && RegNo >= 16))
     return MCDisassembler::Fail;
@@ -99,7 +99,7 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint64_t RegNo,
       static_cast<const MCDisassembler *>(Decoder)
           ->getSubtargetInfo()
           .getFeatureBits();
-  bool IsPR32E = FeatureBits[Primate::FeaturePR32E];
+  bool IsPR32E = FeatureBits[Primate::FeaturePRE];
 
   if (RegNo >= 32 || (IsPR32E && RegNo >= 16))
     return MCDisassembler::Fail;
@@ -371,6 +371,14 @@ static DecodeStatus decodeFRMArg(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus DecodeGPRPairRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder);
+
+static DecodeStatus decodePRCInstrRdRs1ImmZero(MCInst &Inst, uint32_t Insn,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder);
+
 static DecodeStatus decodePRCInstrSImm(MCInst &Inst, unsigned Insn,
                                        uint64_t Address, const void *Decoder);
 
@@ -390,6 +398,19 @@ static DecodeStatus decodePRCInstrRdRs1Rs2(MCInst &Inst, unsigned Insn,
 
 #include "PrimateGenDisassemblerTables.inc"
 
+static DecodeStatus decodePRCInstrRdRs1ImmZero(MCInst &Inst, uint32_t Insn,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
+  uint32_t Rd = fieldFromInstruction(Insn, 7, 5);
+  DecodeStatus Result = DecodeGPRNoX0RegisterClass(Inst, Rd, Address, Decoder);
+  (void)Result;
+  assert(Result == MCDisassembler::Success && "Invalid register");
+  Inst.addOperand(Inst.getOperand(0));
+  Inst.addOperand(MCOperand::createImm(0));
+  return MCDisassembler::Success;
+}
+
+
 static DecodeStatus decodePRCInstrSImm(MCInst &Inst, unsigned Insn,
                                        uint64_t Address, const void *Decoder) {
   uint64_t SImm6 =
@@ -397,6 +418,17 @@ static DecodeStatus decodePRCInstrSImm(MCInst &Inst, unsigned Insn,
   DecodeStatus Result = decodeSImmOperand<6>(Inst, SImm6, Address, Decoder);
   (void)Result;
   assert(Result == MCDisassembler::Success && "Invalid immediate");
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeGPRPairRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
+  if (RegNo >= 32 || RegNo & 1)
+    return MCDisassembler::Fail;
+
+  MCRegister Reg = Primate::X0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
 
@@ -476,19 +508,6 @@ DecodeStatus PrimateDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
           dbgs() << "Trying Primate32Only_16 table (16-bit Instruction):\n");
       // Calling the auto-generated decoder function.
       Result = decodeInstruction(DecoderTablePrimate32Only_16, MI, Insn, Address,
-                                 this, STI);
-      if (Result != MCDisassembler::Fail) {
-        Size = 2;
-        return Result;
-      }
-    }
-
-    if (STI.getFeatureBits()[Primate::FeatureExtZbproposedc] &&
-        STI.getFeatureBits()[Primate::FeatureStdExtC]) {
-      LLVM_DEBUG(
-          dbgs() << "Trying PRBC32 table (BitManip 16-bit Instruction):\n");
-      // Calling the auto-generated decoder function.
-      Result = decodeInstruction(DecoderTablePRBC16, MI, Insn, Address,
                                  this, STI);
       if (Result != MCDisassembler::Fail) {
         Size = 2;

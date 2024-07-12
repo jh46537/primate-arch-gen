@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/CodeGen.h"
 
 namespace llvm {
 class PrimateTargetMachine : public LLVMTargetMachine {
@@ -27,8 +28,8 @@ class PrimateTargetMachine : public LLVMTargetMachine {
 public:
   PrimateTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                      StringRef FS, const TargetOptions &Options,
-                     Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                     CodeGenOpt::Level OL, bool JIT);
+                     std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM,
+                     CodeGenOptLevel OL, bool JIT);
 
   const PrimateSubtarget *getSubtargetImpl(const Function &F) const override;
   // DO NOT IMPLEMENT: There is no such thing as a valid default subtarget,
@@ -38,13 +39,14 @@ public:
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
-  void registerPassBuilderCallbacks(PassBuilder &PB) override;
+  void registerPassBuilderCallbacks(PassBuilder &PB, 
+                                    bool PopulateClassToPassNames) override;
 
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS,
                                    unsigned DstAS) const override;

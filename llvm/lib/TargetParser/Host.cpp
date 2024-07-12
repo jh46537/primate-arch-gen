@@ -410,7 +410,7 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
 }
 
 StringRef sys::detail::getHostCPUNameForPrimate(StringRef ProcCpuinfoContent) {
-    return "PrimateCustom"
+    return "PrimateCustom";
 //  // There are 24 lines in /proc/cpuinfo
 //  SmallVector<StringRef> Lines;
 //  ProcCpuinfoContent.split(Lines, "\n");

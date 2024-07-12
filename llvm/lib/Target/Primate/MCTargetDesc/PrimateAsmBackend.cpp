@@ -24,10 +24,12 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
+#include <iterator>
 
 using namespace llvm;
 
-Optional<MCFixupKind> PrimateAsmBackend::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind> PrimateAsmBackend::getFixupKind(StringRef Name) const {
   if (STI.getTargetTriple().isOSBinFormatELF()) {
     unsigned Type;
     Type = llvm::StringSwitch<unsigned>(Name)
@@ -41,7 +43,7 @@ Optional<MCFixupKind> PrimateAsmBackend::getFixupKind(StringRef Name) const {
     if (Type != -1u)
       return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
   }
-  return None;
+  return {};
 }
 
 const MCFixupKindInfo &
@@ -94,7 +96,7 @@ PrimateAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_primate_set_6b", 2, 6, 0},
       {"fixup_primate_sub_6b", 2, 6, 0},
   };
-  static_assert((array_lengthof(Infos)) == Primate::NumTargetFixupKinds,
+  static_assert((std::size(Infos)) == Primate::NumTargetFixupKinds,
                 "Not all fixup kinds added to Infos array");
 
   // Fixup kinds from .reloc directive are like R_Primate_NONE. They
@@ -113,9 +115,10 @@ PrimateAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 // If linker relaxation is enabled, or the relax option had previously been
 // enabled, always emit relocations even if the fixup can be resolved. This is
 // necessary for correctness as offsets may change during relaxation.
-bool PrimateAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
-                                            const MCFixup &Fixup,
-                                            const MCValue &Target) {
+bool PrimateAsmBackend::shouldForceRelocation(const MCAssembler &Asm, 
+                                              const MCFixup &Fixup,
+                                              const MCValue &Target, 
+                                              const MCSubtargetInfo *STI) {
   if (Fixup.getKind() >= FirstLiteralRelocationKind)
     return true;
   switch (Fixup.getTargetKind()) {
@@ -134,7 +137,7 @@ bool PrimateAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
     return true;
   }
 
-  return STI.getFeatureBits()[Primate::FeatureRelax] || ForceRelocs;
+  return STI->getFeatureBits()[Primate::FeatureRelax] || ForceRelocs;
 }
 
 bool PrimateAsmBackend::fixupNeedsRelaxationAdvanced(const MCFixup &Fixup,
@@ -166,7 +169,7 @@ bool PrimateAsmBackend::fixupNeedsRelaxationAdvanced(const MCFixup &Fixup,
 }
 
 void PrimateAsmBackend::relaxInstruction(MCInst &Inst,
-                                       const MCSubtargetInfo &STI) const {
+                                         const MCSubtargetInfo &STI) const {
   // TODO: replace this with call to auto generated uncompressinstr() function.
   MCInst Res;
   switch (Inst.getOpcode()) {
@@ -251,7 +254,7 @@ bool PrimateAsmBackend::relaxDwarfLineAddr(MCDwarfLineAddrFragment &DF,
     OS << uint8_t(dwarf::DW_LNS_fixed_advance_pc);
     Offset = OS.tell();
     Fixup = {Primate::fixup_primate_add_16, Primate::fixup_primate_sub_16};
-    support::endian::write<uint16_t>(OS, 0, support::little);
+    support::endian::write<uint16_t>(OS, 0, llvm::endianness::little);
   }
 
   const MCBinaryExpr &MBE = cast<MCBinaryExpr>(AddrDelta);
@@ -313,15 +316,15 @@ bool PrimateAsmBackend::relaxDwarfCFA(MCDwarfCallFrameFragment &DF,
     AddFixups(0, {Primate::fixup_primate_set_6b, Primate::fixup_primate_sub_6b});
   } else if (isUInt<8>(Value)) {
     OS << uint8_t(dwarf::DW_CFA_advance_loc1);
-    support::endian::write<uint8_t>(OS, 0, support::little);
+    support::endian::write<uint8_t>(OS, 0, llvm::endianness::little);
     AddFixups(1, {Primate::fixup_primate_set_8, Primate::fixup_primate_sub_8});
   } else if (isUInt<16>(Value)) {
     OS << uint8_t(dwarf::DW_CFA_advance_loc2);
-    support::endian::write<uint16_t>(OS, 0, support::little);
+    support::endian::write<uint16_t>(OS, 0, llvm::endianness::little);
     AddFixups(1, {Primate::fixup_primate_set_16, Primate::fixup_primate_sub_16});
   } else if (isUInt<32>(Value)) {
     OS << uint8_t(dwarf::DW_CFA_advance_loc4);
-    support::endian::write<uint32_t>(OS, 0, support::little);
+    support::endian::write<uint32_t>(OS, 0, llvm::endianness::little);
     AddFixups(1, {Primate::fixup_primate_set_32, Primate::fixup_primate_sub_32});
   } else {
     llvm_unreachable("unsupported CFA encoding");
@@ -352,8 +355,8 @@ bool PrimateAsmBackend::mayNeedRelaxation(const MCInst &Inst,
   return getRelaxedOpcode(Inst.getOpcode()) != Inst.getOpcode();
 }
 
-bool PrimateAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
-  bool HasStdExtC = STI.getFeatureBits()[Primate::FeatureStdExtC];
+bool PrimateAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count, const MCSubtargetInfo *STI) const {
+  bool HasStdExtC = STI->getFeatureBits()[Primate::FeatureStdExtC];
   unsigned MinNopLen = HasStdExtC ? 2 : 4;
 
   if ((Count % MinNopLen) != 0)
@@ -394,7 +397,6 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case FK_Data_2:
   case FK_Data_4:
   case FK_Data_8:
-  case FK_Data_6b:
     return Value;
   case Primate::fixup_primate_set_6b:
     return Value & 0x03;
@@ -485,8 +487,11 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
 }
 
 bool PrimateAsmBackend::evaluateTargetFixup(
-    const MCAssembler &Asm, const MCAsmLayout &Layout, const MCFixup &Fixup,
-    const MCFragment *DF, const MCValue &Target, uint64_t &Value,
+    const MCAssembler &Asm,
+    const MCAsmLayout &Layout,
+    const MCFixup &Fixup, const MCFragment *DF,
+    const MCValue &Target,
+    const MCSubtargetInfo *STI, uint64_t &Value,
     bool &WasForced) {
   const MCFixup *AUIPCFixup;
   const MCFragment *AUIPCDF;
@@ -537,7 +542,7 @@ bool PrimateAsmBackend::evaluateTargetFixup(
   Value = Layout.getSymbolOffset(SA) + AUIPCTarget.getConstant();
   Value -= Layout.getFragmentOffset(AUIPCDF) + AUIPCFixup->getOffset();
 
-  if (shouldForceRelocation(Asm, *AUIPCFixup, AUIPCTarget)) {
+  if (shouldForceRelocation(Asm, *AUIPCFixup, AUIPCTarget, STI)) {
     WasForced = true;
     return false;
   }
@@ -591,7 +596,7 @@ bool PrimateAsmBackend::shouldInsertExtraNopBytesForCodeAlign(
   if (AF.getAlignment() <= MinNopLen) {
     return false;
   } else {
-    Size = AF.getAlignment() - MinNopLen;
+    Size = AF.getAlignment().value() - MinNopLen;
     return true;
   }
 }

@@ -1,4 +1,4 @@
-//===--- Primate.cpp - Implement Primate target feature support -----------===//
+//===--- Primate.cpp - Implement Primate target feature support --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,15 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "Primate.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/TargetParser.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/PrimateTargetParser.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::targets;
 
 ArrayRef<const char *> PrimateTargetInfo::getGCCRegNames() const {
+  // clang-format off
   static const char *const GCCRegNames[] = {
       // Integer registers
       "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",
@@ -31,14 +35,19 @@ ArrayRef<const char *> PrimateTargetInfo::getGCCRegNames() const {
       "f0",  "f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",
       "f8",  "f9",  "f10", "f11", "f12", "f13", "f14", "f15",
       "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23",
-      "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31"/*,
+      "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31",
 
       // Vector registers
       "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",
       "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",
       "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",
-      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31"*/};
-  return llvm::makeArrayRef(GCCRegNames);
+      "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",
+
+      // CSRs
+      "fflags", "frm", "vtype", "vl", "vxsat", "vxrm"
+    };
+  // clang-format on
+  return llvm::ArrayRef(GCCRegNames);
 }
 
 ArrayRef<TargetInfo::GCCRegAlias> PrimateTargetInfo::getGCCRegAliases() const {
@@ -59,7 +68,7 @@ ArrayRef<TargetInfo::GCCRegAlias> PrimateTargetInfo::getGCCRegAliases() const {
       {{"fs4"}, "f20"}, {{"fs5"}, "f21"}, {{"fs6"}, "f22"},  {{"fs7"}, "f23"},
       {{"fs8"}, "f24"}, {{"fs9"}, "f25"}, {{"fs10"}, "f26"}, {{"fs11"}, "f27"},
       {{"ft8"}, "f28"}, {{"ft9"}, "f29"}, {{"ft10"}, "f30"}, {{"ft11"}, "f31"}};
-  return llvm::makeArrayRef(GCCRegAliases);
+  return llvm::ArrayRef(GCCRegAliases);
 }
 
 bool PrimateTargetInfo::validateAsmConstraint(
@@ -90,24 +99,24 @@ bool PrimateTargetInfo::validateAsmConstraint(
   case 'S': // A symbolic address
     Info.setAllowsRegister();
     return true;
-  //case 'v':
-  //  // A vector register.
-  //  if (Name[1] == 'r' || Name[1] == 'm') {
-  //    Info.setAllowsRegister();
-  //    Name += 1;
-  //    return true;
-  //  }
-  //  return false;
+  case 'v':
+    // A vector register.
+    if (Name[1] == 'r' || Name[1] == 'm') {
+      Info.setAllowsRegister();
+      Name += 1;
+      return true;
+    }
+    return false;
   }
 }
 
 std::string PrimateTargetInfo::convertConstraint(const char *&Constraint) const {
   std::string R;
   switch (*Constraint) {
-  //case 'v':
-  //  R = std::string("v");
-  //  Constraint += 1;
-  //  break;
+  case 'v':
+    R = std::string("^") + std::string(Constraint, 2);
+    Constraint += 1;
+    break;
   default:
     R = TargetInfo::convertConstraint(Constraint);
     break;
@@ -115,47 +124,59 @@ std::string PrimateTargetInfo::convertConstraint(const char *&Constraint) const 
   return R;
 }
 
+static unsigned getVersionValue(unsigned MajorVersion, unsigned MinorVersion) {
+  return MajorVersion * 1000000 + MinorVersion * 1000;
+}
+
 void PrimateTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
-  Builder.defineMacro("__ELF__");
-  Builder.defineMacro("__primate");
-  bool Is64Bit = getTriple().getArch() == llvm::Triple::primate64;
-  //FIXME(ahsu): archgen param!
-  Builder.defineMacro("__primate_xlen", Is64Bit ? "64" : "32");
-  //Builder.defineMacro("__primate_xlen", "256");
+  Builder.defineMacro("__Primate");
+  bool Is64Bit = getTriple().isPrimate64();
+  Builder.defineMacro("__Primate_xlen", Is64Bit ? "64" : "32");
   StringRef CodeModel = getTargetOpts().CodeModel;
+  unsigned FLen = ISAInfo->getFLen();
+  unsigned MinVLen = ISAInfo->getMinVLen();
+  unsigned MaxELen = ISAInfo->getMaxELen();
+  unsigned MaxELenFp = ISAInfo->getMaxELenFp();
   if (CodeModel == "default")
     CodeModel = "small";
 
   if (CodeModel == "small")
-    Builder.defineMacro("__primate_cmodel_medlow");
+    Builder.defineMacro("__Primate_cmodel_medlow");
   else if (CodeModel == "medium")
-    Builder.defineMacro("__primate_cmodel_medany");
+    Builder.defineMacro("__Primate_cmodel_medany");
 
   StringRef ABIName = getABI();
   if (ABIName == "ilp32f" || ABIName == "lp64f")
-    Builder.defineMacro("__primate_float_abi_single");
+    Builder.defineMacro("__Primate_float_abi_single");
   else if (ABIName == "ilp32d" || ABIName == "lp64d")
-    Builder.defineMacro("__primate_float_abi_double");
+    Builder.defineMacro("__Primate_float_abi_double");
   else
-    Builder.defineMacro("__primate_float_abi_soft");
+    Builder.defineMacro("__Primate_float_abi_soft");
 
-  if (ABIName == "ilp32e")
-    Builder.defineMacro("__primate_abi_pre");
+  if (ABIName == "ilp32e" || ABIName == "lp64e")
+    Builder.defineMacro("__Primate_abi_rve");
 
-  Builder.defineMacro("__primate_arch_test");
-  Builder.defineMacro("__primate_i", "2000000");
+  Builder.defineMacro("__Primate_arch_test");
 
-  if (HasM) {
-    Builder.defineMacro("__primate_m", "2000000");
-    Builder.defineMacro("__primate_mul");
-    Builder.defineMacro("__primate_div");
-    Builder.defineMacro("__primate_muldiv");
+  for (auto &Extension : ISAInfo->getExtensions()) {
+    auto ExtName = Extension.first;
+    auto ExtInfo = Extension.second;
+
+    Builder.defineMacro(Twine("__Primate_", ExtName),
+                        Twine(getVersionValue(ExtInfo.Major, ExtInfo.Minor)));
   }
 
-  if (HasA) {
-    Builder.defineMacro("__primate_a", "2000000");
-    Builder.defineMacro("__primate_atomic");
+  if (ISAInfo->hasExtension("m") || ISAInfo->hasExtension("zmmul"))
+    Builder.defineMacro("__Primate_mul");
+
+  if (ISAInfo->hasExtension("m")) {
+    Builder.defineMacro("__Primate_div");
+    Builder.defineMacro("__Primate_muldiv");
+  }
+
+  if (ISAInfo->hasExtension("a")) {
+    Builder.defineMacro("__Primate_atomic");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_1");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_2");
     Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4");
@@ -163,218 +184,285 @@ void PrimateTargetInfo::getTargetDefines(const LangOptions &Opts,
       Builder.defineMacro("__GCC_HAVE_SYNC_COMPARE_AND_SWAP_8");
   }
 
-  if (HasF || HasD) {
-    Builder.defineMacro("__primate_f", "2000000");
-    Builder.defineMacro("__primate_flen", HasD ? "64" : "32");
-    Builder.defineMacro("__primate_fdiv");
-    Builder.defineMacro("__primate_fsqrt");
+  if (FLen) {
+    Builder.defineMacro("__Primate_flen", Twine(FLen));
+    Builder.defineMacro("__Primate_fdiv");
+    Builder.defineMacro("__Primate_fsqrt");
   }
 
-  if (HasD)
-    Builder.defineMacro("__primate_d", "2000000");
-
-  if (HasC) {
-    Builder.defineMacro("__primate_c", "2000000");
-    Builder.defineMacro("__primate_compressed");
+  if (MinVLen) {
+    Builder.defineMacro("__Primate_v_min_vlen", Twine(MinVLen));
+    Builder.defineMacro("__Primate_v_elen", Twine(MaxELen));
+    Builder.defineMacro("__Primate_v_elen_fp", Twine(MaxELenFp));
   }
 
-  if (HasB) {
-    Builder.defineMacro("__primate_b", "93000");
-    Builder.defineMacro("__primate_bitmanip");
+  if (ISAInfo->hasExtension("c"))
+    Builder.defineMacro("__Primate_compressed");
+
+  if (ISAInfo->hasExtension("zve32x")) {
+    Builder.defineMacro("__Primate_vector");
+    // Currently we support the v0.12 RISC-V V intrinsics.
+    Builder.defineMacro("__Primate_v_intrinsic", Twine(getVersionValue(0, 12)));
   }
 
-  //if (HasV) {
-  //  Builder.defineMacro("__primate_v", "10000");
-  //  Builder.defineMacro("__primate_vector");
-  //}
+  auto VScale = getVScaleRange(Opts);
+  if (VScale && VScale->first && VScale->first == VScale->second)
+    Builder.defineMacro("__Primate_v_fixed_vlen",
+                        Twine(VScale->first * llvm::Primate::PRVBitsPerBlock));
 
-  if (HasZba)
-    Builder.defineMacro("__primate_zba", "93000");
+  if (FastUnalignedAccess)
+    Builder.defineMacro("__Primate_misaligned_fast");
+  else
+    Builder.defineMacro("__Primate_misaligned_avoid");
 
-  if (HasZbb)
-    Builder.defineMacro("__primate_zbb", "93000");
-
-  if (HasZbc)
-    Builder.defineMacro("__primate_zbc", "93000");
-
-  if (HasZbe)
-    Builder.defineMacro("__primate_zbe", "93000");
-
-  if (HasZbf)
-    Builder.defineMacro("__primate_zbf", "93000");
-
-  if (HasZbm)
-    Builder.defineMacro("__primate_zbm", "93000");
-
-  if (HasZbp)
-    Builder.defineMacro("__primate_zbp", "93000");
-
-  if (HasZbproposedc)
-    Builder.defineMacro("__primate_zbproposedc", "93000");
-
-  if (HasZbr)
-    Builder.defineMacro("__primate_zbr", "93000");
-
-  if (HasZbs)
-    Builder.defineMacro("__primate_zbs", "93000");
-
-  if (HasZbt)
-    Builder.defineMacro("__primate_zbt", "93000");
-
-  if (HasZfh)
-    Builder.defineMacro("__primate_zfh", "1000");
-
-  if (HasZvamo)
-    Builder.defineMacro("__primate_zvamo", "10000");
-
-  if (HasZvlsseg)
-    Builder.defineMacro("__primate_zvlsseg", "10000");
+  if (ISAInfo->hasExtension("e")) {
+    if (Is64Bit)
+      Builder.defineMacro("__Primate_64e");
+    else
+      Builder.defineMacro("__Primate_32e");
+  }
 }
 
-const Builtin::Info PrimateTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
+// #define BUILTIN(ID, TYPE, ATTRS)                                               \
+//   {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+// #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+//   {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+// #include "clang/Basic/BuiltinsPrimateVector.def"
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
-    {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #include "clang/Basic/BuiltinsPrimate.def"
 };
 
 ArrayRef<Builtin::Info> PrimateTargetInfo::getTargetBuiltins() const {
-  return llvm::makeArrayRef(BuiltinInfo, clang::Primate::LastTSBuiltin -
-                                             Builtin::FirstTSBuiltin);
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::Primate::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }
 
 bool PrimateTargetInfo::initFeatureMap(
     llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
     const std::vector<std::string> &FeaturesVec) const {
 
-  if (getTriple().getArch() == llvm::Triple::primate64)
-    Features["64bit"] = true;
+  unsigned XLen = 32;
 
-  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+  if (getTriple().isPrimate64()) {
+    Features["64bit"] = true;
+    XLen = 64;
+  } else {
+    Features["32bit"] = true;
+  }
+
+  // If a target attribute specified a full arch string, override all the ISA
+  // extension target features.
+  const auto I = llvm::find(FeaturesVec, "__Primate_TargetAttrNeedOverride");
+  if (I != FeaturesVec.end()) {
+    std::vector<std::string> OverrideFeatures(std::next(I), FeaturesVec.end());
+
+    // Add back any non ISA extension features, e.g. +relax.
+    auto IsNonISAExtFeature = [](StringRef Feature) {
+      assert(Feature.size() > 1 && (Feature[0] == '+' || Feature[0] == '-'));
+      StringRef Ext = Feature.substr(1); // drop the +/-
+      return !llvm::PrimateISAInfo::isSupportedExtensionFeature(Ext);
+    };
+    llvm::copy_if(llvm::make_range(FeaturesVec.begin(), I),
+                  std::back_inserter(OverrideFeatures), IsNonISAExtFeature);
+
+    return TargetInfo::initFeatureMap(Features, Diags, CPU, OverrideFeatures);
+  }
+
+  // Otherwise, parse the features and add any implied extensions.
+  std::vector<std::string> AllFeatures = FeaturesVec;
+  auto ParseResult = llvm::PrimateISAInfo::parseFeatures(XLen, FeaturesVec);
+  if (!ParseResult) {
+    std::string Buffer;
+    llvm::raw_string_ostream OutputErrMsg(Buffer);
+    handleAllErrors(ParseResult.takeError(), [&](llvm::StringError &ErrMsg) {
+      OutputErrMsg << ErrMsg.getMessage();
+    });
+    Diags.Report(diag::err_invalid_feature_combination) << OutputErrMsg.str();
+    return false;
+  }
+
+  // Append all features, not just new ones, so we override any negatives.
+  llvm::append_range(AllFeatures, (*ParseResult)->toFeatures());
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, AllFeatures);
+}
+
+std::optional<std::pair<unsigned, unsigned>>
+PrimateTargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
+  // Primate::PRVBitsPerBlock is 64.
+  unsigned VScaleMin = ISAInfo->getMinVLen() / llvm::Primate::PRVBitsPerBlock;
+
+  if (LangOpts.VScaleMin || LangOpts.VScaleMax) {
+    // Treat Zvl*b as a lower bound on vscale.
+    VScaleMin = std::max(VScaleMin, LangOpts.VScaleMin);
+    unsigned VScaleMax = LangOpts.VScaleMax;
+    if (VScaleMax != 0 && VScaleMax < VScaleMin)
+      VScaleMax = VScaleMin;
+    return std::pair<unsigned, unsigned>(VScaleMin ? VScaleMin : 1, VScaleMax);
+  }
+
+  if (VScaleMin > 0) {
+    unsigned VScaleMax = ISAInfo->getMaxVLen() / llvm::Primate::PRVBitsPerBlock;
+    return std::make_pair(VScaleMin, VScaleMax);
+  }
+
+  return std::nullopt;
 }
 
 /// Return true if has this feature, need to sync with handleTargetFeatures.
 bool PrimateTargetInfo::hasFeature(StringRef Feature) const {
-  bool Is64Bit = getTriple().getArch() == llvm::Triple::primate64;
-  return llvm::StringSwitch<bool>(Feature)
-      .Case("primate", true)
-      .Case("primate32", !Is64Bit)
-      .Case("primate64", Is64Bit)
-      .Case("64bit", Is64Bit)
-      .Case("m", HasM)
-      .Case("a", HasA)
-      .Case("f", HasF)
-      .Case("d", HasD)
-      .Case("c", HasC)
-      .Case("experimental-b", HasB)
-      //.Case("experimental-v", HasV)
-      .Case("experimental-zba", HasZba)
-      .Case("experimental-zbb", HasZbb)
-      .Case("experimental-zbc", HasZbc)
-      .Case("experimental-zbe", HasZbe)
-      .Case("experimental-zbf", HasZbf)
-      .Case("experimental-zbm", HasZbm)
-      .Case("experimental-zbp", HasZbp)
-      .Case("experimental-zbproposedc", HasZbproposedc)
-      .Case("experimental-zbr", HasZbr)
-      .Case("experimental-zbs", HasZbs)
-      .Case("experimental-zbt", HasZbt)
-      .Case("experimental-zfh", HasZfh)
-      .Case("experimental-zvamo", HasZvamo)
-      .Case("experimental-zvlsseg", HasZvlsseg)
-      .Default(false);
+  bool Is64Bit = getTriple().isPrimate64();
+  auto Result = llvm::StringSwitch<std::optional<bool>>(Feature)
+                    .Case("Primate", true)
+                    .Case("Primate32", !Is64Bit)
+                    .Case("Primate64", Is64Bit)
+                    .Case("32bit", !Is64Bit)
+                    .Case("64bit", Is64Bit)
+                    .Case("experimental", HasExperimental)
+                    .Default(std::nullopt);
+  if (Result)
+    return *Result;
+
+  return ISAInfo->hasExtension(Feature);
 }
 
 /// Perform initialization based on the user configured set of features.
 bool PrimateTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                                            DiagnosticsEngine &Diags) {
-  for (const auto &Feature : Features) {
-    if (Feature == "+m")
-      HasM = true;
-    else if (Feature == "+a")
-      HasA = true;
-    else if (Feature == "+f")
-      HasF = true;
-    else if (Feature == "+d")
-      HasD = true;
-    else if (Feature == "+c")
-      HasC = true;
-    else if (Feature == "+experimental-b")
-      HasB = true;
-    //else if (Feature == "+experimental-v")
-    //  HasV = true;
-    else if (Feature == "+experimental-zba")
-      HasZba = true;
-    else if (Feature == "+experimental-zbb")
-      HasZbb = true;
-    else if (Feature == "+experimental-zbc")
-      HasZbc = true;
-    else if (Feature == "+experimental-zbe")
-      HasZbe = true;
-    else if (Feature == "+experimental-zbf")
-      HasZbf = true;
-    else if (Feature == "+experimental-zbm")
-      HasZbm = true;
-    else if (Feature == "+experimental-zbp")
-      HasZbp = true;
-    else if (Feature == "+experimental-zbproposedc")
-      HasZbproposedc = true;
-    else if (Feature == "+experimental-zbr")
-      HasZbr = true;
-    else if (Feature == "+experimental-zbs")
-      HasZbs = true;
-    else if (Feature == "+experimental-zbt")
-      HasZbt = true;
-    else if (Feature == "+experimental-zfh")
-      HasZfh = true;
-    else if (Feature == "+experimental-zvamo")
-      HasZvamo = true;
-    else if (Feature == "+experimental-zvlsseg")
-      HasZvlsseg = true;
+  unsigned XLen = getTriple().isArch64Bit() ? 64 : 32;
+  auto ParseResult = llvm::PrimateISAInfo::parseFeatures(XLen, Features);
+  if (!ParseResult) {
+    std::string Buffer;
+    llvm::raw_string_ostream OutputErrMsg(Buffer);
+    handleAllErrors(ParseResult.takeError(), [&](llvm::StringError &ErrMsg) {
+      OutputErrMsg << ErrMsg.getMessage();
+    });
+    Diags.Report(diag::err_invalid_feature_combination) << OutputErrMsg.str();
+    return false;
+  } else {
+    ISAInfo = std::move(*ParseResult);
   }
 
+  if (ABI.empty())
+    ABI = ISAInfo->computeDefaultABI().str();
+
+  if (ISAInfo->hasExtension("zfh") || ISAInfo->hasExtension("zhinx"))
+    HasLegalHalfType = true;
+
+  FastUnalignedAccess = llvm::is_contained(Features, "+fast-unaligned-access");
+
+  if (llvm::is_contained(Features, "+experimental"))
+    HasExperimental = true;
+
+  if (ABI == "ilp32e" && ISAInfo->hasExtension("d")) {
+    Diags.Report(diag::err_invalid_feature_combination)
+        << "ILP32E cannot be used with the D ISA extension";
+    return false;
+  }
   return true;
 }
 
-bool Primate32TargetInfo::isValidCPUName(StringRef Name) const {
-  return llvm::Primate::checkCPUKind(llvm::Primate::parseCPUKind(Name),
-                                   /*Is64Bit=*/false);
+bool PrimateTargetInfo::isValidCPUName(StringRef Name) const {
+  bool Is64Bit = getTriple().isArch64Bit();
+  return llvm::Primate::parseCPU(Name, Is64Bit);
 }
 
-void Primate32TargetInfo::fillValidCPUList(
+void PrimateTargetInfo::fillValidCPUList(
     SmallVectorImpl<StringRef> &Values) const {
-  llvm::Primate::fillValidCPUArchList(Values, false);
+  bool Is64Bit = getTriple().isArch64Bit();
+  llvm::Primate::fillValidCPUArchList(Values, Is64Bit);
 }
 
-bool Primate32TargetInfo::isValidTuneCPUName(StringRef Name) const {
-  return llvm::Primate::checkTuneCPUKind(
-      llvm::Primate::parseTuneCPUKind(Name, false),
-      /*Is64Bit=*/false);
+bool PrimateTargetInfo::isValidTuneCPUName(StringRef Name) const {
+  bool Is64Bit = getTriple().isArch64Bit();
+  return llvm::Primate::parseTuneCPU(Name, Is64Bit);
 }
 
-void Primate32TargetInfo::fillValidTuneCPUList(
+void PrimateTargetInfo::fillValidTuneCPUList(
     SmallVectorImpl<StringRef> &Values) const {
-  llvm::Primate::fillValidTuneCPUArchList(Values, false);
+  bool Is64Bit = getTriple().isArch64Bit();
+  llvm::Primate::fillValidTuneCPUArchList(Values, Is64Bit);
 }
 
-bool Primate64TargetInfo::isValidCPUName(StringRef Name) const {
-  return llvm::Primate::checkCPUKind(llvm::Primate::parseCPUKind(Name),
-                                   /*Is64Bit=*/true);
+static void handleFullArchString(StringRef FullArchStr,
+                                 std::vector<std::string> &Features) {
+  Features.push_back("__Primate_TargetAttrNeedOverride");
+  auto RII = llvm::PrimateISAInfo::parseArchString(
+      FullArchStr, /* EnableExperimentalExtension */ true);
+  if (llvm::errorToBool(RII.takeError())) {
+    // Forward the invalid FullArchStr.
+    Features.push_back("+" + FullArchStr.str());
+  } else {
+    // Append a full list of features, including any negative extensions so that
+    // we override the CPU's features.
+    std::vector<std::string> FeatStrings =
+        (*RII)->toFeatures(/* AddAllExtensions */ true);
+    Features.insert(Features.end(), FeatStrings.begin(), FeatStrings.end());
+  }
 }
 
-void Primate64TargetInfo::fillValidCPUList(
-    SmallVectorImpl<StringRef> &Values) const {
-  llvm::Primate::fillValidCPUArchList(Values, true);
-}
+ParsedTargetAttr PrimateTargetInfo::parseTargetAttr(StringRef Features) const {
+  ParsedTargetAttr Ret;
+  if (Features == "default")
+    return Ret;
+  SmallVector<StringRef, 1> AttrFeatures;
+  Features.split(AttrFeatures, ";");
+  bool FoundArch = false;
 
-bool Primate64TargetInfo::isValidTuneCPUName(StringRef Name) const {
-  return llvm::Primate::checkTuneCPUKind(
-      llvm::Primate::parseTuneCPUKind(Name, true),
-      /*Is64Bit=*/true);
-}
+  for (auto &Feature : AttrFeatures) {
+    Feature = Feature.trim();
+    StringRef AttrString = Feature.split("=").second.trim();
 
-void Primate64TargetInfo::fillValidTuneCPUList(
-    SmallVectorImpl<StringRef> &Values) const {
-  llvm::Primate::fillValidTuneCPUArchList(Values, true);
+    if (Feature.starts_with("arch=")) {
+      // Override last features
+      Ret.Features.clear();
+      if (FoundArch)
+        Ret.Duplicate = "arch=";
+      FoundArch = true;
+
+      if (AttrString.starts_with("+")) {
+        // EXTENSION like arch=+v,+zbb
+        SmallVector<StringRef, 1> Exts;
+        AttrString.split(Exts, ",");
+        for (auto Ext : Exts) {
+          if (Ext.empty())
+            continue;
+
+          StringRef ExtName = Ext.substr(1);
+          std::string TargetFeature =
+              llvm::PrimateISAInfo::getTargetFeatureForExtension(ExtName);
+          if (!TargetFeature.empty())
+            Ret.Features.push_back(Ext.front() + TargetFeature);
+          else
+            Ret.Features.push_back(Ext.str());
+        }
+      } else {
+        // full-arch-string like arch=rv64gcv
+        handleFullArchString(AttrString, Ret.Features);
+      }
+    } else if (Feature.starts_with("cpu=")) {
+      if (!Ret.CPU.empty())
+        Ret.Duplicate = "cpu=";
+
+      Ret.CPU = AttrString;
+
+      if (!FoundArch) {
+        // Update Features with CPU's features
+        StringRef MarchFromCPU = llvm::Primate::getMArchFromMcpu(Ret.CPU);
+        if (MarchFromCPU != "") {
+          Ret.Features.clear();
+          handleFullArchString(MarchFromCPU, Ret.Features);
+        }
+      }
+    } else if (Feature.starts_with("tune=")) {
+      if (!Ret.Tune.empty())
+        Ret.Duplicate = "tune=";
+
+      Ret.Tune = AttrString;
+    }
+  }
+  return Ret;
 }

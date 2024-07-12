@@ -50,6 +50,9 @@ private:
   bool expandLoadLocalAddress(MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator MBBI,
                               MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoadGlobalAddress(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator MBBI,
+                               MachineBasicBlock::iterator &NextMBBI);
   bool expandLoadAddress(MachineBasicBlock &MBB,
                          MachineBasicBlock::iterator MBBI,
                          MachineBasicBlock::iterator &NextMBBI);
@@ -89,6 +92,15 @@ bool PrimateExpandPseudo::expandMBB(MachineBasicBlock &MBB) {
   return Modified;
 }
 
+bool PrimateExpandPseudo::expandLoadGlobalAddress(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  unsigned SecondOpcode = MBB.getParent()->getSubtarget<PrimateSubtarget>().is64Bit() ? Primate::LD : Primate::LW;
+  return expandAuipcInstPair(MBB, MBBI, NextMBBI, PrimateII::MO_GOT_HI,
+                             SecondOpcode);
+}
+
+
 bool PrimateExpandPseudo::expandMI(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI) {
@@ -98,57 +110,14 @@ bool PrimateExpandPseudo::expandMI(MachineBasicBlock &MBB,
   switch (MBBI->getOpcode()) {
   case Primate::PseudoLLA:
     return expandLoadLocalAddress(MBB, MBBI, NextMBBI);
+  case Primate::PseudoLGA:
+    return expandLoadGlobalAddress(MBB, MBBI, NextMBBI);
   case Primate::PseudoLA:
     return expandLoadAddress(MBB, MBBI, NextMBBI);
   case Primate::PseudoLA_TLS_IE:
     return expandLoadTLSIEAddress(MBB, MBBI, NextMBBI);
   case Primate::PseudoLA_TLS_GD:
     return expandLoadTLSGDAddress(MBB, MBBI, NextMBBI);
-  case Primate::PseudoVSETVLI:
-  case Primate::PseudoVSETIVLI:
-    return expandVSetVL(MBB, MBBI);
-  case Primate::PseudoVMCLR_M_B1:
-  case Primate::PseudoVMCLR_M_B2:
-  case Primate::PseudoVMCLR_M_B4:
-  case Primate::PseudoVMCLR_M_B8:
-  case Primate::PseudoVMCLR_M_B16:
-  case Primate::PseudoVMCLR_M_B32:
-  case Primate::PseudoVMCLR_M_B64:
-    // vmclr.m vd => vmxor.mm vd, vd, vd
-    return expandVMSET_VMCLR(MBB, MBBI, Primate::VMXOR_MM);
-  case Primate::PseudoVMSET_M_B1:
-  case Primate::PseudoVMSET_M_B2:
-  case Primate::PseudoVMSET_M_B4:
-  case Primate::PseudoVMSET_M_B8:
-  case Primate::PseudoVMSET_M_B16:
-  case Primate::PseudoVMSET_M_B32:
-  case Primate::PseudoVMSET_M_B64:
-    // vmset.m vd => vmxnor.mm vd, vd, vd
-    return expandVMSET_VMCLR(MBB, MBBI, Primate::VMXNOR_MM);
-  case Primate::PseudoVSPILL2_M1:
-  case Primate::PseudoVSPILL2_M2:
-  case Primate::PseudoVSPILL2_M4:
-  case Primate::PseudoVSPILL3_M1:
-  case Primate::PseudoVSPILL3_M2:
-  case Primate::PseudoVSPILL4_M1:
-  case Primate::PseudoVSPILL4_M2:
-  case Primate::PseudoVSPILL5_M1:
-  case Primate::PseudoVSPILL6_M1:
-  case Primate::PseudoVSPILL7_M1:
-  case Primate::PseudoVSPILL8_M1:
-    return expandVSPILL(MBB, MBBI);
-  case Primate::PseudoVRELOAD2_M1:
-  case Primate::PseudoVRELOAD2_M2:
-  case Primate::PseudoVRELOAD2_M4:
-  case Primate::PseudoVRELOAD3_M1:
-  case Primate::PseudoVRELOAD3_M2:
-  case Primate::PseudoVRELOAD4_M1:
-  case Primate::PseudoVRELOAD4_M2:
-  case Primate::PseudoVRELOAD5_M1:
-  case Primate::PseudoVRELOAD6_M1:
-  case Primate::PseudoVRELOAD7_M1:
-  case Primate::PseudoVRELOAD8_M1:
-    return expandVRELOAD(MBB, MBBI);
   }
 
   return false;
@@ -240,134 +209,23 @@ bool PrimateExpandPseudo::expandLoadTLSGDAddress(
 
 bool PrimateExpandPseudo::expandVSetVL(MachineBasicBlock &MBB,
                                      MachineBasicBlock::iterator MBBI) {
-  assert(MBBI->getNumExplicitOperands() == 3 && MBBI->getNumOperands() >= 5 &&
-         "Unexpected instruction format");
-
-  DebugLoc DL = MBBI->getDebugLoc();
-
-  assert((MBBI->getOpcode() == Primate::PseudoVSETVLI ||
-          MBBI->getOpcode() == Primate::PseudoVSETIVLI) &&
-         "Unexpected pseudo instruction");
-  unsigned Opcode;
-  if (MBBI->getOpcode() == Primate::PseudoVSETVLI)
-    Opcode = Primate::VSETVLI;
-  else
-    Opcode = Primate::VSETIVLI;
-  const MCInstrDesc &Desc = TII->get(Opcode);
-  assert(Desc.getNumOperands() == 3 && "Unexpected instruction format");
-
-  Register DstReg = MBBI->getOperand(0).getReg();
-  bool DstIsDead = MBBI->getOperand(0).isDead();
-  BuildMI(MBB, MBBI, DL, Desc)
-      .addReg(DstReg, RegState::Define | getDeadRegState(DstIsDead))
-      .add(MBBI->getOperand(1))  // VL
-      .add(MBBI->getOperand(2)); // VType
-
-  MBBI->eraseFromParent(); // The pseudo instruction is gone now.
-  return true;
+  llvm_unreachable("Expanding a VSetVL on Primate should not be possible");
 }
 
 bool PrimateExpandPseudo::expandVMSET_VMCLR(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator MBBI,
                                           unsigned Opcode) {
-  DebugLoc DL = MBBI->getDebugLoc();
-  Register DstReg = MBBI->getOperand(0).getReg();
-  const MCInstrDesc &Desc = TII->get(Opcode);
-  BuildMI(MBB, MBBI, DL, Desc, DstReg)
-      .addReg(DstReg, RegState::Undef)
-      .addReg(DstReg, RegState::Undef);
-  MBBI->eraseFromParent(); // The pseudo instruction is gone now.
-  return true;
+  llvm_unreachable("Should never see a VMSET_VMCLR");
 }
 
 bool PrimateExpandPseudo::expandVSPILL(MachineBasicBlock &MBB,
                                      MachineBasicBlock::iterator MBBI) {
-  const TargetRegisterInfo *TRI =
-      MBB.getParent()->getSubtarget().getRegisterInfo();
-  DebugLoc DL = MBBI->getDebugLoc();
-  Register SrcReg = MBBI->getOperand(0).getReg();
-  Register Base = MBBI->getOperand(1).getReg();
-  Register VL = MBBI->getOperand(2).getReg();
-  auto ZvlssegInfo = TII->isPRVSpillForZvlsseg(MBBI->getOpcode());
-  if (!ZvlssegInfo)
-    return false;
-  unsigned NF = ZvlssegInfo->first;
-  unsigned LMUL = ZvlssegInfo->second;
-  assert(NF * LMUL <= 8 && "Invalid NF/LMUL combinations.");
-  unsigned Opcode = Primate::VS1R_V;
-  unsigned SubRegIdx = Primate::sub_vrm1_0;
-  static_assert(Primate::sub_vrm1_7 == Primate::sub_vrm1_0 + 7,
-                "Unexpected subreg numbering");
-  if (LMUL == 2) {
-    Opcode = Primate::VS2R_V;
-    SubRegIdx = Primate::sub_vrm2_0;
-    static_assert(Primate::sub_vrm2_3 == Primate::sub_vrm2_0 + 3,
-                  "Unexpected subreg numbering");
-  } else if (LMUL == 4) {
-    Opcode = Primate::VS4R_V;
-    SubRegIdx = Primate::sub_vrm4_0;
-    static_assert(Primate::sub_vrm4_1 == Primate::sub_vrm4_0 + 1,
-                  "Unexpected subreg numbering");
-  } else
-    assert(LMUL == 1 && "LMUL must be 1, 2, or 4.");
-
-  for (unsigned I = 0; I < NF; ++I) {
-    BuildMI(MBB, MBBI, DL, TII->get(Opcode))
-        .addReg(TRI->getSubReg(SrcReg, SubRegIdx + I))
-        .addReg(Base)
-        .addMemOperand(*(MBBI->memoperands_begin()));
-    if (I != NF - 1)
-      BuildMI(MBB, MBBI, DL, TII->get(Primate::ADD), Base)
-          .addReg(Base)
-          .addReg(VL);
-  }
-  MBBI->eraseFromParent();
-  return true;
+  llvm_unreachable("Should never see a VSPILL");
 }
 
 bool PrimateExpandPseudo::expandVRELOAD(MachineBasicBlock &MBB,
                                       MachineBasicBlock::iterator MBBI) {
-  const TargetRegisterInfo *TRI =
-      MBB.getParent()->getSubtarget().getRegisterInfo();
-  DebugLoc DL = MBBI->getDebugLoc();
-  Register DestReg = MBBI->getOperand(0).getReg();
-  Register Base = MBBI->getOperand(1).getReg();
-  Register VL = MBBI->getOperand(2).getReg();
-  auto ZvlssegInfo = TII->isPRVSpillForZvlsseg(MBBI->getOpcode());
-  if (!ZvlssegInfo)
-    return false;
-  unsigned NF = ZvlssegInfo->first;
-  unsigned LMUL = ZvlssegInfo->second;
-  assert(NF * LMUL <= 8 && "Invalid NF/LMUL combinations.");
-  unsigned Opcode = Primate::VL1RE8_V;
-  unsigned SubRegIdx = Primate::sub_vrm1_0;
-  static_assert(Primate::sub_vrm1_7 == Primate::sub_vrm1_0 + 7,
-                "Unexpected subreg numbering");
-  if (LMUL == 2) {
-    Opcode = Primate::VL2RE8_V;
-    SubRegIdx = Primate::sub_vrm2_0;
-    static_assert(Primate::sub_vrm2_3 == Primate::sub_vrm2_0 + 3,
-                  "Unexpected subreg numbering");
-  } else if (LMUL == 4) {
-    Opcode = Primate::VL4RE8_V;
-    SubRegIdx = Primate::sub_vrm4_0;
-    static_assert(Primate::sub_vrm4_1 == Primate::sub_vrm4_0 + 1,
-                  "Unexpected subreg numbering");
-  } else
-    assert(LMUL == 1 && "LMUL must be 1, 2, or 4.");
-
-  for (unsigned I = 0; I < NF; ++I) {
-    BuildMI(MBB, MBBI, DL, TII->get(Opcode),
-            TRI->getSubReg(DestReg, SubRegIdx + I))
-        .addReg(Base)
-        .addMemOperand(*(MBBI->memoperands_begin()));
-    if (I != NF - 1)
-      BuildMI(MBB, MBBI, DL, TII->get(Primate::ADD), Base)
-          .addReg(Base)
-          .addReg(VL);
-  }
-  MBBI->eraseFromParent();
-  return true;
+  llvm_unreachable("Should never see a VRELOAD");
 }
 
 } // end of anonymous namespace

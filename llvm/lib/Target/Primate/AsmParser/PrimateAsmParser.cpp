@@ -32,10 +32,11 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/PrimateAttributes.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 #include <limits>
 
@@ -65,7 +66,7 @@ class PrimateAsmParser : public MCTargetAsmParser {
 
   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
   bool isPR64() const { return getSTI().hasFeature(Primate::Feature64Bit); }
-  bool isPR32E() const { return getSTI().hasFeature(Primate::FeaturePR32E); }
+  bool isPRE() const { return getSTI().hasFeature(Primate::FeaturePRE); }
 
   PrimateTargetStreamer &getTargetStreamer() {
     MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
@@ -83,8 +84,8 @@ class PrimateAsmParser : public MCTargetAsmParser {
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
 
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  ParseStatus tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
 
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
@@ -160,10 +161,16 @@ class PrimateAsmParser : public MCTargetAsmParser {
   OperandMatchResultTy parseOperandWithModifier(OperandVector &Operands);
   OperandMatchResultTy parseBareSymbol(OperandVector &Operands);
   OperandMatchResultTy parseCallSymbol(OperandVector &Operands);
+  ParseStatus parseZeroOffsetMemOp(OperandVector &Operands);
   OperandMatchResultTy parsePseudoJumpSymbol(OperandVector &Operands);
   OperandMatchResultTy parseJALOffset(OperandVector &Operands);
   OperandMatchResultTy parseVTypeI(OperandVector &Operands);
   OperandMatchResultTy parseMaskReg(OperandVector &Operands);
+  ParseStatus parseGPRAsFPR(OperandVector &Operands);
+  ParseStatus parseInsnCDirectiveOpcode(OperandVector &Operands);
+
+  
+  ParseStatus parseFRMArg(OperandVector &Operands);
 
   bool parseOperand(OperandVector &Operands, StringRef Mnemonic);
 
@@ -213,6 +220,9 @@ class PrimateAsmParser : public MCTargetAsmParser {
   }
 
   std::unique_ptr<PrimateOperand> defaultMaskRegOp() const;
+  std::unique_ptr<PrimateOperand> defaultFRMArgOp() const;
+  std::unique_ptr<PrimateOperand> defaultFRMArgLegacyOp() const;
+
 
 public:
   enum PrimateMatchResultTy {
@@ -235,12 +245,12 @@ public:
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
 
     auto ABIName = StringRef(Options.ABIName);
-    if (ABIName.endswith("f") &&
+    if (ABIName.ends_with("f") &&
         !getSTI().getFeatureBits()[Primate::FeatureStdExtF]) {
       errs() << "Hard-float 'f' ABI can't be used for a target that "
                 "doesn't support the F instruction set extension (ignoring "
                 "target-abi)\n";
-    } else if (ABIName.endswith("d") &&
+    } else if (ABIName.ends_with("d") &&
                !getSTI().getFeatureBits()[Primate::FeatureStdExtD]) {
       errs() << "Hard-float 'd' ABI can't be used for a target that "
                 "doesn't support the D instruction set extension (ignoring "
@@ -260,14 +270,25 @@ struct PrimateOperand : public MCParsedAsmOperand {
     Token,
     Register,
     Immediate,
+    FPImmediate,
     SystemRegister,
     VType,
+    FRM,
+    Fence,
+    Rlist,
+    Spimm,
+    RegReg,
   } Kind;
 
   bool IsPR64;
 
   struct RegOp {
     MCRegister RegNum;
+    bool IsGPRAsFPR;
+  };
+
+  struct FPImmOp {
+    uint64_t Val;
   };
 
   struct ImmOp {
@@ -282,8 +303,29 @@ struct PrimateOperand : public MCParsedAsmOperand {
     // e.g.: read/write or user/supervisor/machine privileges.
   };
 
+  struct FRMOp {
+    PrimateFPRndMode::RoundingMode FRM;
+  };
+
   struct VTypeOp {
     unsigned Val;
+  };
+
+  struct FenceOp {
+    unsigned Val;
+  };
+
+  struct RlistOp {
+    unsigned Val;
+  };
+
+  struct SpimmOp {
+    unsigned Val;
+  };
+
+  struct RegRegOp {
+    MCRegister Reg1;
+    MCRegister Reg2;
   };
 
   SMLoc StartLoc, EndLoc;
@@ -291,8 +333,14 @@ struct PrimateOperand : public MCParsedAsmOperand {
     StringRef Tok;
     RegOp Reg;
     ImmOp Imm;
+    FPImmOp FPImm;
     struct SysRegOp SysReg;
     struct VTypeOp VType;
+    struct FRMOp FRM;
+    struct FenceOp Fence;
+    struct RlistOp Rlist;
+    struct SpimmOp Spimm;
+    struct RegRegOp RegReg;
   };
 
   PrimateOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
@@ -322,10 +370,32 @@ public:
     }
   }
 
+  static std::unique_ptr<PrimateOperand>
+  createFRMArg(PrimateFPRndMode::RoundingMode FRM, SMLoc S) {
+    auto Op = std::make_unique<PrimateOperand>(KindTy::FRM);
+    Op->FRM.FRM = FRM;
+    Op->StartLoc = S;
+    Op->EndLoc = S;
+    return Op;
+  }
+
   bool isToken() const override { return Kind == KindTy::Token; }
   bool isReg() const override { return Kind == KindTy::Register; }
   bool isV0Reg() const {
     return Kind == KindTy::Register && Reg.RegNum == Primate::V0;
+  }
+  bool isAnyReg() const {
+    return Kind == KindTy::Register &&
+           (PrimateMCRegisterClasses[Primate::GPRRegClassID].contains(Reg.RegNum) ||
+            PrimateMCRegisterClasses[Primate::FPR64RegClassID].contains(Reg.RegNum) ||
+            PrimateMCRegisterClasses[Primate::VRRegClassID].contains(Reg.RegNum));
+  }
+  bool isAnyRegC() const {
+    return Kind == KindTy::Register &&
+           (PrimateMCRegisterClasses[Primate::GPRCRegClassID].contains(
+                Reg.RegNum) ||
+            PrimateMCRegisterClasses[Primate::FPR64CRegClassID].contains(
+                Reg.RegNum));
   }
   bool isImm() const override { return Kind == KindTy::Immediate; }
   bool isMem() const override { return false; }
@@ -441,8 +511,14 @@ public:
     return true;
   }
 
-  /// Return true if the operand is a valid floating point rounding mode.
+  bool isGPRAsFPR() const { return isGPR() && Reg.IsGPRAsFPR; }
+
   bool isFRMArg() const {
+    return isFRMArgLegacy();
+  }
+
+  /// Return true if the operand is a valid floating point rounding mode.
+  bool isFRMArgLegacy() const {
     if (!isImm())
       return false;
     const MCExpr *Val = getImm();
@@ -504,14 +580,24 @@ public:
     return (isPR64() && isUInt<5>(Imm)) || isUInt<4>(Imm);
   }
 
-  bool isUImm5() const {
+  template <unsigned N> bool IsUImm() const {
     int64_t Imm;
     PrimateMCExpr::VariantKind VK = PrimateMCExpr::VK_Primate_None;
     if (!isImm())
       return false;
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
-    return IsConstantImm && isUInt<5>(Imm) && VK == PrimateMCExpr::VK_Primate_None;
+    return IsConstantImm && isUInt<N>(Imm) && VK == PrimateMCExpr::VK_Primate_None;
   }
+
+  bool isUImm1() const { return IsUImm<1>(); }
+  bool isUImm2() const { return IsUImm<2>(); }
+  bool isUImm3() const { return IsUImm<3>(); }
+  bool isUImm4() const { return IsUImm<4>(); }
+  bool isUImm5() const { return IsUImm<5>(); }
+  bool isUImm6() const { return IsUImm<6>(); }
+  bool isUImm7() const { return IsUImm<7>(); }
+  bool isUImm8() const { return IsUImm<8>(); }
+  bool isUImm20() const { return IsUImm<20>(); }
 
   bool isSImm5() const {
     if (!isImm())
@@ -1052,9 +1138,6 @@ bool PrimateAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 4) - 1);
   case Match_InvalidUImm5:
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
-  case Match_InvalidSImm5:
-    return generateImmOutOfRangeError(Operands, ErrorInfo, -(1 << 4),
-                                      (1 << 4) - 1);
   case Match_InvalidSImm6:
     return generateImmOutOfRangeError(Operands, ErrorInfo, -(1 << 5),
                                       (1 << 5) - 1);
@@ -1133,12 +1216,6 @@ bool PrimateAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
         ErrorLoc,
         "operand must be formed of letters selected in-order from 'iorw'");
   }
-  case Match_InvalidFRMArg: {
-    SMLoc ErrorLoc = ((PrimateOperand &)*Operands[ErrorInfo]).getStartLoc();
-    return Error(
-        ErrorLoc,
-        "operand must be a valid floating point rounding mode mnemonic");
-  }
   case Match_InvalidBareSymbol: {
     SMLoc ErrorLoc = ((PrimateOperand &)*Operands[ErrorInfo]).getStartLoc();
     return Error(ErrorLoc, "operand must be a bare symbol name");
@@ -1154,22 +1231,6 @@ bool PrimateAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidTPRelAddSymbol: {
     SMLoc ErrorLoc = ((PrimateOperand &)*Operands[ErrorInfo]).getStartLoc();
     return Error(ErrorLoc, "operand must be a symbol with %tprel_add modifier");
-  }
-  case Match_InvalidVTypeI: {
-    SMLoc ErrorLoc = ((PrimateOperand &)*Operands[ErrorInfo]).getStartLoc();
-    return Error(
-        ErrorLoc,
-        "operand must be "
-        "e[8|16|32|64|128|256|512|1024],m[1|2|4|8|f2|f4|f8],[ta|tu],[ma|mu]");
-  }
-  case Match_InvalidVMaskRegister: {
-    SMLoc ErrorLoc = ((PrimateOperand &)*Operands[ErrorInfo]).getStartLoc();
-    return Error(ErrorLoc, "operand must be v0.t");
-  }
-  case Match_InvalidSImm5Plus1: {
-    return generateImmOutOfRangeError(Operands, ErrorInfo, -(1 << 4) + 1,
-                                      (1 << 4),
-                                      "immediate must be in the range");
   }
   }
 
@@ -1197,14 +1258,14 @@ static bool matchRegisterNameHelper(bool IsPR32E, MCRegister &RegNo,
   return RegNo == Primate::NoRegister;
 }
 
-bool PrimateAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool PrimateAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                    SMLoc &EndLoc) {
   if (tryParseRegister(RegNo, StartLoc, EndLoc) != MatchOperand_Success)
     return Error(StartLoc, "invalid register name");
   return false;
 }
 
-OperandMatchResultTy PrimateAsmParser::tryParseRegister(unsigned &RegNo,
+ParseStatus PrimateAsmParser::tryParseRegister(MCRegister &RegNo,
                                                       SMLoc &StartLoc,
                                                       SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
@@ -1213,7 +1274,7 @@ OperandMatchResultTy PrimateAsmParser::tryParseRegister(unsigned &RegNo,
   RegNo = 0;
   StringRef Name = getLexer().getTok().getIdentifier();
 
-  if (matchRegisterNameHelper(isPR32E(), (MCRegister &)RegNo, Name))
+  if (matchRegisterNameHelper(isPRE(), (MCRegister &)RegNo, Name))
     return MatchOperand_NoMatch;
 
   getParser().Lex(); // Eat identifier token.
@@ -1246,7 +1307,7 @@ OperandMatchResultTy PrimateAsmParser::parseRegister(OperandVector &Operands,
   case AsmToken::Identifier:
     StringRef Name = getLexer().getTok().getIdentifier();
     MCRegister RegNo;
-    matchRegisterNameHelper(isPR32E(), RegNo, Name);
+    matchRegisterNameHelper(isPRE(), RegNo, Name);
 
     if (RegNo == Primate::NoRegister) {
       if (HadParens)
@@ -1343,6 +1404,23 @@ PrimateAsmParser::parseCSRSystemRegister(OperandVector &Operands) {
 
   return MatchOperand_NoMatch;
 }
+
+ParseStatus PrimateAsmParser::parseFRMArg(OperandVector &Operands) {
+    if (getLexer().isNot(AsmToken::Identifier))
+      return TokError(
+          "operand must be a valid floating point rounding mode mnemonic");
+
+    StringRef Str = getLexer().getTok().getIdentifier();
+    PrimateFPRndMode::RoundingMode FRM = PrimateFPRndMode::stringToRoundingMode(Str);
+
+    if (FRM == PrimateFPRndMode::Invalid)
+      return TokError(
+          "operand must be a valid floating point rounding mode mnemonic");
+
+    Operands.push_back(PrimateOperand::createFRMArg(FRM, getLoc()));
+    Lex(); // Eat identifier token.
+    return ParseStatus::Success;
+  }
 
 OperandMatchResultTy PrimateAsmParser::parseImmediate(OperandVector &Operands) {
   SMLoc S = getLoc();
@@ -1512,6 +1590,65 @@ PrimateAsmParser::parsePseudoJumpSymbol(OperandVector &Operands) {
   return MatchOperand_Success;
 }
 
+ParseStatus PrimateAsmParser::parseZeroOffsetMemOp(OperandVector &Operands) {
+  // Atomic operations such as lr.w, sc.w, and amo*.w accept a "memory operand"
+  // as one of their register operands, such as `(a0)`. This just denotes that
+  // the register (in this case `a0`) contains a memory address.
+  //
+  // Normally, we would be able to parse these by putting the parens into the
+  // instruction string. However, GNU as also accepts a zero-offset memory
+  // operand (such as `0(a0)`), and ignores the 0. Normally this would be parsed
+  // with parseImmediate followed by parseMemOpBaseReg, but these instructions
+  // do not accept an immediate operand, and we do not want to add a "dummy"
+  // operand that is silently dropped.
+  //
+  // Instead, we use this custom parser. This will: allow (and discard) an
+  // offset if it is zero; require (and discard) parentheses; and add only the
+  // parsed register operand to `Operands`.
+  //
+  // These operands are printed with PrimateInstPrinter::printZeroOffsetMemOp,
+  // which will only print the register surrounded by parentheses (which GNU as
+  // also uses as its canonical representation for these operands).
+  std::unique_ptr<PrimateOperand> OptionalImmOp;
+
+  if (getLexer().isNot(AsmToken::LParen)) {
+    // Parse an Integer token. We do not accept arbritrary constant expressions
+    // in the offset field (because they may include parens, which complicates
+    // parsing a lot).
+    int64_t ImmVal;
+    SMLoc ImmStart = getLoc();
+    if (getParser().parseIntToken(ImmVal,
+                                  "expected '(' or optional integer offset"))
+      return ParseStatus::Failure;
+
+    // Create a PrimateOperand for checking later (so the error messages are
+    // nicer), but we don't add it to Operands.
+    SMLoc ImmEnd = getLoc();
+    OptionalImmOp =
+        PrimateOperand::createImm(MCConstantExpr::create(ImmVal, getContext()),
+                                ImmStart, ImmEnd, isPR64());
+  }
+
+  if (parseToken(AsmToken::LParen,
+                 OptionalImmOp ? "expected '(' after optional integer offset"
+                               : "expected '(' or optional integer offset"))
+    return ParseStatus::Failure;
+
+  if (!(parseRegister(Operands) == OperandMatchResultTy::MatchOperand_Success))
+    return Error(getLoc(), "expected register");
+
+  if (parseToken(AsmToken::RParen, "expected ')'"))
+    return ParseStatus::Failure;
+
+  // Deferred Handling of non-zero offsets. This makes the error messages nicer.
+  if (OptionalImmOp && !OptionalImmOp->isImmZero())
+    return Error(
+        OptionalImmOp->getStartLoc(), "optional integer offset must be 0",
+        SMRange(OptionalImmOp->getStartLoc(), OptionalImmOp->getEndLoc()));
+
+  return ParseStatus::Success;
+}
+
 OperandMatchResultTy PrimateAsmParser::parseJALOffset(OperandVector &Operands) {
   // Parsing jal operands is fiddly due to the `jal foo` and `jal ra, foo`
   // both being acceptable forms. When parsing `jal ra, foo` this function
@@ -1620,7 +1757,7 @@ OperandMatchResultTy PrimateAsmParser::parseMaskReg(OperandVector &Operands) {
       return MatchOperand_ParseFail;
     }
     MCRegister RegNo;
-    matchRegisterNameHelper(isPR32E(), RegNo, Name);
+    matchRegisterNameHelper(isPRE(), RegNo, Name);
 
     if (RegNo == Primate::NoRegister)
       return MatchOperand_NoMatch;
@@ -1841,6 +1978,65 @@ bool PrimateAsmParser::ParseDirective(AsmToken DirectiveID) {
   return true;
 }
 
+ParseStatus PrimateAsmParser::parseInsnCDirectiveOpcode(OperandVector &Operands) {
+  SMLoc S = getLoc();
+  SMLoc E;
+  const MCExpr *Res;
+
+  switch (getLexer().getKind()) {
+  default:
+    return ParseStatus::NoMatch;
+  case AsmToken::LParen:
+  case AsmToken::Minus:
+  case AsmToken::Plus:
+  case AsmToken::Exclaim:
+  case AsmToken::Tilde:
+  case AsmToken::Integer:
+  case AsmToken::String: {
+    if (getParser().parseExpression(Res, E))
+      return ParseStatus::Failure;
+
+    auto *CE = dyn_cast<MCConstantExpr>(Res);
+    if (CE) {
+      int64_t Imm = CE->getValue();
+      if (Imm >= 0 && Imm <= 2) {
+        Operands.push_back(PrimateOperand::createImm(Res, S, E, isPR64()));
+        return ParseStatus::Success;
+      }
+    }
+
+    break;
+  }
+  case AsmToken::Identifier: {
+    StringRef Identifier;
+    if (getParser().parseIdentifier(Identifier))
+      return ParseStatus::Failure;
+
+    unsigned Opcode;
+    if (Identifier == "C0")
+      Opcode = 0;
+    else if (Identifier == "C1")
+      Opcode = 1;
+    else if (Identifier == "C2")
+      Opcode = 2;
+    else
+      break;
+
+    Res = MCConstantExpr::create(Opcode, getContext());
+    E = SMLoc::getFromPointer(S.getPointer() + Identifier.size());
+    Operands.push_back(PrimateOperand::createImm(Res, S, E, isPR64()));
+    return ParseStatus::Success;
+  }
+  case AsmToken::Percent: {
+    // Discard operand with modifier.
+    break;
+  }
+  }
+
+  return generateImmOutOfRangeError(Operands, 0, 0, 2,
+                                      "operand must be a valid system register "
+                                      "name or an integer in the range");}
+
 bool PrimateAsmParser::parseDirectiveOption() {
   MCAsmParser &Parser = getParser();
   // Get the option token.
@@ -1969,13 +2165,13 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
   TagLoc = Parser.getTok().getLoc();
   if (Parser.getTok().is(AsmToken::Identifier)) {
     StringRef Name = Parser.getTok().getIdentifier();
-    Optional<unsigned> Ret =
+    std::optional<unsigned> Ret =
         ELFAttrs::attrTypeFromString(Name, PrimateAttrs::getPrimateAttributeTags());
-    if (!Ret.hasValue()) {
+    if (!Ret) {
       Error(TagLoc, "attribute name not recognised: " + Name);
       return false;
     }
-    Tag = Ret.getValue();
+    Tag = *Ret;
     Parser.Lex();
   } else {
     const MCExpr *AttrExpr;
@@ -2036,37 +2232,28 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
 
     // .attribute arch overrides the current architecture, so unset all
     // currently enabled extensions
-    clearFeatureBits(Primate::FeaturePR32E, "e");
+    clearFeatureBits(Primate::FeaturePRE, "e");
     clearFeatureBits(Primate::FeatureStdExtM, "m");
     clearFeatureBits(Primate::FeatureStdExtA, "a");
     clearFeatureBits(Primate::FeatureStdExtF, "f");
     clearFeatureBits(Primate::FeatureStdExtD, "d");
     clearFeatureBits(Primate::FeatureStdExtC, "c");
-    clearFeatureBits(Primate::FeatureStdExtB, "experimental-b");
+    clearFeatureBits(Primate::FeatureStdExtZbb, "experimental-b");
     clearFeatureBits(Primate::FeatureStdExtV, "experimental-v");
-    clearFeatureBits(Primate::FeatureExtZfh, "experimental-zfh");
-    clearFeatureBits(Primate::FeatureExtZba, "experimental-zba");
-    clearFeatureBits(Primate::FeatureExtZbb, "experimental-zbb");
-    clearFeatureBits(Primate::FeatureExtZbc, "experimental-zbc");
-    clearFeatureBits(Primate::FeatureExtZbe, "experimental-zbe");
-    clearFeatureBits(Primate::FeatureExtZbf, "experimental-zbf");
-    clearFeatureBits(Primate::FeatureExtZbm, "experimental-zbm");
-    clearFeatureBits(Primate::FeatureExtZbp, "experimental-zbp");
-    clearFeatureBits(Primate::FeatureExtZbproposedc, "experimental-zbproposedc");
-    clearFeatureBits(Primate::FeatureExtZbr, "experimental-zbr");
-    clearFeatureBits(Primate::FeatureExtZbs, "experimental-zbs");
-    clearFeatureBits(Primate::FeatureExtZbt, "experimental-zbt");
-    clearFeatureBits(Primate::FeatureExtZvamo, "experimental-zvamo");
-    clearFeatureBits(Primate::FeatureStdExtZvlsseg, "experimental-zvlsseg");
+    clearFeatureBits(Primate::FeatureStdExtZfh, "experimental-zfh");
+    clearFeatureBits(Primate::FeatureStdExtZba, "experimental-zba");
+    clearFeatureBits(Primate::FeatureStdExtZbb, "experimental-zbb");
+    clearFeatureBits(Primate::FeatureStdExtZbc, "experimental-zbc");
+    clearFeatureBits(Primate::FeatureStdExtZbs, "experimental-zbs");
 
     while (!Arch.empty()) {
       bool DropFirst = true;
       if (Arch[0] == 'i')
-        clearFeatureBits(Primate::FeaturePR32E, "e");
+        clearFeatureBits(Primate::FeaturePRE, "e");
       else if (Arch[0] == 'e')
-        setFeatureBits(Primate::FeaturePR32E, "e");
+        setFeatureBits(Primate::FeaturePRE, "e");
       else if (Arch[0] == 'g') {
-        clearFeatureBits(Primate::FeaturePR32E, "e");
+        clearFeatureBits(Primate::FeaturePRE, "e");
         setFeatureBits(Primate::FeatureStdExtM, "m");
         setFeatureBits(Primate::FeatureStdExtA, "a");
         setFeatureBits(Primate::FeatureStdExtF, "f");
@@ -2083,41 +2270,22 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
       } else if (Arch[0] == 'c') {
         setFeatureBits(Primate::FeatureStdExtC, "c");
       } else if (Arch[0] == 'b') {
-        setFeatureBits(Primate::FeatureStdExtB, "experimental-b");
+        setFeatureBits(Primate::FeatureStdExtZbb, "experimental-b");
       } else if (Arch[0] == 'v') {
         setFeatureBits(Primate::FeatureStdExtV, "experimental-v");
       } else if (Arch[0] == 's' || Arch[0] == 'x' || Arch[0] == 'z') {
         StringRef Ext =
             Arch.take_until([](char c) { return ::isdigit(c) || c == '_'; });
         if (Ext == "zba")
-          setFeatureBits(Primate::FeatureExtZba, "experimental-zba");
+          setFeatureBits(Primate::FeatureStdExtZba, "experimental-zba");
         else if (Ext == "zbb")
-          setFeatureBits(Primate::FeatureExtZbb, "experimental-zbb");
+          setFeatureBits(Primate::FeatureStdExtZbb, "experimental-zbb");
         else if (Ext == "zbc")
-          setFeatureBits(Primate::FeatureExtZbc, "experimental-zbc");
-        else if (Ext == "zbe")
-          setFeatureBits(Primate::FeatureExtZbe, "experimental-zbe");
-        else if (Ext == "zbf")
-          setFeatureBits(Primate::FeatureExtZbf, "experimental-zbf");
-        else if (Ext == "zbm")
-          setFeatureBits(Primate::FeatureExtZbm, "experimental-zbm");
-        else if (Ext == "zbp")
-          setFeatureBits(Primate::FeatureExtZbp, "experimental-zbp");
-        else if (Ext == "zbproposedc")
-          setFeatureBits(Primate::FeatureExtZbproposedc,
-                         "experimental-zbproposedc");
-        else if (Ext == "zbr")
-          setFeatureBits(Primate::FeatureExtZbr, "experimental-zbr");
+          setFeatureBits(Primate::FeatureStdExtZbc, "experimental-zbc");
         else if (Ext == "zbs")
-          setFeatureBits(Primate::FeatureExtZbs, "experimental-zbs");
-        else if (Ext == "zbt")
-          setFeatureBits(Primate::FeatureExtZbt, "experimental-zbt");
+          setFeatureBits(Primate::FeatureStdExtZbs, "experimental-zbs");
         else if (Ext == "zfh")
-          setFeatureBits(Primate::FeatureExtZfh, "experimental-zfh");
-        else if (Ext == "zvamo")
-          setFeatureBits(Primate::FeatureExtZvamo, "experimental-zvamo");
-        else if (Ext == "zvlsseg")
-          setFeatureBits(Primate::FeatureStdExtZvlsseg, "experimental-zvlsseg");
+          setFeatureBits(Primate::FeatureStdExtZfh, "experimental-zfh");
         else
           return Error(ValueExprLoc, "bad arch string " + Ext);
         Arch = Arch.drop_until([](char c) { return ::isdigit(c) || c == '_'; });
@@ -2145,7 +2313,7 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
       std::string formalArchStr = "pr32";
       if (getFeatureBits(Primate::Feature64Bit))
         formalArchStr = "pr64";
-      if (getFeatureBits(Primate::FeaturePR32E))
+      if (getFeatureBits(Primate::FeaturePRE))
         formalArchStr = (Twine(formalArchStr) + "e1p9").str();
       else
         formalArchStr = (Twine(formalArchStr) + "i2p0").str();
@@ -2160,38 +2328,20 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
         formalArchStr = (Twine(formalArchStr) + "_d2p0").str();
       if (getFeatureBits(Primate::FeatureStdExtC))
         formalArchStr = (Twine(formalArchStr) + "_c2p0").str();
-      if (getFeatureBits(Primate::FeatureStdExtB))
+      if (getFeatureBits(Primate::FeatureStdExtZbb))
         formalArchStr = (Twine(formalArchStr) + "_b0p93").str();
       if (getFeatureBits(Primate::FeatureStdExtV))
         formalArchStr = (Twine(formalArchStr) + "_v0p10").str();
-      if (getFeatureBits(Primate::FeatureExtZfh))
+      if (getFeatureBits(Primate::FeatureStdExtZfh))
         formalArchStr = (Twine(formalArchStr) + "_zfh0p1").str();
-      if (getFeatureBits(Primate::FeatureExtZba))
+      if (getFeatureBits(Primate::FeatureStdExtZba))
         formalArchStr = (Twine(formalArchStr) + "_zba0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbb))
+      if (getFeatureBits(Primate::FeatureStdExtZbb))
         formalArchStr = (Twine(formalArchStr) + "_zbb0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbc))
+      if (getFeatureBits(Primate::FeatureStdExtZbc))
         formalArchStr = (Twine(formalArchStr) + "_zbc0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbe))
-        formalArchStr = (Twine(formalArchStr) + "_zbe0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbf))
-        formalArchStr = (Twine(formalArchStr) + "_zbf0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbm))
-        formalArchStr = (Twine(formalArchStr) + "_zbm0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbp))
-        formalArchStr = (Twine(formalArchStr) + "_zbp0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbproposedc))
-        formalArchStr = (Twine(formalArchStr) + "_zbproposedc0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbr))
-        formalArchStr = (Twine(formalArchStr) + "_zbr0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbs))
+      if (getFeatureBits(Primate::FeatureStdExtZbs))
         formalArchStr = (Twine(formalArchStr) + "_zbs0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZbt))
-        formalArchStr = (Twine(formalArchStr) + "_zbt0p93").str();
-      if (getFeatureBits(Primate::FeatureExtZvamo))
-        formalArchStr = (Twine(formalArchStr) + "_zvamo0p10").str();
-      if (getFeatureBits(Primate::FeatureStdExtZvlsseg))
-        formalArchStr = (Twine(formalArchStr) + "_zvlsseg0p10").str();
 
       getTargetStreamer().emitTextAttribute(Tag, formalArchStr);
     }
@@ -2202,7 +2352,7 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
 
 void PrimateAsmParser::emitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
-  bool Res = compressInst(CInst, Inst, getSTI(), S.getContext());
+  bool Res = compressInst(CInst, Inst, getSTI());
   if (Res)
     ++PrimateNumInstrsCompressed;
   S.emitInstruction((Res ? CInst : Inst), getSTI());
@@ -2211,22 +2361,22 @@ void PrimateAsmParser::emitToStreamer(MCStreamer &S, const MCInst &Inst) {
 void PrimateAsmParser::emitLoadImm(MCRegister DestReg, int64_t Value,
                                  MCStreamer &Out) {
   PrimateMatInt::InstSeq Seq =
-      PrimateMatInt::generateInstSeq(Value, getSTI().getFeatureBits());
+      PrimateMatInt::generateInstSeq(Value, getSTI());
 
   MCRegister SrcReg = Primate::X0;
   for (PrimateMatInt::Inst &Inst : Seq) {
-    if (Inst.Opc == Primate::LUI) {
+    if (Inst.getOpcode() == Primate::LUI) {
       emitToStreamer(
-          Out, MCInstBuilder(Primate::LUI).addReg(DestReg).addImm(Inst.Imm));
-    } else if (Inst.Opc == Primate::ADDUW) {
-      emitToStreamer(Out, MCInstBuilder(Primate::ADDUW)
+          Out, MCInstBuilder(Primate::LUI).addReg(DestReg).addImm(Inst.getImm()));
+    } else if (Inst.getOpcode() == Primate::ADD_UW) {
+      emitToStreamer(Out, MCInstBuilder(Primate::ADD_UW)
                               .addReg(DestReg)
                               .addReg(SrcReg)
                               .addReg(Primate::X0));
     } else {
       emitToStreamer(
-          Out, MCInstBuilder(Inst.Opc).addReg(DestReg).addReg(SrcReg).addImm(
-                   Inst.Imm));
+          Out, MCInstBuilder(Inst.getOpcode()).addReg(DestReg).addReg(SrcReg).addImm(
+                   Inst.getImm()));
     }
 
     // Only the first instruction has X0 as its source.
@@ -2298,6 +2448,43 @@ void PrimateAsmParser::emitLoadAddress(MCInst &Inst, SMLoc IDLoc,
     VKHi = PrimateMCExpr::VK_Primate_PCREL_HI;
   }
   emitAuipcInstPair(DestReg, DestReg, Symbol, VKHi, SecondOpcode, IDLoc, Out);
+}
+
+// Attempts to match Name as a register (either using the default name or
+// alternative ABI names), setting RegNo to the matching register. Upon
+// failure, returns a non-valid MCRegister. If IsRVE, then registers x16-x31
+// will be rejected.
+static MCRegister matchRegisterNameHelper(bool IsRVE, StringRef Name) {
+  MCRegister Reg = MatchRegisterName(Name);
+  // The 16-/32- and 64-bit FPRs have the same asm name. Check that the initial
+  // match always matches the 64-bit variant, and not the 16/32-bit one.
+  assert(!(Reg >= Primate::F0_H && Reg <= Primate::F31_H));
+  assert(!(Reg >= Primate::F0_F && Reg <= Primate::F31_F));
+  // The default FPR register class is based on the tablegen enum ordering.
+  static_assert(Primate::F0_D < Primate::F0_H, "FPR matching must be updated");
+  static_assert(Primate::F0_D < Primate::F0_F, "FPR matching must be updated");
+  if (!Reg)
+    Reg = MatchRegisterAltName(Name);
+  if (IsRVE && Reg >= Primate::X16 && Reg <= Primate::X31)
+    Reg = Primate::NoRegister;
+  return Reg;
+}
+
+ParseStatus PrimateAsmParser::parseGPRAsFPR(OperandVector &Operands) {
+  if (getLexer().isNot(AsmToken::Identifier))
+    return ParseStatus::NoMatch;
+
+  StringRef Name = getLexer().getTok().getIdentifier();
+  MCRegister RegNo = matchRegisterNameHelper(isPRE(), Name);
+
+  if (!RegNo)
+    return ParseStatus::NoMatch;
+  SMLoc S = getLoc();
+  SMLoc E = SMLoc::getFromPointer(S.getPointer() + Name.size());
+  getLexer().Lex();
+  Operands.push_back(PrimateOperand::createReg(
+      RegNo, S, E, !getSTI().hasFeature(Primate::FeatureStdExtF)));
+  return ParseStatus::Success;
 }
 
 void PrimateAsmParser::emitLoadTLSIEAddress(MCInst &Inst, SMLoc IDLoc,
@@ -2379,81 +2566,82 @@ void PrimateAsmParser::emitPseudoExtend(MCInst &Inst, bool SignExtend,
 
 void PrimateAsmParser::emitVMSGE(MCInst &Inst, unsigned Opcode, SMLoc IDLoc,
                                MCStreamer &Out) {
-  if (Inst.getNumOperands() == 3) {
-    // unmasked va >= x
-    //
-    //  pseudoinstruction: vmsge{u}.vx vd, va, x
-    //  expansion: vmslt{u}.vx vd, va, x; vmnand.mm vd, vd, vd
-    emitToStreamer(Out, MCInstBuilder(Opcode)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(1))
-                            .addOperand(Inst.getOperand(2))
-                            .addReg(Primate::NoRegister));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMNAND_MM)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(0)));
-  } else if (Inst.getNumOperands() == 4) {
-    // masked va >= x, vd != v0
-    //
-    //  pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t
-    //  expansion: vmslt{u}.vx vd, va, x, v0.t; vmxor.mm vd, vd, v0
-    assert(Inst.getOperand(0).getReg() != Primate::V0 &&
-           "The destination register should not be V0.");
-    emitToStreamer(Out, MCInstBuilder(Opcode)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(1))
-                            .addOperand(Inst.getOperand(2))
-                            .addOperand(Inst.getOperand(3)));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMXOR_MM)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(0))
-                            .addReg(Primate::V0));
-  } else if (Inst.getNumOperands() == 5 &&
-             Inst.getOperand(0).getReg() == Primate::V0) {
-    // masked va >= x, vd == v0
-    //
-    //  pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t, vt
-    //  expansion: vmslt{u}.vx vt, va, x;  vmandnot.mm vd, vd, vt
-    assert(Inst.getOperand(0).getReg() == Primate::V0 &&
-           "The destination register should be V0.");
-    assert(Inst.getOperand(1).getReg() != Primate::V0 &&
-           "The temporary vector register should not be V0.");
-    emitToStreamer(Out, MCInstBuilder(Opcode)
-                            .addOperand(Inst.getOperand(1))
-                            .addOperand(Inst.getOperand(2))
-                            .addOperand(Inst.getOperand(3))
-                            .addOperand(Inst.getOperand(4)));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(1)));
-  } else if (Inst.getNumOperands() == 5) {
-    // masked va >= x, any vd
-    //
-    // pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t, vt
-    // expansion: vmslt{u}.vx vt, va, x; vmandnot.mm vt, v0, vt; vmandnot.mm vd,
-    // vd, v0; vmor.mm vd, vt, vd
-    assert(Inst.getOperand(1).getReg() != Primate::V0 &&
-           "The temporary vector register should not be V0.");
-    emitToStreamer(Out, MCInstBuilder(Opcode)
-                            .addOperand(Inst.getOperand(1))
-                            .addOperand(Inst.getOperand(2))
-                            .addOperand(Inst.getOperand(3))
-                            .addReg(Primate::NoRegister));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
-                            .addOperand(Inst.getOperand(1))
-                            .addReg(Primate::V0)
-                            .addOperand(Inst.getOperand(1)));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(0))
-                            .addReg(Primate::V0));
-    emitToStreamer(Out, MCInstBuilder(Primate::VMOR_MM)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(1))
-                            .addOperand(Inst.getOperand(0)));
-  }
+  llvm_unreachable("Primate should not emit VMSGE");
+  // if (Inst.getNumOperands() == 3) {
+  //   // unmasked va >= x
+  //   //
+  //   //  pseudoinstruction: vmsge{u}.vx vd, va, x
+  //   //  expansion: vmslt{u}.vx vd, va, x; vmnand.mm vd, vd, vd
+  //   emitToStreamer(Out, MCInstBuilder(Opcode)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addOperand(Inst.getOperand(2))
+  //                           .addReg(Primate::NoRegister));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMNAND_MM)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(0)));
+  // } else if (Inst.getNumOperands() == 4) {
+  //   // masked va >= x, vd != v0
+  //   //
+  //   //  pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t
+  //   //  expansion: vmslt{u}.vx vd, va, x, v0.t; vmxor.mm vd, vd, v0
+  //   assert(Inst.getOperand(0).getReg() != Primate::V0 &&
+  //          "The destination register should not be V0.");
+  //   emitToStreamer(Out, MCInstBuilder(Opcode)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addOperand(Inst.getOperand(2))
+  //                           .addOperand(Inst.getOperand(3)));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMXOR_MM)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addReg(Primate::V0));
+  // } else if (Inst.getNumOperands() == 5 &&
+  //            Inst.getOperand(0).getReg() == Primate::V0) {
+  //   // masked va >= x, vd == v0
+  //   //
+  //   //  pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t, vt
+  //   //  expansion: vmslt{u}.vx vt, va, x;  vmandnot.mm vd, vd, vt
+  //   assert(Inst.getOperand(0).getReg() == Primate::V0 &&
+  //          "The destination register should be V0.");
+  //   assert(Inst.getOperand(1).getReg() != Primate::V0 &&
+  //          "The temporary vector register should not be V0.");
+  //   emitToStreamer(Out, MCInstBuilder(Opcode)
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addOperand(Inst.getOperand(2))
+  //                           .addOperand(Inst.getOperand(3))
+  //                           .addOperand(Inst.getOperand(4)));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(1)));
+  // } else if (Inst.getNumOperands() == 5) {
+  //   // masked va >= x, any vd
+  //   //
+  //   // pseudoinstruction: vmsge{u}.vx vd, va, x, v0.t, vt
+  //   // expansion: vmslt{u}.vx vt, va, x; vmandnot.mm vt, v0, vt; vmandnot.mm vd,
+  //   // vd, v0; vmor.mm vd, vt, vd
+  //   assert(Inst.getOperand(1).getReg() != Primate::V0 &&
+  //          "The temporary vector register should not be V0.");
+  //   emitToStreamer(Out, MCInstBuilder(Opcode)
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addOperand(Inst.getOperand(2))
+  //                           .addOperand(Inst.getOperand(3))
+  //                           .addReg(Primate::NoRegister));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addReg(Primate::V0)
+  //                           .addOperand(Inst.getOperand(1)));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMANDNOT_MM)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addReg(Primate::V0));
+  //   emitToStreamer(Out, MCInstBuilder(Primate::VMOR_MM)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addOperand(Inst.getOperand(0)));
+  // }
 }
 
 bool PrimateAsmParser::checkPseudoAddTPRel(MCInst &Inst,
@@ -2474,18 +2662,29 @@ std::unique_ptr<PrimateOperand> PrimateAsmParser::defaultMaskRegOp() const {
                                  llvm::SMLoc(), isPR64());
 }
 
+std::unique_ptr<PrimateOperand> PrimateAsmParser::defaultFRMArgOp() const {
+  return PrimateOperand::createFRMArg(PrimateFPRndMode::RoundingMode::DYN,
+                                    llvm::SMLoc());
+}
+
+std::unique_ptr<PrimateOperand> PrimateAsmParser::defaultFRMArgLegacyOp() const {
+  return PrimateOperand::createFRMArg(PrimateFPRndMode::RoundingMode::RNE,
+                                    llvm::SMLoc());
+}
+
+
 bool PrimateAsmParser::validateInstruction(MCInst &Inst,
                                          OperandVector &Operands) {
-  if (Inst.getOpcode() == Primate::PseudoVMSGEU_VX_M_T ||
-      Inst.getOpcode() == Primate::PseudoVMSGE_VX_M_T) {
-    unsigned DestReg = Inst.getOperand(0).getReg();
-    unsigned TempReg = Inst.getOperand(1).getReg();
-    if (DestReg == TempReg) {
-      SMLoc Loc = Operands.back()->getStartLoc();
-      return Error(Loc, "The temporary vector register cannot be the same as "
-                        "the destination register.");
-    }
-  }
+  // if (Inst.getOpcode() == Primate::PseudoVMSGEU_VX_M_T ||
+  //     Inst.getOpcode() == Primate::PseudoVMSGE_VX_M_T) {
+  //   unsigned DestReg = Inst.getOperand(0).getReg();
+  //   unsigned TempReg = Inst.getOperand(1).getReg();
+  //   if (DestReg == TempReg) {
+  //     SMLoc Loc = Operands.back()->getStartLoc();
+  //     return Error(Loc, "The temporary vector register cannot be the same as "
+  //                       "the destination register.");
+  //   }
+  // }
 
   const MCInstrDesc &MCID = MII.get(Inst.getOpcode());
   PrimateII::VConstraintType Constraints =
@@ -2508,29 +2707,29 @@ bool PrimateAsmParser::validateInstruction(MCInst &Inst,
       return Error(Loc, "The destination vector register group cannot overlap"
                         " the source vector register group.");
   }
-  if ((Constraints & PrimateII::VMConstraint) && (DestReg == Primate::V0)) {
-    // vadc, vsbc are special cases. These instructions have no mask register.
-    // The destination register could not be V0.
-    unsigned Opcode = Inst.getOpcode();
-    if (Opcode == Primate::VADC_VVM || Opcode == Primate::VADC_VXM ||
-        Opcode == Primate::VADC_VIM || Opcode == Primate::VSBC_VVM ||
-        Opcode == Primate::VSBC_VXM || Opcode == Primate::VFMERGE_VFM ||
-        Opcode == Primate::VMERGE_VIM || Opcode == Primate::VMERGE_VVM ||
-        Opcode == Primate::VMERGE_VXM)
-      return Error(Loc, "The destination vector register group cannot be V0.");
+  // if ((Constraints & PrimateII::VMConstraint) && (DestReg == Primate::V0)) {
+  //   // vadc, vsbc are special cases. These instructions have no mask register.
+  //   // The destination register could not be V0.
+  //   unsigned Opcode = Inst.getOpcode();
+  //   if (Opcode == Primate::VADC_VVM || Opcode == Primate::VADC_VXM ||
+  //       Opcode == Primate::VADC_VIM || Opcode == Primate::VSBC_VVM ||
+  //       Opcode == Primate::VSBC_VXM || Opcode == Primate::VFMERGE_VFM ||
+  //       Opcode == Primate::VMERGE_VIM || Opcode == Primate::VMERGE_VVM ||
+  //       Opcode == Primate::VMERGE_VXM)
+  //     return Error(Loc, "The destination vector register group cannot be V0.");
 
-    // Regardless masked or unmasked version, the number of operands is the
-    // same. For example, "viota.m v0, v2" is "viota.m v0, v2, NoRegister"
-    // actually. We need to check the last operand to ensure whether it is
-    // masked or not.
-    unsigned CheckReg = Inst.getOperand(Inst.getNumOperands() - 1).getReg();
-    assert((CheckReg == Primate::V0 || CheckReg == Primate::NoRegister) &&
-           "Unexpected register for mask operand");
+  //   // Regardless masked or unmasked version, the number of operands is the
+  //   // same. For example, "viota.m v0, v2" is "viota.m v0, v2, NoRegister"
+  //   // actually. We need to check the last operand to ensure whether it is
+  //   // masked or not.
+  //   unsigned CheckReg = Inst.getOperand(Inst.getNumOperands() - 1).getReg();
+  //   assert((CheckReg == Primate::V0 || CheckReg == Primate::NoRegister) &&
+  //          "Unexpected register for mask operand");
 
-    if (DestReg == CheckReg)
-      return Error(Loc, "The destination vector register group cannot overlap"
-                        " the mask register.");
-  }
+  //   if (DestReg == CheckReg)
+  //     return Error(Loc, "The destination vector register group cannot overlap"
+  //                       " the mask register.");
+  // }
   return false;
 }
 
@@ -2599,9 +2798,9 @@ bool PrimateAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case Primate::PseudoFLH:
     emitLoadStoreSymbol(Inst, Primate::FLH, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
-  case Primate::PseudoFLW:
-    emitLoadStoreSymbol(Inst, Primate::FLW, IDLoc, Out, /*HasTmpReg=*/true);
-    return false;
+  // case Primate::PseudoFLW:
+  //   emitLoadStoreSymbol(Inst, Primate::FLW, IDLoc, Out, /*HasTmpReg=*/true);
+  //   return false;
   case Primate::PseudoFLD:
     emitLoadStoreSymbol(Inst, Primate::FLD, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
@@ -2620,9 +2819,9 @@ bool PrimateAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case Primate::PseudoFSH:
     emitLoadStoreSymbol(Inst, Primate::FSH, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
-  case Primate::PseudoFSW:
-    emitLoadStoreSymbol(Inst, Primate::FSW, IDLoc, Out, /*HasTmpReg=*/true);
-    return false;
+  // case Primate::PseudoFSW:
+  //   emitLoadStoreSymbol(Inst, Primate::FSW, IDLoc, Out, /*HasTmpReg=*/true);
+  //   return false;
   case Primate::PseudoFSD:
     emitLoadStoreSymbol(Inst, Primate::FSD, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
@@ -2642,60 +2841,60 @@ bool PrimateAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case Primate::PseudoZEXT_W:
     emitPseudoExtend(Inst, /*SignExtend=*/false, /*Width=*/32, IDLoc, Out);
     return false;
-  case Primate::PseudoVMSGEU_VX:
-  case Primate::PseudoVMSGEU_VX_M:
-  case Primate::PseudoVMSGEU_VX_M_T:
-    emitVMSGE(Inst, Primate::VMSLTU_VX, IDLoc, Out);
-    return false;
-  case Primate::PseudoVMSGE_VX:
-  case Primate::PseudoVMSGE_VX_M:
-  case Primate::PseudoVMSGE_VX_M_T:
-    emitVMSGE(Inst, Primate::VMSLT_VX, IDLoc, Out);
-    return false;
-  case Primate::PseudoVMSGE_VI:
-  case Primate::PseudoVMSLT_VI: {
-    // These instructions are signed and so is immediate so we can subtract one
-    // and change the opcode.
-    int64_t Imm = Inst.getOperand(2).getImm();
-    unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGE_VI ? Primate::VMSGT_VI
-                                                             : Primate::VMSLE_VI;
-    emitToStreamer(Out, MCInstBuilder(Opc)
-                            .addOperand(Inst.getOperand(0))
-                            .addOperand(Inst.getOperand(1))
-                            .addImm(Imm - 1)
-                            .addOperand(Inst.getOperand(3)));
-    return false;
-  }
-  case Primate::PseudoVMSGEU_VI:
-  case Primate::PseudoVMSLTU_VI: {
-    int64_t Imm = Inst.getOperand(2).getImm();
-    // Unsigned comparisons are tricky because the immediate is signed. If the
-    // immediate is 0 we can't just subtract one. vmsltu.vi v0, v1, 0 is always
-    // false, but vmsle.vi v0, v1, -1 is always true. Instead we use
-    // vmsne v0, v1, v1 which is always false.
-    if (Imm == 0) {
-      unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGEU_VI
-                         ? Primate::VMSEQ_VV
-                         : Primate::VMSNE_VV;
-      emitToStreamer(Out, MCInstBuilder(Opc)
-                              .addOperand(Inst.getOperand(0))
-                              .addOperand(Inst.getOperand(1))
-                              .addOperand(Inst.getOperand(1))
-                              .addOperand(Inst.getOperand(3)));
-    } else {
-      // Other immediate values can subtract one like signed.
-      unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGEU_VI
-                         ? Primate::VMSGTU_VI
-                         : Primate::VMSLEU_VI;
-      emitToStreamer(Out, MCInstBuilder(Opc)
-                              .addOperand(Inst.getOperand(0))
-                              .addOperand(Inst.getOperand(1))
-                              .addImm(Imm - 1)
-                              .addOperand(Inst.getOperand(3)));
-    }
+  // case Primate::PseudoVMSGEU_VX:
+  // case Primate::PseudoVMSGEU_VX_M:
+  // case Primate::PseudoVMSGEU_VX_M_T:
+  //   emitVMSGE(Inst, Primate::VMSLTU_VX, IDLoc, Out);
+  //   return false;
+  // case Primate::PseudoVMSGE_VX:
+  // case Primate::PseudoVMSGE_VX_M:
+  // case Primate::PseudoVMSGE_VX_M_T:
+  //   emitVMSGE(Inst, Primate::VMSLT_VX, IDLoc, Out);
+  //   return false;
+  // case Primate::PseudoVMSGE_VI:
+  // case Primate::PseudoVMSLT_VI: {
+  //   // These instructions are signed and so is immediate so we can subtract one
+  //   // and change the opcode.
+  //   int64_t Imm = Inst.getOperand(2).getImm();
+  //   unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGE_VI ? Primate::VMSGT_VI
+  //                                                            : Primate::VMSLE_VI;
+  //   emitToStreamer(Out, MCInstBuilder(Opc)
+  //                           .addOperand(Inst.getOperand(0))
+  //                           .addOperand(Inst.getOperand(1))
+  //                           .addImm(Imm - 1)
+  //                           .addOperand(Inst.getOperand(3)));
+  //   return false;
+  // }
+  // case Primate::PseudoVMSGEU_VI:
+  // case Primate::PseudoVMSLTU_VI: {
+  //   int64_t Imm = Inst.getOperand(2).getImm();
+  //   // Unsigned comparisons are tricky because the immediate is signed. If the
+  //   // immediate is 0 we can't just subtract one. vmsltu.vi v0, v1, 0 is always
+  //   // false, but vmsle.vi v0, v1, -1 is always true. Instead we use
+  //   // vmsne v0, v1, v1 which is always false.
+  //   if (Imm == 0) {
+  //     unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGEU_VI
+  //                        ? Primate::VMSEQ_VV
+  //                        : Primate::VMSNE_VV;
+  //     emitToStreamer(Out, MCInstBuilder(Opc)
+  //                             .addOperand(Inst.getOperand(0))
+  //                             .addOperand(Inst.getOperand(1))
+  //                             .addOperand(Inst.getOperand(1))
+  //                             .addOperand(Inst.getOperand(3)));
+  //   } else {
+  //     // Other immediate values can subtract one like signed.
+  //     unsigned Opc = Inst.getOpcode() == Primate::PseudoVMSGEU_VI
+  //                        ? Primate::VMSGTU_VI
+  //                        : Primate::VMSLEU_VI;
+  //     emitToStreamer(Out, MCInstBuilder(Opc)
+  //                             .addOperand(Inst.getOperand(0))
+  //                             .addOperand(Inst.getOperand(1))
+  //                             .addImm(Imm - 1)
+  //                             .addOperand(Inst.getOperand(3)));
+  //   }
 
-    return false;
-  }
+  //   return false;
+  // }
   }
 
   emitToStreamer(Out, Inst);

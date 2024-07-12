@@ -17,6 +17,7 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
 #include <vector>
+#include <iostream>
 using namespace llvm;
 
 #define DEBUG_TYPE "pseudo-lowering"
@@ -85,6 +86,8 @@ addDagOperandMapping(Record *Rec, DagInit *Dag, CodeGenInstruction &Insn,
         continue;
       }
 
+      if(BaseIdx != 0)
+        std::cout << "Record name from tablegen: " << Rec->getName().str() << std::endl;
       // Normal operands should always have the same type, or we have a
       // problem.
       // FIXME: We probably shouldn't ever get a non-zero BaseIdx here.
@@ -122,8 +125,10 @@ addDagOperandMapping(Record *Rec, DagInit *Dag, CodeGenInstruction &Insn,
       OpsAdded += NewOps;
       // Since we added more than one, we also need to adjust the base.
       BaseIdx += NewOps - 1;
-    } else
+    } else {
+      std::cout << "addDagOperandMapping: " << Rec->getName().str() << std::endl;
       llvm_unreachable("Unhandled pseudo-expansion argument type!");
+    }
   }
   return OpsAdded;
 }

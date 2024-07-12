@@ -1031,8 +1031,8 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
   else {
     LLVM_DEBUG(Node->dump());
     LLVM_DEBUG(dbgs() << "NumMIOperands: " << NumMIOperands << "\n"
-                      << "II.getNumOperands(): " << II.getNumOperands() << "\n" 
-                      << "II.getNumImplicitDefs(): " << II.getNumImplicitDefs() << "\n"
+                      << "II.getNumOperands(): " << II.NumOperands << "\n" 
+                      << "II.getNumImplicitDefs(): " << II.NumImplicitDefs << "\n"
                       << "NumImpUses: " << NumImpUses << "\n");
     assert(NumMIOperands >= II.getNumOperands() &&
            NumMIOperands <=

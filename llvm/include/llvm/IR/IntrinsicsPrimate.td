@@ -182,7 +182,7 @@ let TargetPrefix = "primate" in {
   // Input: (pointer, vl)
   class PrimateUSLoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>,
+                    [llvm_ptr_ty, LLVMMatchType<0>,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For unit stride fault-only-first load
@@ -192,7 +192,7 @@ let TargetPrefix = "primate" in {
   // VL as a side effect. IntrReadMem, IntrHasSideEffects does not work.
   class PrimateUSLoadFF
         : Intrinsic<[llvm_anyvector_ty, llvm_anyint_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>, LLVMMatchType<1>],
+                    [llvm_ptr_ty, LLVMMatchType<0>, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>]>,
                     PrimateVIntrinsic;
   // For unit stride load with mask
@@ -200,7 +200,7 @@ let TargetPrefix = "primate" in {
   class PrimateUSLoadMask
         : Intrinsic<[llvm_anyvector_ty ],
                     [LLVMMatchType<0>,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrReadMem]>, PrimateVIntrinsic;
@@ -212,7 +212,7 @@ let TargetPrefix = "primate" in {
   class PrimateUSLoadFFMask
         : Intrinsic<[llvm_anyvector_ty, llvm_anyint_ty],
                     [LLVMMatchType<0>,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                      LLVMMatchType<1>],
                     [NoCapture<ArgIndex<1>>]>, PrimateVIntrinsic;
@@ -220,7 +220,7 @@ let TargetPrefix = "primate" in {
   // Input: (pointer, stride, vl)
   class PrimateSLoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>,
+                    [llvm_ptr_ty, LLVMMatchType<0>,
                      llvm_anyint_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For strided load with mask
@@ -228,14 +228,14 @@ let TargetPrefix = "primate" in {
   class PrimateSLoadMask
         : Intrinsic<[llvm_anyvector_ty ],
                     [LLVMMatchType<0>,
-                     LLVMPointerType<LLVMMatchType<0>>, llvm_anyint_ty,
+                     llvm_ptr_ty, llvm_anyint_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<1>>, IntrReadMem]>, PrimateVIntrinsic;
   // For indexed load
   // Input: (pointer, index, vl)
   class PrimateILoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>,
+                    [llvm_ptr_ty, LLVMMatchType<0>,
                      llvm_anyvector_ty, llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For indexed load with mask
@@ -243,7 +243,7 @@ let TargetPrefix = "primate" in {
   class PrimateILoadMask
         : Intrinsic<[llvm_anyvector_ty ],
                     [LLVMMatchType<0>,
-                     LLVMPointerType<LLVMMatchType<0>>, llvm_anyvector_ty,
+                     llvm_ptr_ty, llvm_anyvector_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrReadMem]>, PrimateVIntrinsic;
   // For unit stride store
@@ -251,7 +251,8 @@ let TargetPrefix = "primate" in {
   class PrimateUSStore
         : Intrinsic<[],
                     [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
+                     LLVMMatchType<0>,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For unit stride store with mask
@@ -259,7 +260,8 @@ let TargetPrefix = "primate" in {
   class PrimateUSStoreMask
         : Intrinsic<[],
                     [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
+                     LLVMMatchType<0>,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
@@ -268,15 +270,16 @@ let TargetPrefix = "primate" in {
   class PrimateSStore
         : Intrinsic<[],
                     [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
+                     LLVMMatchType<0>,
                      llvm_anyint_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For stride store with mask
   // Input: (vector_in, pointer, stirde, mask, vl)
   class PrimateSStoreMask
         : Intrinsic<[],
-                    [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>, llvm_anyint_ty,
+                    [llvm_anyvector_ty, llvm_ptr_ty,
+                     LLVMMatchType<0>, llvm_anyint_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For indexed store
@@ -284,15 +287,16 @@ let TargetPrefix = "primate" in {
   class PrimateIStore
         : Intrinsic<[],
                     [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>,
+                     llvm_ptr_ty,
+                     LLVMMatchType<0>,
                      llvm_anyint_ty, llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For indexed store with mask
   // Input: (vector_in, pointer, index, mask, vl)
   class PrimateIStoreMask
         : Intrinsic<[],
-                    [llvm_anyvector_ty,
-                     LLVMPointerType<LLVMMatchType<0>>, llvm_anyvector_ty,
+                    [llvm_anyvector_ty, llvm_ptr_ty,
+                     LLVMMatchType<0>, llvm_anyvector_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For destination vector type is the same as source vector.
@@ -661,14 +665,14 @@ let TargetPrefix = "primate" in {
   // Input: (base, index, value, vl)
   class PrimateAMONoMask
         : Intrinsic<[llvm_anyvector_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>, llvm_anyvector_ty, LLVMMatchType<0>,
+                    [llvm_ptr_ty, LLVMMatchType<0>, llvm_anyvector_ty, LLVMMatchType<0>,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>]>, PrimateVIntrinsic;
   // For atomic operations with mask
   // Input: (base, index, value, mask, vl)
   class PrimateAMOMask
         : Intrinsic<[llvm_anyvector_ty],
-                    [LLVMPointerType<LLVMMatchType<0>>, llvm_anyvector_ty, LLVMMatchType<0>,
+                    [llvm_ptr_ty, LLVMMatchType<0>, llvm_anyvector_ty, LLVMMatchType<0>,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>]>, PrimateVIntrinsic;
 
@@ -677,7 +681,7 @@ let TargetPrefix = "primate" in {
   class PrimateUSSegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyint_ty],
+                    [llvm_ptr_ty, llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For unit stride segment load with mask
   // Input: (maskedoff, pointer, mask, vl)
@@ -685,7 +689,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
                     !listconcat(!listsplat(LLVMMatchType<0>, nf),
-                                [LLVMPointerToElt<0>,
+                                [llvm_ptr_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  llvm_anyint_ty]),
                     [NoCapture<ArgIndex<nf>>, IntrReadMem]>, PrimateVIntrinsic;
@@ -698,7 +702,7 @@ let TargetPrefix = "primate" in {
   class PrimateUSSegLoadFF<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1)), [llvm_anyint_ty]),
-                    [LLVMPointerToElt<0>, LLVMMatchType<1>],
+                    [llvm_ptr_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>]>, PrimateVIntrinsic;
   // For unit stride fault-only-first segment load with mask
   // Input: (maskedoff, pointer, mask, vl)
@@ -709,7 +713,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1)), [llvm_anyint_ty]),
                     !listconcat(!listsplat(LLVMMatchType<0>, nf),
-                     [LLVMPointerToElt<0>,
+                     [llvm_ptr_ty,
                       LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                       LLVMMatchType<1>]),
                     [NoCapture<ArgIndex<nf>>]>, PrimateVIntrinsic;
@@ -719,7 +723,7 @@ let TargetPrefix = "primate" in {
   class PrimateSSegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyint_ty, LLVMMatchType<1>],
+                    [llvm_ptr_ty, llvm_anyint_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For stride segment load with mask
   // Input: (maskedoff, pointer, offset, mask, vl)
@@ -727,7 +731,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
                     !listconcat(!listsplat(LLVMMatchType<0>, nf),
-                                [LLVMPointerToElt<0>,
+                                [llvm_ptr_ty,
                                  llvm_anyint_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  LLVMMatchType<1>]),
@@ -738,7 +742,7 @@ let TargetPrefix = "primate" in {
   class PrimateISegLoad<int nf>
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
-                    [LLVMPointerToElt<0>, llvm_anyvector_ty, llvm_anyint_ty],
+                    [llvm_ptr_ty, llvm_anyvector_ty, llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For indexed segment load with mask
   // Input: (maskedoff, pointer, index, mask, vl)
@@ -746,7 +750,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<!listconcat([llvm_anyvector_ty], !listsplat(LLVMMatchType<0>,
                                 !add(nf, -1))),
                     !listconcat(!listsplat(LLVMMatchType<0>, nf),
-                                [LLVMPointerToElt<0>,
+                                [llvm_ptr_ty,
                                  llvm_anyvector_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  llvm_anyint_ty]),
@@ -758,7 +762,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>, llvm_anyint_ty]),
+                                [llvm_ptr_ty, llvm_anyint_ty]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For unit stride segment store with mask
   // Input: (value, pointer, mask, vl)
@@ -766,7 +770,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>,
+                                [llvm_ptr_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  llvm_anyint_ty]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;
@@ -777,7 +781,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>, llvm_anyint_ty,
+                                [llvm_ptr_ty, llvm_anyint_ty,
                                  LLVMMatchType<1>]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For stride segment store with mask
@@ -786,7 +790,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>, llvm_anyint_ty,
+                                [llvm_ptr_ty, llvm_anyint_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  LLVMMatchType<1>]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;
@@ -797,7 +801,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>, llvm_anyvector_ty,
+                                [llvm_ptr_ty, llvm_anyvector_ty,
                                  llvm_anyint_ty]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For indexed segment store with mask
@@ -806,7 +810,7 @@ let TargetPrefix = "primate" in {
         : Intrinsic<[],
                     !listconcat([llvm_anyvector_ty],
                                 !listsplat(LLVMMatchType<0>, !add(nf, -1)),
-                                [LLVMPointerToElt<0>, llvm_anyvector_ty,
+                                [llvm_ptr_ty, llvm_anyvector_ty,
                                  LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                                  llvm_anyint_ty]),
                     [NoCapture<ArgIndex<nf>>, IntrWriteMem]>, PrimateVIntrinsic;

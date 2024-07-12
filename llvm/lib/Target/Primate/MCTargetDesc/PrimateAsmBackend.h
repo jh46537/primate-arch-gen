@@ -32,7 +32,7 @@ class PrimateAsmBackend : public MCAsmBackend {
 public:
   PrimateAsmBackend(const MCSubtargetInfo &STI, uint8_t OSABI, bool Is64Bit,
                   const MCTargetOptions &Options)
-      : MCAsmBackend(support::little), STI(STI), OSABI(OSABI), Is64Bit(Is64Bit),
+      : MCAsmBackend(llvm::endianness::little), STI(STI), OSABI(OSABI), Is64Bit(Is64Bit),
         TargetOptions(Options) {
     TargetABI = PrimateABI::computeTargetABI(
         STI.getTargetTriple(), STI.getFeatureBits(), Options.getABIName());
@@ -51,39 +51,44 @@ public:
                                      const MCAsmLayout &Layout,
                                      MCAlignFragment &AF) override;
 
-  bool evaluateTargetFixup(const MCAssembler &Asm, const MCAsmLayout &Layout,
-                           const MCFixup &Fixup, const MCFragment *DF,
-                           const MCValue &Target, uint64_t &Value,
-                           bool &WasForced) override;
 
-  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
-                  const MCValue &Target, MutableArrayRef<char> Data,
-                  uint64_t Value, bool IsResolved,
-                  const MCSubtargetInfo *STI) const override;
+  virtual bool evaluateTargetFixup(const MCAssembler &Asm,
+                                   const MCAsmLayout &Layout,
+                                   const MCFixup &Fixup, const MCFragment *DF,
+                                   const MCValue &Target,
+                                   const MCSubtargetInfo *STI, uint64_t &Value,
+                                   bool &WasForced) override;
+
+  virtual void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
+                          const MCValue &Target, MutableArrayRef<char> Data,
+                          uint64_t Value, bool IsResolved,
+                          const MCSubtargetInfo *STI) const override;
 
   std::unique_ptr<MCObjectTargetWriter>
   createObjectTargetWriter() const override;
 
-  bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
-                             const MCValue &Target) override;
+  virtual bool shouldForceRelocation(const MCAssembler &Asm, 
+                                     const MCFixup &Fixup,
+                                     const MCValue &Target, 
+                                     const MCSubtargetInfo *STI) override;
 
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
+  virtual bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
                             const MCRelaxableFragment *DF,
                             const MCAsmLayout &Layout) const override {
     llvm_unreachable("Handled by fixupNeedsRelaxationAdvanced");
   }
 
-  bool fixupNeedsRelaxationAdvanced(const MCFixup &Fixup, bool Resolved,
-                                    uint64_t Value,
-                                    const MCRelaxableFragment *DF,
-                                    const MCAsmLayout &Layout,
-                                    const bool WasForced) const override;
+  virtual bool fixupNeedsRelaxationAdvanced(const MCFixup &Fixup, bool Resolved,
+                                            uint64_t Value,
+                                            const MCRelaxableFragment *DF,
+                                            const MCAsmLayout &Layout,
+                                            const bool WasForced) const override;
 
-  unsigned getNumFixupKinds() const override {
+  virtual unsigned getNumFixupKinds() const override {
     return Primate::NumTargetFixupKinds;
   }
 
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override;
+  virtual std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
 
@@ -99,7 +104,7 @@ public:
   bool relaxDwarfCFA(MCDwarfCallFrameFragment &DF, MCAsmLayout &Layout,
                      bool &WasRelaxed) const override;
 
-  bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
+  virtual bool writeNopData(raw_ostream &OS, uint64_t Count, const MCSubtargetInfo *STI) const override;
 
   const MCTargetOptions &getTargetOptions() const { return TargetOptions; }
   PrimateABI::ABI getTargetABI() const { return TargetABI; }

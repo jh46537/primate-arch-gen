@@ -38,7 +38,7 @@ void PrimateTargetStreamer::emitIntTextAttribute(unsigned Attribute,
                                                StringRef StringValue) {}
 
 void PrimateTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI) {
-  if (STI.hasFeature(Primate::FeaturePR32E))
+  if (STI.hasFeature(Primate::FeaturePRE))
     emitAttribute(PrimateAttrs::STACK_ALIGN, PrimateAttrs::ALIGN_4);
   else
     emitAttribute(PrimateAttrs::STACK_ALIGN, PrimateAttrs::ALIGN_16);
@@ -46,7 +46,7 @@ void PrimateTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI) {
   std::string Arch = "pr32";
   if (STI.hasFeature(Primate::Feature64Bit))
     Arch = "pr64";
-  if (STI.hasFeature(Primate::FeaturePR32E))
+  if (STI.hasFeature(Primate::FeaturePRE))
     Arch += "e1p9";
   else
     Arch += "i2p0";
@@ -60,38 +60,20 @@ void PrimateTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI) {
     Arch += "_d2p0";
   if (STI.hasFeature(Primate::FeatureStdExtC))
     Arch += "_c2p0";
-  if (STI.hasFeature(Primate::FeatureStdExtB))
+  if (STI.hasFeature(Primate::FeatureStdExtZbb))
     Arch += "_b0p93";
   if (STI.hasFeature(Primate::FeatureStdExtV))
     Arch += "_v0p10";
-  if (STI.hasFeature(Primate::FeatureExtZfh))
+  if (STI.hasFeature(Primate::FeatureStdExtZfh))
     Arch += "_zfh0p1";
-  if (STI.hasFeature(Primate::FeatureExtZba))
+  if (STI.hasFeature(Primate::FeatureStdExtZba))
     Arch += "_zba0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbb))
+  if (STI.hasFeature(Primate::FeatureStdExtZbb))
     Arch += "_zbb0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbc))
+  if (STI.hasFeature(Primate::FeatureStdExtZbc))
     Arch += "_zbc0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbe))
-    Arch += "_zbe0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbf))
-    Arch += "_zbf0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbm))
-    Arch += "_zbm0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbp))
-    Arch += "_zbp0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbproposedc))
-    Arch += "_zbproposedc0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbr))
-    Arch += "_zbr0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbs))
+  if (STI.hasFeature(Primate::FeatureStdExtZbs))
     Arch += "_zbs0p93";
-  if (STI.hasFeature(Primate::FeatureExtZbt))
-    Arch += "_zbt0p93";
-  if (STI.hasFeature(Primate::FeatureExtZvamo))
-    Arch += "_zvamo0p10";
-  if (STI.hasFeature(Primate::FeatureStdExtZvlsseg))
-    Arch += "_zvlsseg0p10";
 
   emitTextAttribute(PrimateAttrs::ARCH, Arch);
 }

@@ -13,8 +13,13 @@
 
 #include "PrimateBaseInfo.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
 namespace PrimateSysReg {
@@ -27,21 +32,21 @@ ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
                      StringRef ABIName) {
   auto TargetABI = getTargetABI(ABIName);
   bool IsPR64 = TT.isArch64Bit();
-  bool IsPR32E = FeatureBits[Primate::FeaturePR32E];
+  bool IsPRE = FeatureBits[Primate::FeaturePRE];
 
   if (!ABIName.empty() && TargetABI == ABI_Unknown) {
     errs()
         << "'" << ABIName
         << "' is not a recognized ABI for this target (ignoring target-abi)\n";
-  } else if (ABIName.startswith("ilp32") && IsPR64) {
+  } else if (ABIName.starts_with("ilp32") && IsPR64) {
     errs() << "32-bit ABIs are not supported for 64-bit targets (ignoring "
               "target-abi)\n";
     TargetABI = ABI_Unknown;
-  } else if (ABIName.startswith("lp64") && !IsPR64) {
+  } else if (ABIName.starts_with("lp64") && !IsPR64) {
     errs() << "64-bit ABIs are not supported for 32-bit targets (ignoring "
               "target-abi)\n";
     TargetABI = ABI_Unknown;
-  } else if (IsPR32E && TargetABI != ABI_ILP32E && TargetABI != ABI_Unknown) {
+  } else if (IsPRE && TargetABI != ABI_ILP32E && TargetABI != ABI_Unknown) {
     // TODO: move this checking to PrimateTargetLowering and PrimateAsmParser
     errs()
         << "Only the ilp32e ABI is supported for PR32E (ignoring target-abi)\n";
@@ -55,7 +60,7 @@ ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
   // or an invalid/unrecognised string is given. In the future, it might be
   // worth changing this to default to ilp32f/lp64f and ilp32d/lp64d when
   // hardware support for floating point is present.
-  if (IsPR32E)
+  if (IsPRE)
     return ABI_ILP32E;
   if (IsPR64)
     return ABI_LP64;
@@ -92,7 +97,7 @@ void validate(const Triple &TT, const FeatureBitset &FeatureBits) {
     report_fatal_error("PR64 target requires an PR64 CPU");
   if (!TT.isArch64Bit() && FeatureBits[Primate::Feature64Bit])
     report_fatal_error("PR32 target requires an PR32 CPU");
-  if (TT.isArch64Bit() && FeatureBits[Primate::FeaturePR32E])
+  if (TT.isArch64Bit() && FeatureBits[Primate::FeaturePRE])
     report_fatal_error("PR32E can't be enabled for an PR64 target");
 }
 

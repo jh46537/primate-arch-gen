@@ -18,12 +18,34 @@
 #include "llvm/IR/DiagnosticInfo.h"
 
 #define GET_INSTRINFO_HEADER
+#define GET_INSTRINFO_OPERAND_ENUM
 #include "PrimateGenInstrInfo.inc"
 
 namespace llvm {
 
 class PrimateSubtarget;
 
+static const MachineMemOperand::Flags MONontemporalBit0 =
+    MachineMemOperand::MOTargetFlag1;
+static const MachineMemOperand::Flags MONontemporalBit1 =
+    MachineMemOperand::MOTargetFlag2;
+
+namespace PrimateCC {
+
+enum CondCode {
+  COND_EQ,
+  COND_NE,
+  COND_LT,
+  COND_GE,
+  COND_LTU,
+  COND_GEU,
+  COND_INVALID
+};
+
+CondCode getOppositeBranchCondition(CondCode);
+unsigned getBrCond(CondCode CC);
+
+} // end of namespace PrimateCC
 class PrimateInstrInfo : public PrimateGenInstrInfo {
 
 public:
@@ -41,15 +63,21 @@ public:
                    bool KillSrc) const override;
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MBBI, Register SrcReg,
-                           bool IsKill, int FrameIndex,
+                           MachineBasicBlock::iterator MI,
+                           Register SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const override;
+                           const TargetRegisterInfo *TRI,
+                           Register VReg) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI, Register DstReg,
-                            int FrameIndex, const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const override;
+                            MachineBasicBlock::iterator MI,
+                            Register DestReg, int FrameIndex,
+                            const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI,
+                            Register VReg) const override;
+  
+  outliner::InstrType getOutliningType(MachineBasicBlock::iterator &MBBI, 
+                                       unsigned Flags) const;
 
   // Materializes the given integer Val into DstReg.
   void movImm(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
@@ -68,10 +96,11 @@ public:
                         const DebugLoc &dl,
                         int *BytesAdded = nullptr) const override;
 
-  unsigned insertIndirectBranch(MachineBasicBlock &MBB,
-                                MachineBasicBlock &NewDestBB,
-                                const DebugLoc &DL, int64_t BrOffset,
-                                RegScavenger *RS = nullptr) const override;
+  void insertIndirectBranch(MachineBasicBlock &MBB,
+                            MachineBasicBlock &NewDestBB,
+                            MachineBasicBlock &RestoreBB,
+                            const DebugLoc &DL, int64_t BrOffset = 0,
+                            RegScavenger *RS = nullptr) const override;
 
   unsigned removeBranch(MachineBasicBlock &MBB,
                         int *BytesRemoved = nullptr) const override;
@@ -86,7 +115,7 @@ public:
 
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
 
-  Optional<DestSourcePair>
+  std::optional<DestSourcePair>
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
   bool verifyInstruction(const MachineInstr &MI,
@@ -121,24 +150,17 @@ public:
                                       unsigned &Flags) const override;
 
   // Calculate target-specific information for a set of outlining candidates.
-  outliner::OutlinedFunction getOutliningCandidateInfo(
+  std::optional<outliner::OutlinedFunction> getOutliningCandidateInfo(
       std::vector<outliner::Candidate> &RepeatedSequenceLocs) const override;
-
-  // Return if/how a given MachineInstr should be outlined.
-  virtual outliner::InstrType
-  getOutliningType(MachineBasicBlock::iterator &MBBI,
-                   unsigned Flags) const override;
 
   // Insert a custom frame for outlined functions.
   virtual void
   buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
                      const outliner::OutlinedFunction &OF) const override;
-
-  // Insert a call to an outlined function into a given basic block.
-  virtual MachineBasicBlock::iterator
-  insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
-                     MachineBasicBlock::iterator &It, MachineFunction &MF,
-                     const outliner::Candidate &C) const override;
+  
+  MachineBasicBlock::iterator insertOutlinedCall(
+      Module &M, MachineBasicBlock &MBB, MachineBasicBlock::iterator &It,
+      MachineFunction &MF, outliner::Candidate &C) const override;
 
   bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
@@ -146,9 +168,9 @@ public:
                                        unsigned OpIdx1,
                                        unsigned OpIdx2) const override;
 
-  MachineInstr *convertToThreeAddress(MachineFunction::iterator &MBB,
-                                      MachineInstr &MI,
-                                      LiveVariables *LV) const override;
+  MachineInstr *convertToThreeAddress(MachineInstr &MI,
+                                      LiveVariables *LV,
+                                      LiveIntervals *LIS) const override;
 
   Register getVLENFactoredAmount(
       MachineFunction &MF, MachineBasicBlock &MBB,
@@ -160,7 +182,7 @@ public:
   // must contain at least one FrameIndex operand.
   bool isPRVSpill(const MachineInstr &MI, bool CheckFIs) const;
 
-  Optional<std::pair<unsigned, unsigned>>
+  std::optional<std::pair<unsigned, unsigned>>
   isPRVSpillForZvlsseg(unsigned Opcode) const;
 
 protected:

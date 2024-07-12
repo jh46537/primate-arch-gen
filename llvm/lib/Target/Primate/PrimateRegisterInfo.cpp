@@ -104,7 +104,6 @@ BitVector PrimateRegisterInfo::getReservedRegs(const MachineFunction &MF) const 
   // Floating point environment registers.
   markSuperRegs(Reserved, Primate::FRM);
   markSuperRegs(Reserved, Primate::FFLAGS);
-  markSuperRegs(Reserved, Primate::FCSR);
 
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
@@ -113,10 +112,6 @@ BitVector PrimateRegisterInfo::getReservedRegs(const MachineFunction &MF) const 
 bool PrimateRegisterInfo::isAsmClobberable(const MachineFunction &MF,
                                          MCRegister PhysReg) const {
   return !MF.getSubtarget<PrimateSubtarget>().isRegisterReservedByUser(PhysReg);
-}
-
-bool PrimateRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
-  return PhysReg == Primate::X0;
 }
 
 const uint32_t *PrimateRegisterInfo::getNoPreservedMask() const {
@@ -156,7 +151,7 @@ bool PrimateRegisterInfo::hasReservedSpillSlot(const MachineFunction &MF,
   return true;
 }
 
-void PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                             int SPAdj, unsigned FIOperandNum,
                                             RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected non-zero SPAdj value");
@@ -211,7 +206,7 @@ void PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
         .addReg(FrameReg)
         .addReg(ScratchReg, RegState::Kill);
       MI.eraseFromParent();
-      return;
+      return true;
     }
     BuildMI(MBB, II, DL, TII->get(Primate::ADD), ScratchReg)
         .addReg(FrameReg)
@@ -249,7 +244,7 @@ void PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
           .addReg(FrameReg, getKillRegState(FrameRegIsKill))
           .addReg(ScalableFactorRegister, RegState::Kill);
       MI.eraseFromParent();
-      return;
+      return true;
     }
     Register VL = MRI.createVirtualRegister(&Primate::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(ScalableAdjOpc), VL)
@@ -272,18 +267,20 @@ void PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   auto ZvlssegInfo = TII->isPRVSpillForZvlsseg(MI.getOpcode());
   if (ZvlssegInfo) {
-    Register VL = MRI.createVirtualRegister(&Primate::GPRRegClass);
-    BuildMI(MBB, II, DL, TII->get(Primate::PseudoReadVLENB), VL);
-    uint32_t ShiftAmount = Log2_32(ZvlssegInfo->second);
-    if (ShiftAmount != 0)
-      BuildMI(MBB, II, DL, TII->get(Primate::SLLI), VL)
-          .addReg(VL)
-          .addImm(ShiftAmount);
-    // The last argument of pseudo spilling opcode for zvlsseg is the length of
-    // one element of zvlsseg types. For example, for vint32m2x2_t, it will be
-    // the length of vint32m2_t.
-    MI.getOperand(FIOperandNum + 1).ChangeToRegister(VL, /*isDef=*/false);
+    llvm_unreachable("Primate tried to spill a vector :/");
+    // Register VL = MRI.createVirtualRegister(&Primate::GPRRegClass);
+    // BuildMI(MBB, II, DL, TII->get(Primate::PseudoReadVLENB), VL);
+    // uint32_t ShiftAmount = Log2_32(ZvlssegInfo->second);
+    // if (ShiftAmount != 0)
+    //   BuildMI(MBB, II, DL, TII->get(Primate::SLLI), VL)
+    //       .addReg(VL)
+    //       .addImm(ShiftAmount);
+    // // The last argument of pseudo spilling opcode for zvlsseg is the length of
+    // // one element of zvlsseg types. For example, for vint32m2x2_t, it will be
+    // // the length of vint32m2_t.
+    // MI.getOperand(FIOperandNum + 1).ChangeToRegister(VL, /*isDef=*/false);
   }
+  return false;
 }
 
 Register PrimateRegisterInfo::getFrameRegister(const MachineFunction &MF) const {

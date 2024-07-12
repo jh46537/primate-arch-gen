@@ -40,7 +40,7 @@ const PrimateAttributeParser::DisplayHandler
 
 Error PrimateAttributeParser::unalignedAccess(unsigned tag) {
   static const char *strings[] = {"No unaligned access", "Unaligned access"};
-  return parseStringAttribute("Unaligned_access", tag, makeArrayRef(strings));
+  return parseStringAttribute("Unaligned_access", tag, ArrayRef(strings));
 }
 
 Error PrimateAttributeParser::stackAlign(unsigned tag) {
@@ -53,7 +53,7 @@ Error PrimateAttributeParser::stackAlign(unsigned tag) {
 
 Error PrimateAttributeParser::handler(uint64_t tag, bool &handled) {
   handled = false;
-  for (unsigned AHI = 0, AHE = array_lengthof(displayRoutines); AHI != AHE;
+  for (unsigned AHI = 0, AHE = std::size(displayRoutines); AHI != AHE;
        ++AHI) {
     if (uint64_t(displayRoutines[AHI].attribute) == tag) {
       if (Error e = (this->*displayRoutines[AHI].routine)(tag))

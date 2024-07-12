@@ -18,7 +18,7 @@
 namespace clang {
 namespace driver {
 namespace tools {
-namespace primate {
+namespace Primate {
 void getPrimateTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                               const llvm::opt::ArgList &Args,
                               std::vector<llvm::StringRef> &Features);

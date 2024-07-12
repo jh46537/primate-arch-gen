@@ -472,26 +472,26 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     // TODO: add cases for NetBSD, RTEMS once tested.
     switch (os) {
     case llvm::Triple::FreeBSD:
-      return new FreeBSDTargetInfo<Primate32TargetInfo>(Triple, Opts);
+      return std::make_unique<FreeBSDTargetInfo<Primate32TargetInfo>>(Triple, Opts);
     case llvm::Triple::Linux:
-      return new LinuxTargetInfo<Primate32TargetInfo>(Triple, Opts);
+      return std::make_unique<LinuxTargetInfo<Primate32TargetInfo>>(Triple, Opts);
     default:
-      return new Primate32TargetInfo(Triple, Opts);
+      return std::make_unique<Primate32TargetInfo>(Triple, Opts);
     }
 
   case llvm::Triple::primate64:
     // TODO: add cases for NetBSD, RTEMS once tested.
     switch (os) {
     case llvm::Triple::FreeBSD:
-      return new FreeBSDTargetInfo<Primate64TargetInfo>(Triple, Opts);
+      return std::make_unique<FreeBSDTargetInfo<Primate64TargetInfo>>(Triple, Opts);
     case llvm::Triple::OpenBSD:
-      return new OpenBSDTargetInfo<Primate64TargetInfo>(Triple, Opts);
+      return std::make_unique<OpenBSDTargetInfo<Primate64TargetInfo>>(Triple, Opts);
     case llvm::Triple::Fuchsia:
-      return new FuchsiaTargetInfo<Primate64TargetInfo>(Triple, Opts);
+      return std::make_unique<FuchsiaTargetInfo<Primate64TargetInfo>>(Triple, Opts);
     case llvm::Triple::Linux:
-      return new LinuxTargetInfo<Primate64TargetInfo>(Triple, Opts);
+      return std::make_unique<LinuxTargetInfo<Primate64TargetInfo>>(Triple, Opts);
     default:
-      return new Primate64TargetInfo(Triple, Opts);
+      return std::make_unique<Primate64TargetInfo>(Triple, Opts);
     }
 
   case llvm::Triple::sparc:

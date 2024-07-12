@@ -77,6 +77,7 @@
 #include "llvm/TableGen/TableGenBackend.h"
 #include <set>
 #include <vector>
+#include <iostream>
 using namespace llvm;
 
 #define DEBUG_TYPE "compress-inst-emitter"
@@ -258,8 +259,11 @@ void CompressInstEmitter::addDagOperandMapping(Record *Rec, DagInit *Dag,
                  << (IsSourceInst ? "input " : "output ")
                  << "Dag. No validation time check possible for values of "
                     "fixed immediate.\n");
-    } else
+    } else {
+      std::cout << "Vanilla Compressed Pat: " << std::endl;
+      Rec->dump();
       llvm_unreachable("Unhandled CompressPat argument type!");
+    }
   }
 }
 

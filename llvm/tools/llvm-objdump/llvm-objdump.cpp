@@ -752,14 +752,14 @@ public:
                  StringRef Annot, MCSubtargetInfo const &STI, SourcePrinter *SP,
                  StringRef ObjectFilename, std::vector<RelocationRef> *Rels,
                  LiveVariablePrinter &LVP) override {
-    if (sp && (printsource || printlines))
-      sp->printsourceline(os, address, objectfilename, lvp);
-    lvp.printbetweeninsts(os, false);
+    if (SP && (PrintSource || PrintLines))
+      SP->printSourceLine(OS, Address, ObjectFilename, LVP);
+    LVP.printBetweenInsts(OS, false);
 
-    size_t start = os.tell();
-    if (leadingaddr)
-      os << format("%8" prix64 ":", address.address);
-    if (showrawinsn) {
+    size_t start = OS.tell();
+    if (LeadingAddr)
+      OS << format("%8" PRIx64 ":", Address.Address);
+    if (ShowRawInsn) {
       size_t Pos = 0, End = Bytes.size();
       if (STI.checkFeatures("+thumb-mode")) {
         for (; Pos + 2 <= End; Pos += 2)
@@ -782,7 +782,7 @@ public:
       }
     }
 
-    AlignToInstStartColumn(Start, STI, OS);
+    AlignToInstStartColumn(start, STI, OS);
 
     if (MI) {
       IP.printInst(MI, Address.Address, "", STI, OS);
@@ -855,14 +855,14 @@ public:
     }
     printed_instrs++;
     
-    if (sp && (printsource || printlines))
-      sp->printsourceline(os, address, objectfilename, lvp);
-    lvp.printbetweeninsts(os, false);
+    if (SP && (PrintSource || PrintLines))
+      SP->printSourceLine(OS, Address, ObjectFilename, LVP);
+    LVP.printBetweenInsts(OS, false);
 
-    size_t start = os.tell();
-    if (leadingaddr)
-      os << format("%8" prix64 ":", address.address);
-    if (showrawinsn) {
+    size_t start = OS.tell();
+    if (LeadingAddr)
+      OS << format("%8" PRIx64 ":", Address.Address);
+    if (ShowRawInsn) {
       OS << ' ';
       dumpBytes(Bytes, OS);
     }
@@ -870,7 +870,7 @@ public:
     // The output of printInst starts with a tab. Print some spaces so that
     // the tab has 1 column and advances to the target tab stop.
     unsigned TabStop = getInstStartColumn(STI);
-    unsigned Column = OS.tell() - Start;
+    unsigned Column = OS.tell() - start;
     OS.indent(Column < TabStop - 1 ? TabStop - 1 - Column : 7 - Column % 8);
 
     if (MI) {
@@ -2010,8 +2010,6 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
         } else
           outs() << '<' << SymbolName << ">:\n";
       }
-
-      PIP.startNewSection();
 
       // Don't print raw contents of a virtual section. A virtual section
       // doesn't have any contents in the file.

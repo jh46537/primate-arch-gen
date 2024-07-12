@@ -64,20 +64,8 @@ def PrimateModel : SchedMachineModel {
     HasStdExtZba,
     HasStdExtZbb,
     HasStdExtZbc,
-    HasStdExtZbe,
-    HasStdExtZbf,
-    HasStdExtZbm,
-    HasStdExtZbp,
-    HasStdExtZbr,
     HasStdExtZbs,
-    HasStdExtZbt,
-    HasStdExtZbbOrZbp,
-    HasStdExtZbproposedc,
-    HasStdExtB,
-    HasPRCHints,
-    HasStdExtV,
-    HasStdExtZvlsseg,
-    HasStdExtZvamo
+    HasPRCHints
   ];
 }
 
@@ -132,11 +120,11 @@ def : WriteRes<WriteIMul32, [GreenPipes]>;
 // Integer division
 def : WriteRes<WriteIDiv, [GreenPipes]> {
   let Latency = 16;
-  let ResourceCycles = [15];
+  let ReleaseAtCycles = [15];
 }
 def : WriteRes<WriteIDiv32,  [GreenPipes]> {
   let Latency = 16;
-  let ResourceCycles = [15];
+  let ReleaseAtCycles = [15];
 }
 
 let Latency = 1000 in {
@@ -172,6 +160,9 @@ let Latency = 5 in {
 def : WriteRes<WriteFALU32, [GreenPipes]>;
 def : WriteRes<WriteFMul32, [GreenPipes]>;
 def : WriteRes<WriteFMA32, [GreenPipes]>;
+def : WriteRes<WriteFAdd64, [GreenPipes]>;
+def : WriteRes<WriteFAdd32, [GreenPipes]>;
+def : WriteRes<WriteFAdd16, [GreenPipes]>;
 }
 let Latency = 3 in {
 def : WriteRes<WriteFSGNJ32, [GreenPipes]>;
@@ -180,11 +171,11 @@ def : WriteRes<WriteFMinMax32, [GreenPipes]>;
 
 def : WriteRes<WriteFDiv32, [GreenPipes]> {
   let Latency = 27;
-  let ResourceCycles = [26];
+  let ReleaseAtCycles = [26];
 }
 def : WriteRes<WriteFSqrt32, [GreenPipes]> {
   let Latency = 27;
-  let ResourceCycles = [26];
+  let ReleaseAtCycles = [26];
 }
 
 // Double precision
@@ -200,11 +191,11 @@ def : WriteRes<WriteFMinMax64, [GreenPipes]>;
 
 def : WriteRes<WriteFDiv64, [GreenPipes]> {
   let Latency = 56;
-  let ResourceCycles = [55];
+  let ReleaseAtCycles = [55];
 }
 def : WriteRes<WriteFSqrt64, [GreenPipes]> {
   let Latency = 56;
-  let ResourceCycles = [55];
+  let ReleaseAtCycles = [55];
 }
 
 // Conversions
@@ -263,10 +254,16 @@ def : ReadAdvance<ReadAtomicSTD, 0>;
 def : ReadAdvance<ReadFMemBase, 0>;
 def : ReadAdvance<ReadFALU32, 0>;
 def : ReadAdvance<ReadFALU64, 0>;
+def : ReadAdvance<ReadFAdd64, 0>;
+def : ReadAdvance<ReadFAdd32, 0>;
+def : ReadAdvance<ReadFAdd16, 0>;
 def : ReadAdvance<ReadFMul32, 0>;
 def : ReadAdvance<ReadFMA32, 0>;
+def : ReadAdvance<ReadFMA32Addend, 0>;
+def : ReadAdvance<ReadFStoreData, 0>;
 def : ReadAdvance<ReadFMul64, 0>;
 def : ReadAdvance<ReadFMA64, 0>;
+def : ReadAdvance<ReadFMA64Addend, 0>;
 def : ReadAdvance<ReadFDiv32, 0>;
 def : ReadAdvance<ReadFDiv64, 0>;
 def : ReadAdvance<ReadFSqrt32, 0>;

@@ -774,6 +774,9 @@ Expected<InstructionMatcher &> GlobalISelEmitter::createAndImportSelDAGMatcher(
 
     if (Predicate.hasGISelPredicateCode()) {
       if (Predicate.usesOperands()) {
+        if(WaitingForNamedOperands != 0) {
+          Src->dump();
+        }
         assert(WaitingForNamedOperands == 0 &&
                "previous predicate didn't find all operands or "
                "nested predicate that uses operands");

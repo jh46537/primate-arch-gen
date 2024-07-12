@@ -26,7 +26,7 @@ public:
 
   // Return true if the given relocation must be with a symbol rather than
   // section plus offset.
-  bool needsRelocateWithSymbol(const MCSymbol &Sym,
+  virtual bool needsRelocateWithSymbol(const MCValue &Val, const MCSymbol &Sym,
                                unsigned Type) const override {
     // TODO: this is very conservative, update once Primate psABI requirements
     //       are clarified.
@@ -34,7 +34,7 @@ public:
   }
 
 protected:
-  unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
+  virtual unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
                         const MCFixup &Fixup, bool IsPCRel) const override;
 };
 }

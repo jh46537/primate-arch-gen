@@ -160,7 +160,7 @@ void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
                                               const MCSymbol *Lo,
                                               unsigned Size) {
   if (!getAssembler().getContext().getTargetTriple().isRISCV() &&
-      !getAssembler().getContext().getTargetTriple().isPriamte())
+      !getAssembler().getContext().getTargetTriple().isPrimate())
     if (std::optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
       return emitIntValue(*Diff, Size);
   MCStreamer::emitAbsoluteSymbolDiff(Hi, Lo, Size);

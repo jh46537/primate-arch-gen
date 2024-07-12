@@ -15,6 +15,7 @@
 #include "PrimateBaseInfo.h"
 #include "PrimateMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
@@ -24,6 +25,7 @@
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/PrimateAttributes.h"
+#include "llvm/Support/Casting.h"
 
 using namespace llvm;
 
@@ -98,12 +100,12 @@ void PrimateTargetELFStreamer::finishAttributeSection() {
     return;
 
   if (AttributeSection) {
-    Streamer.SwitchSection(AttributeSection);
+    Streamer.switchSection(AttributeSection);
   } else {
     MCAssembler &MCA = getStreamer().getAssembler();
     AttributeSection = MCA.getContext().getELFSection(
         ".primate.attributes", ELF::SHT_PRIMATE_ATTRIBUTES, 0);
-    Streamer.SwitchSection(AttributeSection);
+    Streamer.switchSection(AttributeSection);
 
     Streamer.emitInt8(ELFAttrs::Format_Version);
   }

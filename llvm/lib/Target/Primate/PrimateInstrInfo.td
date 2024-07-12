@@ -89,6 +89,15 @@ def primate_extract   : SDNode<"PrimateISD::EXTRACT", SDT_PrimateExtract,
 def primate_read_cycle_wide : SDNode<"PrimateISD::READ_CYCLE_WIDE",
                                    SDT_PrimateReadCycleWide,
                                    [SDNPHasChain, SDNPSideEffect]>;
+                                   
+def primate_add_lo : SDNode<"PrimateISD::ADD_LO", SDTIntBinOp>;
+def primate_hi : SDNode<"PrimateISD::HI", SDTIntUnaryOp>;
+def primate_lla : SDNode<"PrimateISD::LLA", SDTIntUnaryOp>;
+def primate_add_tprel : SDNode<"PrimateISD::ADD_TPREL",
+                             SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>,
+                                                  SDTCisSameAs<0, 2>,
+                                                  SDTCisSameAs<0, 3>,
+                                                  SDTCisInt<0>]>>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -112,6 +121,29 @@ def ImmZeroAsmOperand : AsmOperandClass {
   let DiagnosticType = !strconcat("Invalid", Name);
 }
 
+// A parse method for (${gpr}) or 0(${gpr}), where the 0 is be silently ignored.
+def ZeroOffsetMemOpOperand : AsmOperandClass {
+  let Name = "ZeroOffsetMemOpOperand";
+  let RenderMethod = "addRegOperands";
+  let PredicateMethod = "isGPR";
+  let ParserMethod = "parseZeroOffsetMemOp";
+}
+
+class MemOperand<RegisterClass regClass> : RegisterOperand<regClass>{
+  let OperandType = "OPERAND_MEMORY";
+}
+
+def GPRMemZeroOffset : MemOperand<GPR> {
+  let ParserMatchClass = ZeroOffsetMemOpOperand;
+  let PrintMethod = "printZeroOffsetMemOp";
+}
+
+def GPRMem : MemOperand<GPR>;
+
+def SPMem : MemOperand<SP>;
+
+def GPRCMem : MemOperand<GPRC>;
+
 class SImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"S", width, suffix> {
 }
@@ -119,6 +151,30 @@ class SImmAsmOperand<int width, string suffix = "">
 class UImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"U", width, suffix> {
 }
+
+class PrimateOp<ValueType vt = XLenVT> : Operand<vt> {
+  let OperandNamespace = "PrimateOp";
+}
+
+class PrimateUImmOp<int bitsNum> : PrimateOp {
+  let ParserMatchClass = UImmAsmOperand<bitsNum>;
+  let DecoderMethod = "decodeUImmOperand<" # bitsNum # ">";
+  let OperandType = "OPERAND_UIMM" # bitsNum;
+}
+
+class PrimateUImmLeafOp<int bitsNum> :
+  PrimateUImmOp<bitsNum>, ImmLeaf<XLenVT, "return isUInt<" # bitsNum # ">(Imm);">;
+
+class PrimateSImmOp<int bitsNum> : PrimateOp {
+  let ParserMatchClass = SImmAsmOperand<bitsNum>;
+  let EncoderMethod = "getImmOpValue";
+  let DecoderMethod = "decodeSImmOperand<" # bitsNum # ">";
+  let OperandType = "OPERAND_SIMM" # bitsNum;
+}
+
+class PrimateSImmLeafOp<int bitsNum> :
+  PrimateSImmOp<bitsNum>, ImmLeaf<XLenVT, "return isInt<" # bitsNum # ">(Imm);">;
+
 
 def FenceArg : AsmOperandClass {
   let Name = "FenceArg";
@@ -160,10 +216,45 @@ def uimmlog2xlen : Operand<XLenVT>, ImmLeaf<XLenVT, [{
   let OperandNamespace = "PrimateOp";
 }
 
+def uimm2 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<2>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<2>;
+  let DecoderMethod = "decodeUImmOperand<2>";
+  let OperandType = "OPERAND_UIMM2";
+  let OperandNamespace = "PrimateOp";
+}
+
+def uimm3 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<3>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<3>;
+  let DecoderMethod = "decodeUImmOperand<3>";
+  let OperandType = "OPERAND_UIMM3";
+  let OperandNamespace = "PrimateOp";
+}
+
+def uimm4 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<4>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<4>;
+  let DecoderMethod = "decodeUImmOperand<4>";
+  let OperandType = "OPERAND_UIMM4";
+  let OperandNamespace = "PrimateOp";
+}
+
 def uimm5 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<5>;
   let DecoderMethod = "decodeUImmOperand<5>";
   let OperandType = "OPERAND_UIMM5";
+  let OperandNamespace = "PrimateOp";
+}
+
+def uimm6 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<6>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<6>;
+  let DecoderMethod = "decodeUImmOperand<5>";
+  let OperandType = "OPERAND_UIMM6";
+  let OperandNamespace = "PrimateOp";
+}
+
+def uimm8 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<8>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<8>;
+  let DecoderMethod = "decodeUImmOperand<8>";
+  let OperandType = "OPERAND_UIMM8";
   let OperandNamespace = "PrimateOp";
 }
 
@@ -317,6 +408,12 @@ def uimm6gt32 : ImmLeaf<XLenVT, [{
 
 // Addressing modes.
 // Necessary because a frameindex can't be matched directly in a pattern.
+def FrameAddrRegImm : ComplexPattern<iPTR, 2, "SelectFrameAddrRegImm",
+                                     [frameindex, or, add]>;
+def AddrRegImm : ComplexPattern<iPTR, 2, "SelectAddrRegImm">;
+
+// Addressing modes.
+// Necessary because a frameindex can't be matched directly in a pattern.
 def AddrFI : ComplexPattern<iPTR, 1, "SelectAddrFI", [frameindex], []>;
 def BaseAddr : ComplexPattern<iPTR, 1, "SelectBaseAddr">;
 
@@ -374,6 +471,46 @@ def AddiPairImmB : SDNodeXForm<imm, [{
                                    N->getValueType(0));
 }]>;
 
+def TrailingZeros : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(llvm::countr_zero(N->getZExtValue()),
+                                   SDLoc(N), N->getValueType(0));
+}]>;
+
+def XLenSubTrailingOnes : SDNodeXForm<imm, [{
+  uint64_t XLen = Subtarget->getXLen();
+  uint64_t TrailingOnes = llvm::countr_one(N->getZExtValue());
+  return CurDAG->getTargetConstant(XLen - TrailingOnes, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+// Checks if this mask is a non-empty sequence of ones starting at the
+// most/least significant bit with the remainder zero and exceeds simm32/simm12.
+def LeadingOnesMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  return !isInt<32>(N->getSExtValue()) && isMask_64(~N->getSExtValue());
+}], TrailingZeros>;
+
+def TrailingOnesMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  return !isInt<12>(N->getSExtValue()) && isMask_64(N->getZExtValue());
+}], XLenSubTrailingOnes>;
+
+// Similar to LeadingOnesMask, but only consider leading ones in the lower 32
+// bits.
+def LeadingOnesWMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  // If the value is a uint32 but not an int32, it must have bit 31 set and
+  // bits 63:32 cleared. After that we're looking for a shifted mask but not
+  // an all ones mask.
+  int64_t Imm = N->getSExtValue();
+  return !isInt<32>(Imm) && isUInt<32>(Imm) && isShiftedMask_64(Imm) &&
+         Imm != UINT64_C(0xffffffff);
+}], TrailingZeros>;
+
+
 //===----------------------------------------------------------------------===//
 // Instruction Formats
 //===----------------------------------------------------------------------===//
@@ -397,7 +534,7 @@ class BranchCC_rri<bits<3> funct3, string opcodestr>
 let Predicates = [HasFullI] in
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 class Load_ri<bits<3> funct3, string opcodestr>
-    : PRInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+    : PRInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rd, ${imm12}(${rs1})">;
 
 // Operands for stores are in the order srcreg, base, offset rather than
@@ -407,7 +544,7 @@ let Predicates = [HasFullI] in
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
 class Store_rri<bits<3> funct3, string opcodestr>
     : PRInstS<funct3, OPC_STORE, (outs),
-              (ins GPR:$rs2, GPR:$rs1, simm12:$imm12),
+              (ins GPR:$rs2, GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rs2, ${imm12}(${rs1})">;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
@@ -983,6 +1120,7 @@ def BFU0 :
     PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
         "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]> {
           let IsBFUInstruction = 1;
+          let imm12 = 0;
         }
 
 
@@ -999,13 +1137,15 @@ def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
 
 /// Generic pattern classes
 
-class PatGpr<SDPatternOperator OpNode, PRInst Inst>
-    : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
-class PatGprGpr<SDPatternOperator OpNode, PRInst Inst>
-    : Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
+class PatGpr<SDPatternOperator OpNode, PRInst Inst, ValueType vt = XLenVT>
+    : Pat<(vt (OpNode (vt GPR:$rs1))), (Inst GPR:$rs1)>;
+class PatGprGpr<SDPatternOperator OpNode, PRInst Inst, ValueType vt1 = XLenVT,
+                ValueType vt2 = XLenVT>
+    : Pat<(vt1 (OpNode (vt1 GPR:$rs1), (vt2 GPR:$rs2))), (Inst GPR:$rs1, GPR:$rs2)>;
 
-class PatGprImm<SDPatternOperator OpNode, PRInst Inst, ImmLeaf ImmType>
-    : Pat<(XLenVT (OpNode (XLenVT GPR:$rs1), ImmType:$imm)),
+class PatGprImm<SDPatternOperator OpNode, PRInst Inst, ImmLeaf ImmType,
+                ValueType vt = XLenVT>
+    : Pat<(vt (OpNode (vt GPR:$rs1), ImmType:$imm)),
           (Inst GPR:$rs1, ImmType:$imm)>;
 class PatGprSimm12<SDPatternOperator OpNode, PRInstI Inst>
     : PatGprImm<OpNode, Inst, simm12>;
@@ -1034,6 +1174,12 @@ def mul_oneuse : PatFrag<(ops node:$A, node:$B), (mul node:$A, node:$B), [{
   return N->hasOneUse();
 }]>;
 
+def sexti16 : ComplexPattern<XLenVT, 1, "selectSExtBits<16>">;
+def zexti16 : ComplexPattern<XLenVT, 1, "selectZExtBits<16>">;
+def zexti16i32 : ComplexPattern<i32, 1, "selectZExtBits<16>">;
+def zexti8 : ComplexPattern<XLenVT, 1, "selectZExtBits<8>">;
+def zexti8i32 : ComplexPattern<i32, 1, "selectZExtBits<8>">;
+
 /// Simple arithmetic operations
 
 def : PatGprGpr<add, ADD>;
@@ -1048,6 +1194,16 @@ def : PatGprSimm12<xor, XORI>;
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
+
+// Select 'or' as ADDI if the immediate bits are known to be 0 in $rs1. This
+// can improve compressibility.
+def or_is_add : PatFrag<(ops node:$lhs, node:$rhs), (or node:$lhs, node:$rhs),[{
+  KnownBits Known0 = CurDAG->computeKnownBits(N->getOperand(0), 0);
+  KnownBits Known1 = CurDAG->computeKnownBits(N->getOperand(1), 0);
+  return KnownBits::haveNoCommonBitsSet(Known0, Known1);
+}]>;
+def : PatGprSimm12<or_is_add, ADDI>;
+
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and
@@ -1083,6 +1239,22 @@ def : Pat<(add (XLenVT AddrFI:$Rs), simm12:$imm12),
 def : Pat<(IsOrAdd (XLenVT AddrFI:$Rs), simm12:$imm12),
           (ADDI (XLenVT AddrFI:$Rs), simm12:$imm12)>;
 
+/// HI and ADD_LO address nodes.
+
+def : Pat<(primate_hi tglobaladdr:$in), (LUI tglobaladdr:$in)>;
+def : Pat<(primate_hi tblockaddress:$in), (LUI tblockaddress:$in)>;
+def : Pat<(primate_hi tjumptable:$in), (LUI tjumptable:$in)>;
+def : Pat<(primate_hi tconstpool:$in), (LUI tconstpool:$in)>;
+
+def : Pat<(primate_add_lo GPR:$hi, tglobaladdr:$lo),
+          (ADDI GPR:$hi, tglobaladdr:$lo)>;
+def : Pat<(primate_add_lo GPR:$hi, tblockaddress:$lo),
+          (ADDI GPR:$hi, tblockaddress:$lo)>;
+def : Pat<(primate_add_lo GPR:$hi, tjumptable:$lo),
+          (ADDI GPR:$hi, tjumptable:$lo)>;
+def : Pat<(primate_add_lo GPR:$hi, tconstpool:$lo),
+          (ADDI GPR:$hi, tconstpool:$lo)>;
+
 /// Setcc
 
 def : PatGprGpr<setlt, SLT>;
@@ -1092,46 +1264,46 @@ def : PatGprSimm12<setult, SLTIU>;
 
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a Primate instruction.
-def : Pat<(seteq GPR:$rs1, 0), (SLTIU GPR:$rs1, 1)>;
-def : Pat<(seteq GPR:$rs1, GPR:$rs2), (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(seteq GPR:$rs1, simm12_plus1:$imm12),
+def : Pat<(XLenVT (seteq (XLenVT GPR:$rs1), 0)), (SLTIU GPR:$rs1, 1)>;
+def : Pat<(XLenVT (seteq (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
+def : Pat<(XLenVT (seteq (XLenVT GPR:$rs1), simm12_plus1:$imm12)),
           (SLTIU (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)), 1)>;
-def : Pat<(setne GPR:$rs1, 0), (SLTU X0, GPR:$rs1)>;
-def : Pat<(setne GPR:$rs1, GPR:$rs2), (SLTU X0, (XOR GPR:$rs1, GPR:$rs2))>;
-def : Pat<(setne GPR:$rs1, simm12_plus1:$imm12),
-          (SLTU X0, (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)))>;
-def : Pat<(setugt GPR:$rs1, GPR:$rs2), (SLTU GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setuge GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setule GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
-def : Pat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
+def : Pat<(XLenVT (setne (XLenVT GPR:$rs1), 0)), (SLTU (XLenVT X0), GPR:$rs1)>;
+def : Pat<(XLenVT (setne (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (SLTU (XLenVT X0), (XOR GPR:$rs1, GPR:$rs2))>;
+def : Pat<(XLenVT (setne (XLenVT GPR:$rs1), simm12_plus1:$imm12)),
+          (SLTU (XLenVT X0), (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)))>;
+def : Pat<(XLenVT (setugt (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (SLTU GPR:$rs2, GPR:$rs1)>;
+def : Pat<(XLenVT (setuge (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLTU GPR:$rs1, GPR:$rs2)), 1)>;
+def : Pat<(XLenVT (setule (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLTU GPR:$rs2, GPR:$rs1)), 1)>;
+def : Pat<(XLenVT (setgt  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (SLT GPR:$rs2, GPR:$rs1)>;
+def : Pat<(XLenVT (setge  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLT GPR:$rs1, GPR:$rs2)), 1)>;
+def : Pat<(XLenVT (setle  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLT GPR:$rs2, GPR:$rs1)), 1)>;
 
 def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
 def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
 
-def : Pat<(int_primate_input simm12:$imm), (INPUT_READ X0, simm12:$imm)>;
-def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ GPR:$rs1, 0)>;
+def : Pat<(int_primate_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
+def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ (XLenVT GPR:$rs1), 0)>;
 def : Pat<(int_primate_input_done), (INPUT_DONE)>;
 
 def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
 
 
 let usesCustomInserter = 1 in
-class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
+class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty, ValueType vt = XLenVT>
     : Pseudo<(outs valty:$dst),
              (ins cmpty:$lhs, cmpty:$rhs, ixlenimm:$imm,
               valty:$truev, valty:$falsev),
-             [(set valty:$dst, (primate_selectcc cmpty:$lhs, cmpty:$rhs,
-              (XLenVT timm:$imm), valty:$truev, valty:$falsev))]>;
+             [(set (vt valty:$dst), (primate_selectcc (vt cmpty:$lhs), (vt cmpty:$rhs),
+              (XLenVT timm:$imm), (vt valty:$truev), (vt valty:$falsev)))]>;
 
 def Select_GPR_Using_CC_GPR : SelectCC_rrirr<GPR, GPR>;
 
 /// Branches and jumps
 
 // Match `primate_brcc` and lower to the appropriate Primate branch instruction.
-class BccPat<CondCode Cond, PRInstB Inst>
-    : Pat<(primate_brcc GPR:$rs1, GPR:$rs2, Cond, bb:$imm12),
+class BccPat<CondCode Cond, PRInstB Inst, ValueType vt=XLenVT>
+    : Pat<(primate_brcc (vt GPR:$rs1), (vt GPR:$rs2), Cond, bb:$imm12),
           (Inst GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12)>;
 
 def : BccPat<SETEQ, BEQ>;
@@ -1158,6 +1330,37 @@ def : Pat<(brind GPRJALR:$rs1), (PseudoBRIND GPRJALR:$rs1, 0)>;
 def : Pat<(brind (add GPRJALR:$rs1, simm12:$imm12)),
           (PseudoBRIND GPRJALR:$rs1, simm12:$imm12)>;
 } // Predicates = [HasFullI]
+
+def IntCCtoPrimateCC : SDNodeXForm<primate_selectcc, [{
+  ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(2))->get();
+  PrimateCC::CondCode BrCC = getPrimateCCForIntCC(CC);
+  return CurDAG->getTargetConstant(BrCC, SDLoc(N), Subtarget->getXLenVT());
+}]>;
+
+def primate_selectcc_frag : PatFrag<(ops node:$lhs, node:$rhs, node:$cc,
+                                       node:$truev, node:$falsev),
+                                  (primate_selectcc node:$lhs, node:$rhs,
+                                                  node:$cc, node:$truev,
+                                                  node:$falsev), [{}],
+                                  IntCCtoPrimateCC>;
+
+
+multiclass SelectCC_GPR_rrirr<DAGOperand valty, ValueType vt> {
+  let usesCustomInserter = 1 in
+  def _Using_CC_GPR : Pseudo<(outs valty:$dst),
+                             (ins GPR:$lhs, GPR:$rhs, ixlenimm:$cc,
+                              valty:$truev, valty:$falsev),
+                             [(set valty:$dst,
+                               (primate_selectcc_frag:$cc (XLenVT GPR:$lhs), GPR:$rhs, cond,
+                                                        (vt valty:$truev), valty:$falsev))]>;
+  // Explicitly select 0 in the condition to X0. The register coalescer doesn't
+  // always do it.
+  def : Pat<(primate_selectcc_frag:$cc (XLenVT GPR:$lhs), 0, cond, (vt valty:$truev),
+                                     valty:$falsev),
+            (!cast<Instruction>(NAME#"_Using_CC_GPR") GPR:$lhs, (XLenVT X0),
+             (IntCCtoPrimateCC $cc), valty:$truev, valty:$falsev)>;
+}
+
 
 let Predicates = [HasFullI] in {
 // PseudoCALLReg is a generic pseudo instruction for calls which will eventually
@@ -1187,9 +1390,9 @@ def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []> {
 def : Pat<(primate_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
 def : Pat<(primate_call texternalsym:$func), (PseudoCALL texternalsym:$func)>;
 
-def : Pat<(primate_uret_flag), (URET X0, X0)>;
-def : Pat<(primate_sret_flag), (SRET X0, X0)>;
-def : Pat<(primate_mret_flag), (MRET X0, X0)>;
+def : Pat<(primate_uret_flag), (URET (XLenVT X0), (XLenVT X0))>;
+def : Pat<(primate_sret_flag), (SRET (XLenVT X0), (XLenVT X0))>;
+def : Pat<(primate_mret_flag), (MRET (XLenVT X0), (XLenVT X0))>;
 
 let isCall = 1, Defs = [X1] in
 def PseudoCALLIndirect : Pseudo<(outs), (ins GPRJALR:$rs1),
@@ -1252,19 +1455,19 @@ class PatWideScalarScalar<SDPatternOperator OpNode, PRInst Inst>
     (insert_value 
       WIDEREG:$rs0, 
       (OpNode 
-        GPR:$rs1,  
-        GPR:$rs2), 
+        (XLenVT GPR:$rs1),  
+        (XLenVT GPR:$rs2)), 
       simm12:$imm0),
-    (Inst WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2)>;
+    (Inst WIDEREG:$rs0, simm12:$imm0, (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))>;
 class PatWideScalarImm<SDPatternOperator OpNode, PRInst Inst> 
   : Pat<
     (insert_value 
       WIDEREG:$rs0, 
       (OpNode 
-        GPR:$rs1,  
+        (XLenVT GPR:$rs1),  
         simm12:$imm1), 
       simm12:$imm0),
-    (Inst WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1)>;
+    (Inst WIDEREG:$rs0, simm12:$imm0, (XLenVT GPR:$rs1), simm12:$imm1)>;
 class PatWideWide<SDPatternOperator OpNode, PRInst Inst>
     : Pat<(OpNode (extract_value WIDEREG:$rs1, simm12:$imm1), (extract_value WIDEREG:$rs2, simm12:$imm2)), 
       (Inst WIDEREG:$rs1, simm12:$imm1, WIDEREG:$rs2, simm12:$imm2)>;
@@ -1384,9 +1587,9 @@ def : PatWideWideWide<and, PseudoANDwww>;
 
 // missed op patterns
 def : Pat<(extract_value WIDEREG:$rs1, simm12:$imm1), 
-           (EXTRACT WIDEREG:$rs1, simm12:$imm1)>;
-def : Pat<(insert_value WIDEREG:$rs1, GPR:$rs2, simm12:$imm1), 
-           (INSERT WIDEREG:$rs1, GPR:$rs2, simm12:$imm1)>;
+           (XLenVT (EXTRACT WIDEREG:$rs1, simm12:$imm1))>;
+def : Pat<(insert_value WIDEREG:$rs1, (XLenVT GPR:$rs2), simm12:$imm1), 
+           (PrimateAGGVT (INSERT WIDEREG:$rs1, GPR:$rs2, simm12:$imm1))>;
 
 
 
@@ -1420,6 +1623,11 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLLA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                        "lla", "$dst, $src">;
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
+    isAsmParserOnly = 1 in
+def PseudoLGA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
+                       "lga", "$dst, $src">;
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
@@ -1458,6 +1666,10 @@ def PseudoZEXT_W : Pseudo<(outs GPR:$rd), (ins GPR:$rs), [], "zext.w", "$rd, $rs
 
 /// Loads
 
+class LdPat<PatFrag LoadOp, PRInst Inst, ValueType vt = XLenVT>
+    : Pat<(vt (LoadOp (AddrRegImm (XLenVT GPR:$rs1), simm12:$imm12))),
+          (Inst GPR:$rs1, simm12:$imm12)>;
+
 let Predicates = [HasFullI] in {
 multiclass LdPat<PatFrag LoadOp, PRInst Inst, ValueType vt = XLenVT> {
   def : Pat<(vt (LoadOp BaseAddr:$rs1)), (Inst BaseAddr:$rs1, 0)>;
@@ -1477,6 +1689,13 @@ defm : LdPat<zextloadi16, LHU>;
 } // Predicates = [HasFullI]
 
 /// Stores
+
+class StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,
+            ValueType vt>
+    : Pat<(StoreOp (vt StTy:$rs2), (AddrRegImm (XLenVT GPR:$rs1),
+                   simm12:$imm12)),
+          (Inst StTy:$rs2, GPR:$rs1, simm12:$imm12)>;
+
 
 let Predicates = [HasFullI] in {
 multiclass StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,
@@ -1525,7 +1744,7 @@ def : Pat<(atomic_fence (XLenVT 7), (timm)), (FENCE 0b11, 0b11)>;
 let Predicates = [HasFullI] in {
 class ReadSysReg<SysReg SR, list<Register> Regs>
   : Pseudo<(outs GPR:$rd), (ins),
-           [(set GPR:$rd, (primate_read_csr (XLenVT SR.Encoding)))]>,
+           [(set (XLenVT GPR:$rd), (primate_read_csr (XLenVT SR.Encoding)))]>,
     PseudoInstExpansion<(CSRRS GPR:$rd, SR.Encoding, X0)> {
   let hasSideEffects = 0;
   let Uses = Regs;
@@ -1533,8 +1752,8 @@ class ReadSysReg<SysReg SR, list<Register> Regs>
 
 class WriteSysReg<SysReg SR, list<Register> Regs>
   : Pseudo<(outs), (ins GPR:$val),
-           [(primate_write_csr (XLenVT SR.Encoding), GPR:$val)]>,
-    PseudoInstExpansion<(CSRRW X0, SR.Encoding, GPR:$val)> {
+           [(primate_write_csr (XLenVT SR.Encoding), (XLenVT GPR:$val))]>,
+    PseudoInstExpansion<(CSRRW (XLenVT X0), SR.Encoding, GPR:$val)> {
   let hasSideEffects = 0;
   let Defs = Regs;
 }
@@ -1542,14 +1761,14 @@ class WriteSysReg<SysReg SR, list<Register> Regs>
 class WriteSysRegImm<SysReg SR, list<Register> Regs>
   : Pseudo<(outs), (ins uimm5:$val),
            [(primate_write_csr (XLenVT SR.Encoding), uimm5:$val)]>,
-    PseudoInstExpansion<(CSRRWI X0, SR.Encoding, uimm5:$val)> {
+    PseudoInstExpansion<(CSRRWI (XLenVT X0), SR.Encoding, uimm5:$val)> {
   let hasSideEffects = 0;
   let Defs = Regs;
 }
 
 class SwapSysReg<SysReg SR, list<Register> Regs>
   : Pseudo<(outs GPR:$rd), (ins GPR:$val),
-           [(set GPR:$rd, (primate_swap_csr (XLenVT SR.Encoding), GPR:$val))]>,
+           [(set (XLenVT GPR:$rd), (primate_swap_csr (XLenVT SR.Encoding), (XLenVT GPR:$val)))]>,
     PseudoInstExpansion<(CSRRW GPR:$rd, SR.Encoding, GPR:$val)> {
   let hasSideEffects = 0;
   let Uses = Regs;
@@ -1558,7 +1777,7 @@ class SwapSysReg<SysReg SR, list<Register> Regs>
 
 class SwapSysRegImm<SysReg SR, list<Register> Regs>
   : Pseudo<(outs GPR:$rd), (ins uimm5:$val),
-           [(set GPR:$rd, (primate_swap_csr (XLenVT SR.Encoding), uimm5:$val))]>,
+           [(set (XLenVT GPR:$rd), (primate_swap_csr (XLenVT SR.Encoding), uimm5:$val))]>,
     PseudoInstExpansion<(CSRRWI GPR:$rd, SR.Encoding, uimm5:$val)> {
   let hasSideEffects = 0;
   let Uses = Regs;
@@ -1641,7 +1860,7 @@ let Predicates = [HasFullI] in {
 /// readcyclecounter
 // On PR64, we can directly read the 64-bit "cycle" CSR.
 let Predicates = [IsPR64] in
-def : Pat<(i64 (readcyclecounter)), (CSRRS CYCLE.Encoding, X0)>;
+def : Pat<(i64 (readcyclecounter)), (CSRRS CYCLE.Encoding, (XLenVT X0))>;
 // On PR32, ReadCycleWide will be expanded to the suggested loop reading both
 // halves of the 64-bit "cycle" CSR.
 let Predicates = [IsPR32], usesCustomInserter = 1, hasNoSchedulingInfo = 1 in
@@ -1662,7 +1881,7 @@ let Predicates = [HasFullI] in
 def : Pat<(debugtrap), (EBREAK)>;
 
 /// Simple optimization
-def : Pat<(add GPR:$rs1, (AddiPair:$rs2)),
+def : Pat<(XLenVT (add (XLenVT GPR:$rs1), (XLenVT AddiPair:$rs2))),
           (ADDI (ADDI GPR:$rs1, (AddiPairImmB AddiPair:$rs2)),
                 (AddiPairImmA GPR:$rs2))>;
 
@@ -1670,6 +1889,77 @@ let Predicates = [IsPR64] in {
 def : Pat<(sext_inreg (add_oneuse GPR:$rs1, (AddiPair:$rs2)), i32),
           (ADDIW (ADDIW GPR:$rs1, (AddiPairImmB AddiPair:$rs2)),
                  (AddiPairImmA AddiPair:$rs2))>;
+}
+
+//===----------------------------------------------------------------------===//
+// Experimental PR64 i32 legalization patterns.
+//===----------------------------------------------------------------------===//
+
+def simm12i32 : ImmLeaf<i32, [{return isInt<12>(Imm);}]>;
+
+// Convert from i32 immediate to i64 target immediate to make SelectionDAG type
+// checking happy so we can use ADDIW which expects an XLen immediate.
+def as_i64imm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue(), SDLoc(N), MVT::i64);
+}]>;
+
+def zext_is_sext : PatFrag<(ops node:$src), (zext node:$src), [{
+  KnownBits Known = CurDAG->computeKnownBits(N->getOperand(0), 0);
+  return Known.isNonNegative();
+}]>;
+
+let Predicates = [IsPR64] in {
+def : LdPat<sextloadi8, LB, i32>;
+def : LdPat<extloadi8, LBU, i32>; // Prefer unsigned due to no c.lb in Zcb.
+def : LdPat<sextloadi16, LH, i32>;
+def : LdPat<extloadi16, LH, i32>;
+def : LdPat<zextloadi8, LBU, i32>;
+def : LdPat<zextloadi16, LHU, i32>;
+
+def : StPat<truncstorei8, SB, GPR, i32>;
+def : StPat<truncstorei16, SH, GPR, i32>;
+
+def : Pat<(i64 (anyext (i32 GPR:$src))), (COPY GPR:$src)>;
+def : Pat<(i64 (sext (i32 GPR:$src))), (ADDIW GPR:$src, 0)>;
+def : Pat<(i32 (trunc (i64 GPR:$src))), (COPY GPR:$src)>;
+
+def : PatGprGpr<add, ADDW, i32, i32>;
+def : PatGprGpr<sub, SUBW, i32, i32>;
+def : PatGprGpr<and, AND, i32, i32>;
+def : PatGprGpr<or, OR, i32, i32>;
+def : PatGprGpr<xor, XOR, i32, i32>;
+def : PatGprGpr<shiftopw<shl>, SLLW, i32, i64>;
+def : PatGprGpr<shiftopw<srl>, SRLW, i32, i64>;
+def : PatGprGpr<shiftopw<sra>, SRAW, i32, i64>;
+
+def : Pat<(i32 (add GPR:$rs1, simm12i32:$imm)),
+          (ADDIW GPR:$rs1, (i64 (as_i64imm $imm)))>;
+def : Pat<(i32 (and GPR:$rs1, simm12i32:$imm)),
+          (ANDI GPR:$rs1, (i64 (as_i64imm $imm)))>;
+def : Pat<(i32 (or GPR:$rs1, simm12i32:$imm)),
+          (ORI GPR:$rs1, (i64 (as_i64imm $imm)))>;
+def : Pat<(i32 (xor GPR:$rs1, simm12i32:$imm)),
+          (XORI GPR:$rs1, (i64 (as_i64imm $imm)))>;
+
+def : PatGprImm<shl, SLLIW, uimm5, i32>;
+def : PatGprImm<srl, SRLIW, uimm5, i32>;
+def : PatGprImm<sra, SRAIW, uimm5, i32>;
+
+def : Pat<(i32 (and GPR:$rs, TrailingOnesMask:$mask)),
+          (SRLI (SLLI $rs, (i64 (XLenSubTrailingOnes $mask))),
+                (i64 (XLenSubTrailingOnes $mask)))>;
+
+// Use sext if the sign bit of the input is 0.
+def : Pat<(zext_is_sext GPR:$src), (ADDIW GPR:$src, 0)>;
+}
+
+let Predicates = [IsPR64, NotHasStdExtZba] in {
+def : Pat<(zext GPR:$src), (SRLI (SLLI GPR:$src, 32), 32)>;
+
+// If we're shifting a 32-bit zero extended value left by 0-31 bits, use 2
+// shifts instead of 3. This can occur when unsigned is used to index an array.
+def : Pat<(shl (zext GPR:$rs), uimm5:$shamt),
+          (SRLI (SLLI GPR:$rs, 32), (ImmSubFrom32 uimm5:$shamt))>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1682,6 +1972,5 @@ include "PrimateInstrInfoF.td"
 include "PrimateInstrInfoD.td"
 include "PrimateInstrInfoC.td"
 include "PrimateInstrInfoB.td"
-include "PrimateInstrInfoV.td"
 include "PrimateInstrInfoZfh.td"
 

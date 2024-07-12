@@ -19,6 +19,7 @@
 #include "PrimateSubtarget.h"
 #include "PrimateTargetMachine.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/IVDescriptors.h"
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/IR/Function.h"
 
@@ -55,7 +56,7 @@ public:
 
   bool shouldExpandReduction(const IntrinsicInst *II) const;
   bool supportsScalableVectors() const { return ST->hasStdExtV(); }
-  Optional<unsigned> getMaxVScale() const;
+  std::optional<unsigned> getMaxVScale() const;
 
   TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
     switch (K) {
@@ -105,7 +106,7 @@ public:
       return false;
 
     if (Alignment <
-        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
+        DL.getTypeStoreSize(DataType->getScalarType()))
       return false;
 
     return isLegalElementTypeForPRV(DataType->getScalarType());
@@ -127,7 +128,7 @@ public:
       return false;
 
     if (Alignment <
-        DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
+        DL.getTypeStoreSize(DataType->getScalarType()))
       return false;
 
     return isLegalElementTypeForPRV(DataType->getScalarType());
@@ -178,7 +179,7 @@ public:
     }
   }
 
-  unsigned getMaxInterleaveFactor(unsigned VF) {
+  unsigned getMaxInterleaveFactor(ElementCount VF) {
     return ST->getMaxInterleaveFactor();
   }
 };

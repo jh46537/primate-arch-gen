@@ -27,7 +27,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
 using namespace llvm;
@@ -373,7 +373,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
 
 void PrimateAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
-  bool Res = compressInst(CInst, Inst, *STI, OutStreamer->getContext());
+  bool Res = compressInst(CInst, Inst, *STI);
   if (Res)
     ++PrimateNumInstrsCompressed;
   AsmPrinter::EmitToStreamer(*OutStreamer, Res ? CInst : Inst);
@@ -384,6 +384,8 @@ void PrimateAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
 #include "PrimateGenMCPseudoLowering.inc"
 
 void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  Primate_MC::verifyInstructionPredicates(MI->getOpcode(), STI->getFeatureBits());
+
   // last resource group contains count of all units (PrimatePipes)
   // scheduler file must be defined accordingly
   unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;

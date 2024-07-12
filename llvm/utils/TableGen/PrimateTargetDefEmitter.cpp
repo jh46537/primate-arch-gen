@@ -1,4 +1,4 @@
-//===- PrimateTargetDefEmitter.cpp - Generate lists of RISC-V CPUs ----------===//
+//===- PrimateTargetDefEmitter.cpp - Generate lists of Primate CPUs ----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This tablegen backend emits the include file needed by the target
-// parser to parse the RISC-V CPUs.
+// parser to parse the Primate CPUs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -85,5 +85,5 @@ static void EmitPrimateTargetDef(RecordKeeper &RK, raw_ostream &OS) {
   OS << "\n#undef TUNE_PROC\n";
 }
 
-static TableGen::Emitter::Opt X("gen-primate-target-def", EmitRISCVTargetDef,
+static TableGen::Emitter::Opt X("gen-primate-target-def", EmitPrimateTargetDef,
                                 "Generate the list of CPU for Primate");

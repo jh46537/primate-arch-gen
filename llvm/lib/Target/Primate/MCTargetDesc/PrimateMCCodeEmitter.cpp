@@ -16,6 +16,7 @@
 #include "MCTargetDesc/PrimateMCTargetDesc.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -48,15 +49,15 @@ public:
 
   ~PrimateMCCodeEmitter() override {}
 
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
-                         SmallVectorImpl<MCFixup> &Fixups,
-                         const MCSubtargetInfo &STI) const override;
+  virtual void encodeInstruction(const MCInst &Inst, SmallVectorImpl<char> &CB,
+                                 SmallVectorImpl<MCFixup> &Fixups,
+                                 const MCSubtargetInfo &STI) const override;
 
-  void expandFunctionCall(const MCInst &MI, raw_ostream &OS,
+  void expandFunctionCall(const MCInst &MI, SmallVectorImpl<char> &CB,
                           SmallVectorImpl<MCFixup> &Fixups,
                           const MCSubtargetInfo &STI) const;
 
-  void expandAddTPRel(const MCInst &MI, raw_ostream &OS,
+  void expandAddTPRel(const MCInst &MI, SmallVectorImpl<char> &CB,
                       SmallVectorImpl<MCFixup> &Fixups,
                       const MCSubtargetInfo &STI) const;
 
@@ -85,15 +86,10 @@ public:
                        const MCSubtargetInfo &STI) const;
 
 private:
-  FeatureBitset computeAvailableFeatures(const FeatureBitset &FB) const;
-  void
-  verifyInstructionPredicates(const MCInst &MI,
-                              const FeatureBitset &AvailableFeatures) const;
 };
 } // end anonymous namespace
 
 MCCodeEmitter *llvm::createPrimateMCCodeEmitter(const MCInstrInfo &MCII,
-                                              const MCRegisterInfo &MRI,
                                               MCContext &Ctx) {
   return new PrimateMCCodeEmitter(Ctx, MCII);
 }
@@ -106,7 +102,7 @@ MCCodeEmitter *llvm::createPrimateMCCodeEmitter(const MCInstrInfo &MCII,
 // deal with it. When linker relaxation is enabled, AUIPC and JALR have a
 // chance to relax to JAL.
 // If the C extension is enabled, JAL has a chance relax to C_JAL.
-void PrimateMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
+void PrimateMCCodeEmitter::expandFunctionCall(const MCInst &MI, SmallVectorImpl<char> &CB,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
   MCInst TmpInst;
@@ -136,7 +132,7 @@ void PrimateMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
                 .addReg(Ra)
                 .addOperand(MCOperand::createExpr(CallExpr));
   Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);
-  support::endian::write(OS, Binary, support::little);
+  support::endian::write(CB, Binary, llvm::endianness::little);
 
   if (MI.getOpcode() == Primate::PseudoTAIL ||
       MI.getOpcode() == Primate::PseudoJump)
@@ -146,11 +142,11 @@ void PrimateMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
     // Emit JALR Ra, Ra, 0
     TmpInst = MCInstBuilder(Primate::JALR).addReg(Ra).addReg(Ra).addImm(0);
   Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);
-  support::endian::write(OS, Binary, support::little);
+  support::endian::write(CB, Binary, llvm::endianness::little);
 }
 
 // Expand PseudoAddTPRel to a simple ADD with the correct relocation.
-void PrimateMCCodeEmitter::expandAddTPRel(const MCInst &MI, raw_ostream &OS,
+void PrimateMCCodeEmitter::expandAddTPRel(const MCInst &MI, SmallVectorImpl<char> &CB,
                                         SmallVectorImpl<MCFixup> &Fixups,
                                         const MCSubtargetInfo &STI) const {
   MCOperand DestReg = MI.getOperand(0);
@@ -184,14 +180,12 @@ void PrimateMCCodeEmitter::expandAddTPRel(const MCInst &MI, raw_ostream &OS,
                        .addOperand(SrcReg)
                        .addOperand(TPReg);
   uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);
-  support::endian::write(OS, Binary, support::little);
+  support::endian::write(CB, Binary, llvm::endianness::little);
 }
 
-void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
-                                           SmallVectorImpl<MCFixup> &Fixups,
-                                           const MCSubtargetInfo &STI) const {
-  verifyInstructionPredicates(MI,
-                              computeAvailableFeatures(STI.getFeatureBits()));
+void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
+                                              SmallVectorImpl<MCFixup> &Fixups,
+                                              const MCSubtargetInfo &STI) const {
 
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   // Get byte count of instruction.
@@ -204,13 +198,13 @@ void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
       MI.getOpcode() == Primate::PseudoCALL ||
       MI.getOpcode() == Primate::PseudoTAIL ||
       MI.getOpcode() == Primate::PseudoJump) {
-    expandFunctionCall(MI, OS, Fixups, STI);
+    expandFunctionCall(MI, CB, Fixups, STI);
     MCNumEmitted += 2;
     return;
   }
 
   if (MI.getOpcode() == Primate::PseudoAddTPRel) {
-    expandAddTPRel(MI, OS, Fixups, STI);
+    expandAddTPRel(MI, CB, Fixups, STI);
     MCNumEmitted += 1;
     return;
   }
@@ -220,12 +214,12 @@ void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     llvm_unreachable("Unhandled encodeInstruction length!");
   case 2: {
     uint16_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-    support::endian::write<uint16_t>(OS, Bits, support::little);
+    support::endian::write<uint16_t>(CB, Bits, llvm::endianness::little);
     break;
   }
   case 4: {
     uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-    support::endian::write(OS, Bits, support::little);
+    support::endian::write(CB, Bits, llvm::endianness::little);
     break;
   }
   case 0:

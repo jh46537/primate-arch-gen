@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 //
 
+#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/PrimatePragma.h"
@@ -28,7 +29,7 @@ using namespace clang;
 //   #pragma primate green insert
 SourceLocation Parser::ParsePragmaPrimateFreeFunction(DeclSpec &DS) {
   // Create attribute list.
-  ParsedAttributesWithRange Attrs(AttrFactory);
+  ParsedAttributes Attrs(AttrFactory);
 
   SourceLocation StartLoc = Tok.getLocation();
   SourceLocation EndLoc = SourceLocation{};
@@ -53,7 +54,7 @@ SourceLocation Parser::ParsePragmaPrimateFreeFunction(DeclSpec &DS) {
                             ArgsUnion(Pragma.ValueArg1)};
   Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
                Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
-               ParsedAttr::AS_Pragma);
+               AttributeCommonInfo::Form::Pragma());
   DS.takeAttributesFrom(Attrs);
 
   return EndLoc;
@@ -64,10 +65,10 @@ SourceLocation Parser::ParsePragmaPrimateFreeFunction(DeclSpec &DS) {
 //   #pragma primate blue <func_name> ...
 //   #pragma primate reg
 void Parser::ParsePragmaPrimateClassMember(AccessSpecifier &AS,
-    ParsedAttributesWithRange &AccessAttrs, DeclSpec::TST TagType,
+    ParsedAttributes &AccessAttrs, DeclSpec::TST TagType,
     Decl *TagDecl) {
   // Create attribute list.
-  ParsedAttributesWithRange Attrs(AttrFactory);
+  ParsedAttributes Attrs(AttrFactory);
 
   SourceLocation StartLoc = Tok.getLocation();
   SourceLocation EndLoc = SourceLocation{};
@@ -86,7 +87,7 @@ void Parser::ParsePragmaPrimateClassMember(AccessSpecifier &AS,
                             ArgsUnion(Pragma.ValueArg1)};
   Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
                Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
-               ParsedAttr::AS_Pragma);
+               AttributeCommonInfo::Form::Pragma());
 
   if (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
       Tok.isNot(tok::eof)) {

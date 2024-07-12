@@ -50,6 +50,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/bit.h"
 #include <cassert>
 #include <cstdint>
 #include <iterator>
@@ -271,7 +272,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   unsigned Idx = 0;
   for (MachineInstr *MI : CurrentPacketMIs) {
     unsigned R = ResourceTracker->getUsedResources(Idx++);
-    unsigned slotIdx = llvm::countTrailingZeros(R);  // convert bitvector to ID; assume single bit set
+    unsigned slotIdx = llvm::countr_zero(R);  // convert bitvector to ID; assume single bit set
     LLVM_DEBUG({dbgs() << "Instruction number " << Idx-1 << " aka: "; 
                 MI->dump();
                 dbgs() << "used resource: 0x" << R << " Turned to slotIdx: " << slotIdx << "\n";});

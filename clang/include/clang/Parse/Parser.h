@@ -2151,11 +2151,10 @@ private:
   StmtResult ParseReturnStatement();
   StmtResult ParseAsmStatement(bool &msAsm);
   StmtResult ParseMicrosoftAsmStatement(SourceLocation AsmLoc);
-  StmtResult ParsePragmaLoopHint(StmtVector &Stmts, ParsedStmtContext StmtCtx,
   StmtResult ParsePragmaPrimate(StmtVector &Stmts,
                                 ParsedStmtContext StmtCtx,
                                 SourceLocation *TrailingElseLoc,
-                                ParsedAttributesWithRange &Attrs);
+                                ParsedAttributes &Attrs);
   StmtResult ParsePragmaLoopHint(StmtVector &Stmts,
                                  ParsedStmtContext StmtCtx,
                                  SourceLocation *TrailingElseLoc,
@@ -3013,6 +3012,7 @@ private:
   void ParseCUDAFunctionAttributes(ParsedAttributes &attrs);
   bool isHLSLQualifier(const Token &Tok) const;
   void ParseHLSLQualifiers(ParsedAttributes &Attrs);
+  SourceLocation ParsePragmaPrimate(DeclSpec &DS);
 
   VersionTuple ParseVersionTuple(SourceRange &Range);
   void ParseAvailabilityAttribute(IdentifierInfo &Availability,
@@ -3750,7 +3750,7 @@ private:
   // Primate
   SourceLocation ParsePragmaPrimateFreeFunction(DeclSpec &DS);
   void ParsePragmaPrimateClassMember(AccessSpecifier &AS,
-      ParsedAttributesWithRange &AccessAttrs, DeclSpec::TST TagType,
+      ParsedAttributes &AccessAttrs, DeclSpec::TST TagType,
       Decl *TagDecl);
   void ParsePragmaPrimateFreeRecord();
 };

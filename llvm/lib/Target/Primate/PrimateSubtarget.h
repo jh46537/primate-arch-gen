@@ -20,7 +20,7 @@
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
@@ -33,39 +33,6 @@ namespace llvm {
 class StringRef;
 
 class PrimateSubtarget : public PrimateGenSubtargetInfo {
-  virtual void anchor();
-  bool HasReduceI = false;
-  bool HasStdExtM = false;
-  bool HasStdExtA = false;
-  bool HasStdExtF = false;
-  bool HasStdExtD = false;
-  bool HasStdExtC = false;
-  bool HasStdExtB = false;
-  bool HasStdExtZba = false;
-  bool HasStdExtZbb = false;
-  bool HasStdExtZbc = false;
-  bool HasStdExtZbe = false;
-  bool HasStdExtZbf = false;
-  bool HasStdExtZbm = false;
-  bool HasStdExtZbp = false;
-  bool HasStdExtZbr = false;
-  bool HasStdExtZbs = false;
-  bool HasStdExtZbt = false;
-  bool HasStdExtZbproposedc = false;
-  bool HasStdExtV = false;
-  bool HasStdExtZvlsseg = false;
-  bool HasStdExtZvamo = false;
-  bool HasStdExtZfh = false;
-  bool HasPR64 = false;
-  bool IsPR32E = false;
-  bool EnableLinkerRelax = false;
-  bool EnablePRCHintInstrs = true;
-  bool EnableSaveRestore = false;
-  //FIXME(ahsu)
-  unsigned XLen = 32;
-  MVT XLenVT = MVT::i32;
-  //unsigned XLen = 128;
-  //MVT XLenVT = MVT::i128;
   uint8_t MaxInterleaveFactor = 2;
   PrimateABI::ABI TargetABI = PrimateABI::ABI_Unknown;
   BitVector UserReservedRegister;
@@ -110,43 +77,30 @@ public:
     return &TSInfo;
   }
   bool enableMachineScheduler() const override { return true; }
-  bool hasReduceI() const { return HasReduceI; }
-  bool hasStdExtM() const { return HasStdExtM; }
-  bool hasStdExtA() const { return HasStdExtA; }
-  bool hasStdExtF() const { return HasStdExtF; }
-  bool hasStdExtD() const { return HasStdExtD; }
-  bool hasStdExtC() const { return HasStdExtC; }
-  bool hasStdExtB() const { return HasStdExtB; }
-  bool hasStdExtZba() const { return HasStdExtZba; }
-  bool hasStdExtZbb() const { return HasStdExtZbb; }
-  bool hasStdExtZbc() const { return HasStdExtZbc; }
-  bool hasStdExtZbe() const { return HasStdExtZbe; }
-  bool hasStdExtZbf() const { return HasStdExtZbf; }
-  bool hasStdExtZbm() const { return HasStdExtZbm; }
-  bool hasStdExtZbp() const { return HasStdExtZbp; }
-  bool hasStdExtZbr() const { return HasStdExtZbr; }
-  bool hasStdExtZbs() const { return HasStdExtZbs; }
-  bool hasStdExtZbt() const { return HasStdExtZbt; }
-  bool hasStdExtZbproposedc() const { return HasStdExtZbproposedc; }
-  bool hasStdExtV() const { return HasStdExtV; }
-  bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
-  bool hasStdExtZvamo() const { return HasStdExtZvamo; }
-  bool hasStdExtZfh() const { return HasStdExtZfh; }
-  bool is64Bit() const { return HasPR64; }
-  bool isPR32E() const { return IsPR32E; }
-  bool enableLinkerRelax() const { return EnableLinkerRelax; }
-  bool enablePRCHintInstrs() const { return EnablePRCHintInstrs; }
-  bool enableSaveRestore() const { return EnableSaveRestore; }
-  MVT getXLenVT() const { return XLenVT; }
-  unsigned getXLen() const { return XLen; }
   PrimateABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
     assert(i < Primate::NUM_TARGET_REGS && "Register out of range");
     return UserReservedRegister[i];
   }
   unsigned getMaxInterleaveFactor() const {
-    return hasStdExtV() ? MaxInterleaveFactor : 1;
+    return 1;
   }
+
+  virtual void anchor();
+
+#define GET_SUBTARGETINFO_MACRO(ATTRIBUTE, DEFAULT, GETTER) \
+  bool ATTRIBUTE = DEFAULT;
+#include "PrimateGenSubtargetInfo.inc"
+
+  unsigned ZvlLen = 0;
+  bool is64Bit() const { return IsPR64; }
+  MVT getXLenVT() const {
+    return is64Bit() ? MVT::i64 : MVT::i32;
+  }
+  unsigned getXLen() const {
+    return is64Bit() ? 64 : 32;
+  }
+
 
 protected:
   // GlobalISel related APIs.
@@ -160,6 +114,22 @@ public:
   InstructionSelector *getInstructionSelector() const override;
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
+
+#define GET_SUBTARGETINFO_MACRO(ATTRIBUTE, DEFAULT, GETTER) \
+  bool GETTER() const { return ATTRIBUTE; }
+#include "PrimateGenSubtargetInfo.inc"
+
+  bool hasStdExtCOrZca() const { return HasStdExtC || HasStdExtZca; }
+  bool hasStdExtZvl() const { return ZvlLen != 0; }
+  bool hasStdExtFOrZfinx() const { return HasStdExtF || HasStdExtZfinx; }
+  bool hasStdExtDOrZdinx() const { return HasStdExtD || HasStdExtZdinx; }
+  bool hasStdExtZfhOrZhinx() const { return HasStdExtZfh || HasStdExtZhinx; }
+  bool hasStdExtZfhminOrZhinxmin() const {
+    return HasStdExtZfhmin || HasStdExtZhinxmin;
+  }
+  bool hasHalfFPLoadStoreMove() const {
+    return HasStdExtZfhmin || HasStdExtZfbfmin;
+  }
 
   // Return the known range for the bit length of PRV data registers. A value
   // of 0 means nothing is known about that particular limit beyond what's

@@ -357,12 +357,12 @@ SubtargetFeatures ELFObjectFileBase::getPrimateFeatures() const {
     return Features; // Keep "c" feature if there is one in PlatformFlags.
   }
 
-  Optional<StringRef> Attr = Attributes.getAttributeString(PrimateAttrs::ARCH);
-  if (Attr.hasValue()) {
+  std::optional<StringRef> Attr = Attributes.getAttributeString(PrimateAttrs::ARCH);
+  if (Attr) {
     // The Arch pattern is [pc32|pc64][i|e]version(_[m|a|f|d|c]version)*
     // Version string pattern is (major)p(minor). Major and minor are optional.
     // For example, a version number could be 2p0, 2, or p92.
-    StringRef Arch = Attr.getValue();
+    StringRef Arch = *Attr;
     if (Arch.consume_front("pc32"))
       Features.AddFeature("64bit", false);
     else if (Arch.consume_front("pc64"))

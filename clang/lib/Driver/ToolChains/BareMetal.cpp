@@ -102,12 +102,12 @@ static bool findPrimateMultilibs(const Driver &D,
                                const llvm::Triple &TargetTriple,
                                const ArgList &Args, DetectedMultilibs &Result) {
   Multilib::flags_list Flags;
-  StringRef Arch = primate::getPrimateArch(Args, TargetTriple);
-  StringRef Abi = tools::primate::getPrimateABI(Args, TargetTriple);
+  StringRef Arch = Primate::getPrimateArch(Args, TargetTriple);
+  StringRef Abi = tools::Primate::getPrimateABI(Args, TargetTriple);
 
   if (TargetTriple.getArch() == llvm::Triple::primate64) {
-    Multilib Imac = makeMultilib("").flag("+march=rv64imac").flag("+mabi=lp64");
-    Multilib Imafdc = makeMultilib("/rv64imafdc/lp64d")
+    MultilibBuilder Imac = MultilibBuilder("").flag("+march=rv64imac").flag("+mabi=lp64");
+    MultilibBuilder Imafdc = MultilibBuilder("/rv64imafdc/lp64d")
                           .flag("+march=rv64imafdc")
                           .flag("+mabi=lp64d");
 
@@ -120,20 +120,20 @@ static bool findPrimateMultilibs(const Driver &D,
     addMultilibFlag(Abi == "lp64", "mabi=lp64", Flags);
     addMultilibFlag(Abi == "lp64d", "mabi=lp64d", Flags);
 
-    Result.Multilibs = MultilibSet().Either(Imac, Imafdc);
-    return Result.Multilibs.select(Flags, Result.SelectedMultilib);
+    Result.Multilibs = MultilibSetBuilder().Either(Imac, Imafdc).makeMultilibSet();
+    return Result.Multilibs.select(Flags, Result.SelectedMultilibs);
   }
   if (TargetTriple.getArch() == llvm::Triple::primate32) {
-    Multilib Imac =
-        makeMultilib("").flag("+march=rv32imac").flag("+mabi=ilp32");
-    Multilib I =
-        makeMultilib("/rv32i/ilp32").flag("+march=rv32i").flag("+mabi=ilp32");
-    Multilib Im =
-        makeMultilib("/rv32im/ilp32").flag("+march=rv32im").flag("+mabi=ilp32");
-    Multilib Iac = makeMultilib("/rv32iac/ilp32")
+    MultilibBuilder Imac =
+        MultilibBuilder("").flag("+march=rv32imac").flag("+mabi=ilp32");
+    MultilibBuilder I =
+        MultilibBuilder("/rv32i/ilp32").flag("+march=rv32i").flag("+mabi=ilp32");
+    MultilibBuilder Im =
+        MultilibBuilder("/rv32im/ilp32").flag("+march=rv32im").flag("+mabi=ilp32");
+    MultilibBuilder Iac = MultilibBuilder("/rv32iac/ilp32")
                        .flag("+march=rv32iac")
                        .flag("+mabi=ilp32");
-    Multilib Imafc = makeMultilib("/rv32imafc/ilp32f")
+    MultilibBuilder Imafc = MultilibBuilder("/rv32imafc/ilp32f")
                          .flag("+march=rv32imafc")
                          .flag("+mabi=ilp32f");
 
@@ -151,8 +151,8 @@ static bool findPrimateMultilibs(const Driver &D,
     addMultilibFlag(Abi == "ilp32", "mabi=ilp32", Flags);
     addMultilibFlag(Abi == "ilp32f", "mabi=ilp32f", Flags);
 
-    Result.Multilibs = MultilibSet().Either(I, Im, Iac, Imac, Imafc);
-    return Result.Multilibs.select(Flags, Result.SelectedMultilib);
+    Result.Multilibs = MultilibSetBuilder().Either(I, Im, Iac, Imac, Imafc).makeMultilibSet();
+    return Result.Multilibs.select(Flags, Result.SelectedMultilibs);
   }
   return false;
 }
@@ -307,7 +307,7 @@ void BareMetal::findMultilibs(const Driver &D, const llvm::Triple &Triple,
   }
   if (isPrimateBareMetal(Triple)) {
     if (findPrimateMultilibs(D, Triple, Args, Result)) {
-      SelectedMultilib = Result.SelectedMultilib;
+      SelectedMultilibs = Result.SelectedMultilibs;
       Multilibs = Result.Multilibs;
     }
   }

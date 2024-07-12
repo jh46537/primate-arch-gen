@@ -47,7 +47,12 @@ def InstFormatCS     : InstFormat<13>;
 def InstFormatCA     : InstFormat<14>;
 def InstFormatCB     : InstFormat<15>;
 def InstFormatCJ     : InstFormat<16>;
-def InstFormatOther  : InstFormat<17>;
+def InstFormatCU     : InstFormat<17>;
+def InstFormatCLB    : InstFormat<18>;
+def InstFormatCLH    : InstFormat<19>;
+def InstFormatCSB    : InstFormat<20>;
+def InstFormatCSH    : InstFormat<21>;
+def InstFormatOther  : InstFormat<22>;
 
 class PrimateVConstraint<bits<3> val> {
   bits<3> Value = val;
@@ -137,9 +142,79 @@ def OPC_PR_OUTPUT : PrimateOpcode<0b1101011>;
 def OPC_PR_REG    : PrimateOpcode<0b0101011>;
 def OPC_PR_ASCII  : PrimateOpcode<0b1111011>;
 
+class PRInstCommon<dag outs, dag ins, string opcodestr, string argstr,
+                   list<dag> pattern, InstFormat format> : Instruction {
+  let Namespace = "Primate";
+
+  dag OutOperandList = outs;
+  dag InOperandList = ins;
+  let AsmString = opcodestr # !if(!empty(argstr), "", "\t" # argstr);
+  let Pattern = pattern;
+
+  let TSFlags{4-0} = format.Value;
+
+  // Defaults
+  PrimateVConstraint PRVConstraint = NoConstraint;
+  let TSFlags{7-5} = PRVConstraint.Value;
+
+  bits<3> VLMul = 0;
+  let TSFlags{10-8} = VLMul;
+
+  bit ForceTailAgnostic = false;
+  let TSFlags{11} = ForceTailAgnostic;
+
+  bit IsTiedPseudo = 0;
+  let TSFlags{12} = IsTiedPseudo;
+
+  bit HasSEWOp = 0;
+  let TSFlags{13} = HasSEWOp;
+
+  bit HasVLOp = 0;
+  let TSFlags{14} = HasVLOp;
+
+  bit HasVecPolicyOp = 0;
+  let TSFlags{15} = HasVecPolicyOp;
+
+  bit IsPRVWideningReduction = 0;
+  let TSFlags{16} = IsPRVWideningReduction;
+
+  bit UsesMaskPolicy = 0;
+  let TSFlags{17} = UsesMaskPolicy;
+
+  // Indicates that the result can be considered sign extended from bit 31. Some
+  // instructions with this flag aren't W instructions, but are either sign
+  // extended from a smaller size, always outputs a small integer, or put zeros
+  // in bits 63:31. Used by the SExtWRemoval pass.
+  bit IsSignExtendingOpW = 0;
+  let TSFlags{18} = IsSignExtendingOpW;
+
+  bit HasRoundModeOp = 0;
+  let TSFlags{19} =  HasRoundModeOp;
+
+  // This is only valid when HasRoundModeOp is set to 1. HasRoundModeOp is set
+  // to 1 for vector fixed-point or floating-point intrinsics. This bit is
+  // processed under pass 'RISCVInsertReadWriteCSR' pass to distinguish between
+  // fixed-point / floating-point instructions and emit appropriate read/write
+  // to the correct CSR.
+  bit UsesVXRM = 0;
+  let TSFlags{20} =  UsesVXRM;
+
+  // Indicates whther these instructions can partially overlap between source
+  // registers and destination registers according to the vector spec.
+  // 0 -> not a vector pseudo
+  // 1 -> default value for vector pseudos. not widening or narrowing.
+  // 2 -> narrowing case
+  // 3 -> widening case
+  bits<2> TargetOverlapConstraintType = 0;
+  let TSFlags{22-21} = TargetOverlapConstraintType;
+
+  bit IsBFUInstruction = 0;
+  let TSFlags{23} = IsBFUInstruction;
+}
+
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>
-    : Instruction {
+    : PRInstCommon<outs, ins, opcodestr, argstr, pattern, format> {
   field bits<32> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
   // instructions to not match without killing the whole decode process. It is
@@ -151,41 +226,7 @@ class PRInst<dag outs, dag ins, string opcodestr, string argstr,
   bits<7> Opcode = 0;
 
   let Inst{6-0} = Opcode;
-
-  let Namespace = "Primate";
-
-  dag OutOperandList = outs;
-  dag InOperandList = ins;
-  let AsmString = opcodestr # "\t" # argstr;
-  let Pattern = pattern;
   let Itinerary = itin;
-
-  let TSFlags{4-0} = format.Value;
-
-  // Defaults
-  PrimateVConstraint PRVConstraint = NoConstraint;
-  let TSFlags{7-5} = PRVConstraint.Value;
-
-  bits<3> VLMul = 0;
-  let TSFlags{10-8} = VLMul;
-
-  bit HasDummyMask = 0;
-  let TSFlags{11} = HasDummyMask;
-
-  bit ForceTailAgnostic = false;
-  let TSFlags{12} = ForceTailAgnostic;
-
-  bit HasMergeOp = 0;
-  let TSFlags{13} = HasMergeOp;
-
-  bit HasSEWOp = 0;
-  let TSFlags{14} = HasSEWOp;
-
-  bit HasVLOp = 0;
-  let TSFlags{15} = HasVLOp;
-
-  bit IsBFUInstruction = 0;
-  let TSFlags{16} = IsBFUInstruction;
 }
 
 // Pseudo instructions
@@ -268,14 +309,14 @@ class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
   bits<5> rs3;
   bits<5> rs2;
   bits<5> rs1;
-  bits<3> funct3;
+  bits<3> frm;
   bits<5> rd;
 
   let Inst{31-27} = rs3;
   let Inst{26-25} = funct2;
   let Inst{24-20} = rs2;
   let Inst{19-15} = rs1;
-  let Inst{14-12} = funct3;
+  let Inst{14-12} = frm;
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
 }
@@ -303,15 +344,29 @@ class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
     : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {
   bits<5> rs2;
   bits<5> rs1;
-  bits<3> funct3;
+  bits<3> frm;
   bits<5> rd;
 
   let Inst{31-25} = funct7;
   let Inst{24-20} = rs2;
   let Inst{19-15} = rs1;
-  let Inst{14-12} = funct3;
+  let Inst{14-12} = frm;
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
+}
+
+// Common base class for I format instructions. Bits {31-20} should be set by
+// the subclasses.
+class PRInstIBase<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+                  string opcodestr, string argstr>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {
+  bits<5> rs1;
+  bits<5> rd;
+
+  let Inst{19-15} = rs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = rd;
+  let Inst{6-0} = opcode.Value;
 }
 
 class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
@@ -359,6 +414,12 @@ class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
   let Inst{14-12} = funct3;
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
+}
+
+class PRInstIUnary<bits<12> imm12, bits<3> funct3, PrimateOpcode opcode,
+                   dag outs, dag ins, string opcodestr, string argstr>
+    : PRInstIBase<funct3, opcode, outs, ins, opcodestr, argstr> {
+  let Inst{31-20} = imm12;
 }
 
 class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
@@ -416,4 +477,15 @@ class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
   let Inst{19-12} = imm20{18-11};
   let Inst{11-7} = rd;
   let Opcode = opcode.Value;
+}
+
+def AnyRegOperand : AsmOperandClass {
+  let Name = "AnyRegOperand";
+  let RenderMethod = "addRegOperands";
+  let PredicateMethod = "isAnyReg";
+}
+
+def AnyReg : Operand<XLenVT> {
+  let OperandType = "OPERAND_REGISTER";
+  let ParserMatchClass = AnyRegOperand;
 }

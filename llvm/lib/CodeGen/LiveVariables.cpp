@@ -546,7 +546,7 @@ void LiveVariables::runOnInstr(MachineInstr &MI,
 
   // Process all defs.
   for (unsigned MOReg : DefRegs) {
-    if (Register::isVirtualRegister(MOReg))
+    if (Register::isVirtualRegister(MOReg)) {
       dbgs() << "is handling vreg: " << Register::virtReg2Index(MOReg) << "\n";
       HandleVirtRegDef(MOReg, MI);
     }

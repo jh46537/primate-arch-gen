@@ -62,6 +62,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenInstruction.h"
+#include "CodeGenRegisters.h"
 #include "CodeGenTarget.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -74,6 +75,7 @@
 #include "llvm/TableGen/TableGenBackend.h"
 #include <set>
 #include <vector>
+#include <iostream>
 using namespace llvm;
 
 #define DEBUG_TYPE "compress-inst-emitter"
@@ -248,8 +250,11 @@ void PrimateCompressInstEmitter::addDagOperandMapping(
                  << (IsSourceInst ? "input " : "output ")
                  << "Dag. No validation time check possible for values of "
                     "fixed immediate.\n");
-    } else
+    } else {
+      std::cout << "Primate Compressed Pat: " << std::endl;
+      Rec->dump();
       llvm_unreachable("Unhandled CompressPat argument type!");
+    }
   }
 }
 

@@ -53,16 +53,21 @@ def WriteFALU32     : SchedWrite;    // FP 32-bit computation
 def WriteFALU64     : SchedWrite;    // FP 64-bit computation
 def WriteFMul16     : SchedWrite;    // 16-bit floating point multiply
 def WriteFMA16      : SchedWrite;    // 16-bit floating point fused multiply-add
+def WriteFMA16Addend: SchedWrite;    // 16-bit floating point fused multiply-add
 def WriteFMul32     : SchedWrite;    // 32-bit floating point multiply
 def WriteFMA32      : SchedWrite;    // 32-bit floating point fused multiply-add
 def WriteFMul64     : SchedWrite;    // 64-bit floating point multiply
 def WriteFMA64      : SchedWrite;    // 64-bit floating point fused multiply-add
+def WriteFMA64Addend: SchedWrite;
 def WriteFDiv16     : SchedWrite;    // 16-bit floating point divide
 def WriteFDiv32     : SchedWrite;    // 32-bit floating point divide
 def WriteFDiv64     : SchedWrite;    // 64-bit floating point divide
 def WriteFSqrt16    : SchedWrite;    // 16-bit floating point sqrt
 def WriteFSqrt32    : SchedWrite;    // 32-bit floating point sqrt
 def WriteFSqrt64    : SchedWrite;    // 64-bit floating point sqrt
+def WriteFAdd16     : SchedWrite;
+def WriteFAdd32     : SchedWrite; 
+def WriteFAdd64     : SchedWrite; 
 
 // Integer to float conversions
 def WriteFCvtI32ToF16  : SchedWrite;
@@ -122,6 +127,9 @@ def ReadCSR         : SchedRead;
 def ReadMemBase     : SchedRead;
 def ReadFMemBase    : SchedRead;
 def ReadStoreData   : SchedRead;
+def ReadFStoreData  : SchedRead;
+def ReadFMA32Addend : SchedRead;
+def ReadFMA32       : SchedRead;
 def ReadIALU        : SchedRead;
 def ReadIALU32      : SchedRead;    // 32-bit integer ALU operations on PR64I
 def ReadShiftImm    : SchedRead;
@@ -145,10 +153,11 @@ def ReadFALU32      : SchedRead;    // FP 32-bit computation
 def ReadFALU64      : SchedRead;    // FP 64-bit computation
 def ReadFMul16      : SchedRead;    // 16-bit floating point multiply
 def ReadFMA16       : SchedRead;    // 16-bit floating point fused multiply-add
+def ReadFMA16Addend : SchedRead;    // 16-bit floating point fused multiply-add
 def ReadFMul32      : SchedRead;    // 32-bit floating point multiply
-def ReadFMA32       : SchedRead;    // 32-bit floating point fused multiply-add
 def ReadFMul64      : SchedRead;    // 64-bit floating point multiply
 def ReadFMA64       : SchedRead;    // 64-bit floating point fused multiply-add
+def ReadFMA64Addend : SchedRead;
 def ReadFDiv16      : SchedRead;    // 16-bit floating point divide
 def ReadFDiv32      : SchedRead;    // 32-bit floating point divide
 def ReadFDiv64      : SchedRead;    // 64-bit floating point divide
@@ -191,6 +200,9 @@ def ReadFCvtF64ToF16     : SchedRead;
 def ReadFClass16         : SchedRead;
 def ReadFClass32         : SchedRead;
 def ReadFClass64         : SchedRead;
+def ReadFAdd16           : SchedRead;
+def ReadFAdd32           : SchedRead;
+def ReadFAdd64           : SchedRead;
 
 multiclass UnsupportedSchedZfh {
 let Unsupported = true in {

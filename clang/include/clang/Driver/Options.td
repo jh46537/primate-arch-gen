@@ -210,7 +210,6 @@ def m_ve_Features_Group : OptionGroup<"<ve features group>">,
                           Group<m_Group>, DocName<"VE">;
 def m_loongarch_Features_Group : OptionGroup<"<loongarch features group>">,
                                  Group<m_Group>, DocName<"LoongArch">;
-                             Group<m_Group>, DocName<"RISCV">;
 def m_primate_Features_Group : OptionGroup<"<primate features group>">,
                                Group<m_Group>, DocName<"Primate">;
 
@@ -4613,17 +4612,8 @@ def msave_restore : Flag<["-"], "msave-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Enable using library calls for save and restore">;
 def mno_save_restore : Flag<["-"], "mno-save-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Disable using library calls for save and restore">;
-<<<<<<< HEAD
 } // let Flags = [TargetSpecific]
 let Flags = [TargetSpecific] in {
-=======
-def mcmodel_EQ_medlow : Flag<["-"], "mcmodel=medlow">, Group<m_riscv_Features_Group>,
-  Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["small"]>,
-  HelpText<"Equivalent to -mcmodel=small, compatible with RISC-V and Primate gcc.">;
-def mcmodel_EQ_medany : Flag<["-"], "mcmodel=medany">, Group<m_riscv_Features_Group>,
-  Flags<[CC1Option]>, Alias<mcmodel_EQ>, AliasArgs<["medium"]>,
-  HelpText<"Equivalent to -mcmodel=medium, compatible with RISC-V and Primate gcc.">;
->>>>>>> be577e0cafb6 (primate vliw codegen wip)
 def menable_experimental_extensions : Flag<["-"], "menable-experimental-extensions">, Group<m_Group>,
   HelpText<"Enable use of experimental RISC-V extensions.">;
 def mrvv_vector_bits_EQ : Joined<["-"], "mrvv-vector-bits=">, Group<m_Group>,
@@ -5214,11 +5204,7 @@ def module_file_info : Flag<["-"], "module-file-info">, Flags<[]>,
   HelpText<"Provide information about a particular module file">;
 def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
-<<<<<<< HEAD
-  HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, and X86">;
-=======
-  HelpText<"Only supported on X86, RISC-V, and Primate. Otherwise accepted for compatibility with GCC.">;
->>>>>>> be577e0cafb6 (primate vliw codegen wip)
+  HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, Primate, and X86">;
 def multi__module : Flag<["-"], "multi_module">;
 def multiply__defined__unused : Separate<["-"], "multiply_defined_unused">;
 def multiply__defined : Separate<["-"], "multiply_defined">;

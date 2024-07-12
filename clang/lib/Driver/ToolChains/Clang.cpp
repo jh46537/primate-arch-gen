@@ -56,11 +56,13 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/Support/PrimateISAInfo.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/TargetParser/ARMTargetParserCommon.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/LoongArchTargetParser.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
+#include "llvm/TargetParser/PrimateTargetParser.h"
 #include <cctype>
 
 using namespace clang::driver;
@@ -2072,7 +2074,7 @@ static void SetPrimateSmallDataLimit(const ToolChain &TC, const ArgList &Args,
 void Clang::AddPrimateTargetArgs(const ArgList &Args,
                                  ArgStringList &CmdArgs) const {
   const llvm::Triple &Triple = getToolChain().getTriple();
-  StringRef ABIName = primate::getPrimateABI(Args, Triple);
+  StringRef ABIName = Primate::getPrimateABI(Args, Triple);
 
   CmdArgs.push_back("-target-abi");
   CmdArgs.push_back(ABIName.data());
@@ -2082,15 +2084,12 @@ void Clang::AddPrimateTargetArgs(const ArgList &Args,
   std::string TuneCPU;
 
   if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
-    StringRef Name = A->getValue();
-
-    Name = llvm::Primate::resolveTuneCPUAlias(Name, Triple.isArch64Bit());
-    TuneCPU = std::string(Name);
-  }
-
-  if (!TuneCPU.empty()) {
     CmdArgs.push_back("-tune-cpu");
-    CmdArgs.push_back(Args.MakeArgString(TuneCPU));
+    if (strcmp(A->getValue(), "native") == 0)
+      CmdArgs.push_back(Args.MakeArgString(llvm::sys::getHostCPUName()));
+    else
+      CmdArgs.push_back(A->getValue());
+    StringRef Name = A->getValue();
   }
 }
 
@@ -8327,7 +8326,7 @@ void ClangAs::AddRISCVTargetArgs(const ArgList &Args,
 void ClangAs::AddPrimateTargetArgs(const ArgList &Args,
                                ArgStringList &CmdArgs) const {
   const llvm::Triple &Triple = getToolChain().getTriple();
-  StringRef ABIName = primate::getPrimateABI(Args, Triple);
+  StringRef ABIName = Primate::getPrimateABI(Args, Triple);
 
   CmdArgs.push_back("-target-abi");
   CmdArgs.push_back(ABIName.data());

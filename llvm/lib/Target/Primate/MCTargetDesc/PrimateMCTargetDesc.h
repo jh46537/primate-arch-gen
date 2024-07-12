@@ -31,7 +31,6 @@ class Target;
 StringRef selectPrimateCPU(StringRef CPU, bool Is64Bit);
 
 MCCodeEmitter *createPrimateMCCodeEmitter(const MCInstrInfo &MCII,
-                                        const MCRegisterInfo &MRI,
                                         MCContext &Ctx);
 
 MCAsmBackend *createPrimateAsmBackend(const Target &T, const MCSubtargetInfo &STI,
@@ -48,6 +47,7 @@ std::unique_ptr<MCObjectTargetWriter> createPrimateELFObjectWriter(uint8_t OSABI
 
 // Defines symbolic names for Primate instructions.
 #define GET_INSTRINFO_ENUM
+#define GET_INSTRINFO_MC_HELPER_DECLS
 #include "PrimateGenInstrInfo.inc"
 
 #define GET_SUBTARGETINFO_ENUM

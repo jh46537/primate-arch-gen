@@ -769,6 +769,13 @@ def warn_drv_sarif_format_unstable : Warning<
 def err_drv_riscv_unsupported_with_linker_relaxation : Error<
   "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
 
+def err_drv_invalid_primate_ext_arch_name : Error<
+  "%0 is an evil evil primate arch extension name">;
+def err_drv_invalid_primate_arch_name : Error< 
+  "%0 is an evil evil primate arch name">;
+def err_drv_invalid_primate_cpu_name_for_target : Error<
+  "%0 is an evil evil primate cpu name">;
+
 def warn_drv_loongarch_conflicting_implied_val : Warning<
   "ignoring '%0' as it conflicts with that implied by '%1' (%2)">,
   InGroup<OptionIgnored>;

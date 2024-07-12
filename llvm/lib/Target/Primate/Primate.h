@@ -36,7 +36,7 @@ bool lowerPrimateMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
 bool LowerPrimateMachineOperandToMCOperand(const MachineOperand &MO,
                                          MCOperand &MCOp, const AsmPrinter &AP);
 
-FunctionPass *createPrimateISelDag(PrimateTargetMachine &TM);
+FunctionPass *createPrimateISelDag(PrimateTargetMachine &TM, CodeGenOptLevel optLevel);
 
 FunctionPass *createPrimateMergeBaseOffsetOptPass();
 void initializePrimateMergeBaseOffsetOptPass(PassRegistry &);
@@ -46,9 +46,6 @@ void initializePrimateExpandPseudoPass(PassRegistry &);
 
 FunctionPass *createPrimateExpandAtomicPseudoPass();
 void initializePrimateExpandAtomicPseudoPass(PassRegistry &);
-
-FunctionPass *createPrimateInsertVSETVLIPass();
-void initializePrimateInsertVSETVLIPass(PassRegistry &);
 
 FunctionPass *createPrimatePacketizer();
 void initializePrimatePacketizerPass(PassRegistry &);
@@ -76,6 +73,8 @@ void initializePrimateRegisterNormalizePass(PassRegistry &);
 InstructionSelector *createPrimateInstructionSelector(const PrimateTargetMachine &,
                                                     PrimateSubtarget &,
                                                     PrimateRegisterBankInfo &);
+void initializePrimateDAGToDAGISelPass(PassRegistry &);
+
 }
 
 #endif

@@ -6871,15 +6871,10 @@ static bool isPlaceholderToRemoveAsArg(QualType type) {
 #include "clang/Basic/PPCTypes.def"
 #define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/RISCVVTypes.def"
-<<<<<<< HEAD
 #define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
-#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/PrimateVTypes.def"
-=======
 //#define PRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 //#include "clang/Basic/PrimateVTypes.def"
->>>>>>> 15f7dc14d443 (remove Primate V from the frontend)
 #define PLACEHOLDER_TYPE(ID, SINGLETON_ID)
 #define BUILTIN_TYPE(ID, SINGLETON_ID) case BuiltinType::ID:
 #include "clang/AST/BuiltinTypes.def"

@@ -17,7 +17,7 @@
 #include "PrimateLegalizerInfo.h"
 #include "PrimateRegisterBankInfo.h"
 #include "PrimateTargetMachine.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -64,10 +64,6 @@ PrimateSubtarget::initializeSubtargetDependencies(const Triple &TT, StringRef CP
 
   ParseSubtargetFeatures(CPU, TuneCPU, FS);
   //FIXME(ahsu)
-  if (Is64Bit) {
-    XLenVT = MVT::i64;
-    XLen = 64;
-  }
   //XLenVT = MVT::i128;
   //XLen = 128;
 
@@ -121,7 +117,7 @@ unsigned PrimateSubtarget::getMaxPRVVectorSizeInBits() const {
          "Minimum V extension vector length should not be larger than its "
          "maximum!");
   unsigned Max = std::max(PRVVectorBitsMin, PRVVectorBitsMax);
-  return PowerOf2Floor((Max < 128 || Max > 65536) ? 0 : Max);
+  return bit_floor((Max < 128 || Max > 65536) ? 0 : Max);
 }
 
 unsigned PrimateSubtarget::getMinPRVVectorSizeInBits() const {
@@ -138,7 +134,7 @@ unsigned PrimateSubtarget::getMinPRVVectorSizeInBits() const {
   unsigned Min = PRVVectorBitsMin;
   if (PRVVectorBitsMax != 0)
     Min = std::min(PRVVectorBitsMin, PRVVectorBitsMax);
-  return PowerOf2Floor((Min < 128 || Min > 65536) ? 0 : Min);
+  return bit_floor((Min < 128 || Min > 65536) ? 0 : Min);
 }
 
 unsigned PrimateSubtarget::getMaxLMULForFixedLengthVectors() const {
@@ -146,7 +142,7 @@ unsigned PrimateSubtarget::getMaxLMULForFixedLengthVectors() const {
          "Tried to get maximum LMUL without V extension support!");
   assert(PRVVectorLMULMax <= 8 && isPowerOf2_32(PRVVectorLMULMax) &&
          "V extension requires a LMUL to be at most 8 and a power of 2!");
-  return PowerOf2Floor(std::max<unsigned>(PRVVectorLMULMax, 1));
+  return bit_floor(std::max<unsigned>(PRVVectorLMULMax, 1));
 }
 
 bool PrimateSubtarget::usePRVForFixedLengthVectors() const {

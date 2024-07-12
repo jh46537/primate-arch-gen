@@ -167,16 +167,16 @@ defm : AMOPat<"atomic_load_min_32", "AMOMIN_W">;
 defm : AMOPat<"atomic_load_umax_32", "AMOMAXU_W">;
 defm : AMOPat<"atomic_load_umin_32", "AMOMINU_W">;
 
-def : Pat<(atomic_load_sub_32_monotonic GPR:$addr, GPR:$incr),
-          (AMOADD_W GPR:$addr, (SUB X0, GPR:$incr))>;
-def : Pat<(atomic_load_sub_32_acquire GPR:$addr, GPR:$incr),
-          (AMOADD_W_AQ GPR:$addr, (SUB X0, GPR:$incr))>;
-def : Pat<(atomic_load_sub_32_release GPR:$addr, GPR:$incr),
-          (AMOADD_W_RL GPR:$addr, (SUB X0, GPR:$incr))>;
-def : Pat<(atomic_load_sub_32_acq_rel GPR:$addr, GPR:$incr),
-          (AMOADD_W_AQ_RL GPR:$addr, (SUB X0, GPR:$incr))>;
-def : Pat<(atomic_load_sub_32_seq_cst GPR:$addr, GPR:$incr),
-          (AMOADD_W_AQ_RL GPR:$addr, (SUB X0, GPR:$incr))>;
+def : Pat<(XLenVT(atomic_load_sub_32_monotonic GPR:$addr, GPR:$incr)),
+          (AMOADD_W GPR:$addr, (SUB (XLenVT X0), (XLenVT GPR:$incr)))>;
+def : Pat<(XLenVT(atomic_load_sub_32_acquire GPR:$addr, GPR:$incr)),
+          (AMOADD_W_AQ GPR:$addr, (SUB (XLenVT X0), (XLenVT GPR:$incr)))>;
+def : Pat<(XLenVT(atomic_load_sub_32_release GPR:$addr, GPR:$incr)),
+          (AMOADD_W_RL GPR:$addr, (SUB (XLenVT X0), (XLenVT GPR:$incr)))>;
+def : Pat<(XLenVT (atomic_load_sub_32_acq_rel GPR:$addr, GPR:$incr)),
+          (AMOADD_W_AQ_RL GPR:$addr, (SUB (XLenVT X0), (XLenVT GPR:$incr)))>;
+def : Pat<(XLenVT (atomic_load_sub_32_seq_cst GPR:$addr, GPR:$incr)),
+          (AMOADD_W_AQ_RL GPR:$addr, (SUB (XLenVT X0), (XLenVT GPR:$incr)))>;
 
 /// Pseudo AMOs
 
@@ -191,15 +191,15 @@ class PseudoAMO : Pseudo<(outs GPR:$res, GPR:$scratch),
 def PseudoAtomicLoadNand32 : PseudoAMO;
 // Ordering constants must be kept in sync with the AtomicOrdering enum in
 // AtomicOrdering.h.
-def : Pat<(atomic_load_nand_32_monotonic GPR:$addr, GPR:$incr),
+def : Pat<(atomic_load_nand_32_monotonic (XLenVT GPR:$addr), (XLenVT GPR:$incr)),
           (PseudoAtomicLoadNand32 GPR:$addr, GPR:$incr, 2)>;
-def : Pat<(atomic_load_nand_32_acquire GPR:$addr, GPR:$incr),
+def : Pat<(atomic_load_nand_32_acquire (XLenVT GPR:$addr), (XLenVT GPR:$incr)),
           (PseudoAtomicLoadNand32 GPR:$addr, GPR:$incr, 4)>;
-def : Pat<(atomic_load_nand_32_release GPR:$addr, GPR:$incr),
+def : Pat<(atomic_load_nand_32_release (XLenVT GPR:$addr), (XLenVT GPR:$incr)),
           (PseudoAtomicLoadNand32 GPR:$addr, GPR:$incr, 5)>;
-def : Pat<(atomic_load_nand_32_acq_rel GPR:$addr, GPR:$incr),
+def : Pat<(atomic_load_nand_32_acq_rel (XLenVT GPR:$addr), (XLenVT GPR:$incr)),
           (PseudoAtomicLoadNand32 GPR:$addr, GPR:$incr, 6)>;
-def : Pat<(atomic_load_nand_32_seq_cst GPR:$addr, GPR:$incr),
+def : Pat<(atomic_load_nand_32_seq_cst (XLenVT GPR:$addr), (XLenVT GPR:$incr)),
           (PseudoAtomicLoadNand32 GPR:$addr, GPR:$incr, 7)>;
 
 class PseudoMaskedAMO
@@ -280,16 +280,17 @@ class PseudoCmpXchg
 
 // Ordering constants must be kept in sync with the AtomicOrdering enum in
 // AtomicOrdering.h.
-multiclass PseudoCmpXchgPat<string Op, Pseudo CmpXchgInst> {
-  def : Pat<(!cast<PatFrag>(Op#"_monotonic") GPR:$addr, GPR:$cmp, GPR:$new),
+multiclass PseudoCmpXchgPat<string Op, Pseudo CmpXchgInst, 
+                            ValueType vt = XLenVT> {
+  def : Pat<(vt (!cast<PatFrag>(Op#"_monotonic") GPR:$addr, GPR:$cmp, GPR:$new)),
             (CmpXchgInst GPR:$addr, GPR:$cmp, GPR:$new, 2)>;
-  def : Pat<(!cast<PatFrag>(Op#"_acquire") GPR:$addr, GPR:$cmp, GPR:$new),
+  def : Pat<(vt (!cast<PatFrag>(Op#"_acquire") GPR:$addr, GPR:$cmp, GPR:$new)),
             (CmpXchgInst GPR:$addr, GPR:$cmp, GPR:$new, 4)>;
-  def : Pat<(!cast<PatFrag>(Op#"_release") GPR:$addr, GPR:$cmp, GPR:$new),
+  def : Pat<(vt (!cast<PatFrag>(Op#"_release") GPR:$addr, GPR:$cmp, GPR:$new)),
             (CmpXchgInst GPR:$addr, GPR:$cmp, GPR:$new, 5)>;
-  def : Pat<(!cast<PatFrag>(Op#"_acq_rel") GPR:$addr, GPR:$cmp, GPR:$new),
+  def : Pat<(vt (!cast<PatFrag>(Op#"_acq_rel") GPR:$addr, GPR:$cmp, GPR:$new)),
             (CmpXchgInst GPR:$addr, GPR:$cmp, GPR:$new, 6)>;
-  def : Pat<(!cast<PatFrag>(Op#"_seq_cst") GPR:$addr, GPR:$cmp, GPR:$new),
+  def : Pat<(vt (!cast<PatFrag>(Op#"_seq_cst") GPR:$addr, GPR:$cmp, GPR:$new)),
             (CmpXchgInst GPR:$addr, GPR:$cmp, GPR:$new, 7)>;
 }
 
@@ -335,15 +336,15 @@ defm : AMOPat<"atomic_load_umin_64", "AMOMINU_D">;
 /// 64-bit AMOs
 
 def : Pat<(i64 (atomic_load_sub_64_monotonic GPR:$addr, GPR:$incr)),
-          (AMOADD_D GPR:$addr, (SUB X0, GPR:$incr))>;
+          (AMOADD_D GPR:$addr, (SUB (XLenVT X0), GPR:$incr))>;
 def : Pat<(i64 (atomic_load_sub_64_acquire GPR:$addr, GPR:$incr)),
-          (AMOADD_D_AQ GPR:$addr, (SUB X0, GPR:$incr))>;
+          (AMOADD_D_AQ GPR:$addr, (SUB (XLenVT X0), GPR:$incr))>;
 def : Pat<(i64 (atomic_load_sub_64_release GPR:$addr, GPR:$incr)),
-          (AMOADD_D_RL GPR:$addr, (SUB X0, GPR:$incr))>;
+          (AMOADD_D_RL GPR:$addr, (SUB (XLenVT X0), GPR:$incr))>;
 def : Pat<(i64 (atomic_load_sub_64_acq_rel GPR:$addr, GPR:$incr)),
-          (AMOADD_D_AQ_RL GPR:$addr, (SUB X0, GPR:$incr))>;
+          (AMOADD_D_AQ_RL GPR:$addr, (SUB (XLenVT X0), GPR:$incr))>;
 def : Pat<(i64 (atomic_load_sub_64_seq_cst GPR:$addr, GPR:$incr)),
-          (AMOADD_D_AQ_RL GPR:$addr, (SUB X0, GPR:$incr))>;
+          (AMOADD_D_AQ_RL GPR:$addr, (SUB (XLenVT X0), GPR:$incr))>;
 
 /// 64-bit pseudo AMOs
 

@@ -27,7 +27,7 @@ InstructionCost PrimateTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
   // Otherwise, we check how many instructions it will take to materialise.
   const DataLayout &DL = getDataLayout();
   return PrimateMatInt::getIntMatCost(Imm, DL.getTypeSizeInBits(Ty),
-                                    getST()->getFeatureBits());
+                                    *(getST()));
 }
 
 InstructionCost PrimateTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
@@ -74,7 +74,7 @@ InstructionCost PrimateTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     // Check immediate is the correct argument...
     if (Instruction::isCommutative(Opcode) || Idx == ImmArgIdx) {
       // ... and fits into the 12-bit immediate.
-      if (Imm.getMinSignedBits() <= 64 &&
+      if (Imm.getSignificantBits() <= 64 &&
           getTLI()->isLegalAddImmediate(Imm.getSExtValue())) {
         return TTI::TCC_Free;
       }
@@ -116,7 +116,7 @@ bool PrimateTTIImpl::shouldExpandReduction(const IntrinsicInst *II) const {
   }
 }
 
-Optional<unsigned> PrimateTTIImpl::getMaxVScale() const {
+std::optional<unsigned> PrimateTTIImpl::getMaxVScale() const {
   // There is no assumption of the maximum vector length in V specification.
   // We use the value specified by users as the maximum vector length.
   // This function will use the assumed maximum vector length to get the
@@ -152,6 +152,6 @@ InstructionCost PrimateTTIImpl::getGatherScatterOpCost(
   auto *VTy = cast<FixedVectorType>(DataTy);
   unsigned NumLoads = VTy->getNumElements();
   InstructionCost MemOpCost =
-      getMemoryOpCost(Opcode, VTy->getElementType(), Alignment, 0, CostKind, I);
+      getMemoryOpCost(Opcode, VTy->getElementType(), Alignment, 0, CostKind, {TTI::OK_AnyValue, TTI::OP_None}, I);
   return NumLoads * MemOpCost;
 }

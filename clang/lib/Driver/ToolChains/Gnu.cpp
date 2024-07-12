@@ -32,6 +32,7 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/Support/PrimateISAInfo.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/TargetParser.h"
 #include <system_error>
@@ -767,11 +768,11 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
   }
   case llvm::Triple::primate32:
   case llvm::Triple::primate64: {
-    StringRef ABIName = primate::getPrimateABI(Args,
+    StringRef ABIName = Primate::getPrimateABI(Args,
                                                getToolChain().getTriple());
     CmdArgs.push_back("-mabi");
     CmdArgs.push_back(ABIName.data());
-    StringRef MArchName = primate::getPrimateArch(Args,
+    StringRef MArchName = Primate::getPrimateArch(Args,
                                                   getToolChain().getTriple());
     CmdArgs.push_back("-march");
     CmdArgs.push_back(MArchName.data());
@@ -1971,17 +1972,18 @@ static void findPrimateBareMetalMultilibs(const Driver &D,
       {"rv32imac", "ilp32"},  {"rv32imafc", "ilp32f"}, {"rv64imac", "lp64"},
       {"rv64imafdc", "lp64d"}};
 
-  std::vector<Multilib> Ms;
+  std::vector<MultilibBuilder> Ms;
   for (auto Element : PrimateMultilibSet) {
     // multilib path rule is ${march}/${mabi}
     Ms.emplace_back(
-        makeMultilib((Twine(Element.march) + "/" + Twine(Element.mabi)).str())
+        MultilibBuilder((Twine(Element.march) + "/" + Twine(Element.mabi)).str())
             .flag(Twine("+march=", Element.march).str())
             .flag(Twine("+mabi=", Element.mabi).str()));
   }
   MultilibSet PrimateMultilibs =
-      MultilibSet()
-          .Either(ArrayRef<Multilib>(Ms))
+      MultilibSetBuilder()
+          .Either(ArrayRef(Ms))
+          .makeMultilibSet()
           .FilterOut(NonExistent)
           .setFilePathsCallback([](const Multilib &M) {
             return std::vector<std::string>(
@@ -1993,8 +1995,8 @@ static void findPrimateBareMetalMultilibs(const Driver &D,
 
   Multilib::flags_list Flags;
   llvm::StringSet<> Added_ABIs;
-  StringRef ABIName = tools::primate::getPrimateABI(Args, TargetTriple);
-  StringRef MArch = tools::primate::getPrimateArch(Args, TargetTriple);
+  StringRef ABIName = tools::Primate::getPrimateABI(Args, TargetTriple);
+  StringRef MArch = tools::Primate::getPrimateArch(Args, TargetTriple);
   for (auto Element : PrimateMultilibSet) {
     addMultilibFlag(MArch == Element.march,
                     Twine("march=", Element.march).str().c_str(), Flags);
@@ -2005,7 +2007,7 @@ static void findPrimateBareMetalMultilibs(const Driver &D,
     }
   }
 
-  if (PrimateMultilibs.select(Flags, Result.SelectedMultilib))
+  if (PrimateMultilibs.select(Flags, Result.SelectedMultilibs))
     Result.Multilibs = PrimateMultilibs;
 }
 
@@ -2017,22 +2019,23 @@ static void findPrimateMultilibs(const Driver &D,
     return findPrimateBareMetalMultilibs(D, TargetTriple, Path, Args, Result);
 
   FilterNonExistent NonExistent(Path, "/crtbegin.o", D.getVFS());
-  Multilib Ilp32 = makeMultilib("lib32/ilp32").flag("+m32").flag("+mabi=ilp32");
-  Multilib Ilp32f =
-      makeMultilib("lib32/ilp32f").flag("+m32").flag("+mabi=ilp32f");
-  Multilib Ilp32d =
-      makeMultilib("lib32/ilp32d").flag("+m32").flag("+mabi=ilp32d");
-  Multilib Lp64 = makeMultilib("lib64/lp64").flag("+m64").flag("+mabi=lp64");
-  Multilib Lp64f = makeMultilib("lib64/lp64f").flag("+m64").flag("+mabi=lp64f");
-  Multilib Lp64d = makeMultilib("lib64/lp64d").flag("+m64").flag("+mabi=lp64d");
+  MultilibBuilder Ilp32 = MultilibBuilder("lib32/ilp32").flag("+m32").flag("+mabi=ilp32");
+  MultilibBuilder Ilp32f =
+      MultilibBuilder("lib32/ilp32f").flag("+m32").flag("+mabi=ilp32f");
+  MultilibBuilder Ilp32d =
+      MultilibBuilder("lib32/ilp32d").flag("+m32").flag("+mabi=ilp32d");
+  MultilibBuilder Lp64 = MultilibBuilder("lib64/lp64").flag("+m64").flag("+mabi=lp64");
+  MultilibBuilder Lp64f = MultilibBuilder("lib64/lp64f").flag("+m64").flag("+mabi=lp64f");
+  MultilibBuilder Lp64d = MultilibBuilder("lib64/lp64d").flag("+m64").flag("+mabi=lp64d");
   MultilibSet PrimateMultilibs =
-      MultilibSet()
+      MultilibSetBuilder()
           .Either({Ilp32, Ilp32f, Ilp32d, Lp64, Lp64f, Lp64d})
+          .makeMultilibSet()
           .FilterOut(NonExistent);
 
   Multilib::flags_list Flags;
   bool IsRV64 = TargetTriple.getArch() == llvm::Triple::primate64;
-  StringRef ABIName = tools::primate::getPrimateABI(Args, TargetTriple);
+  StringRef ABIName = tools::Primate::getPrimateABI(Args, TargetTriple);
 
   addMultilibFlag(!IsRV64, "m32", Flags);
   addMultilibFlag(IsRV64, "m64", Flags);
@@ -2043,7 +2046,7 @@ static void findPrimateMultilibs(const Driver &D,
   addMultilibFlag(ABIName == "lp64f", "mabi=lp64f", Flags);
   addMultilibFlag(ABIName == "lp64d", "mabi=lp64d", Flags);
 
-  if (PrimateMultilibs.select(Flags, Result.SelectedMultilib))
+  if (PrimateMultilibs.select(Flags, Result.SelectedMultilibs))
     Result.Multilibs = PrimateMultilibs;
 }
 

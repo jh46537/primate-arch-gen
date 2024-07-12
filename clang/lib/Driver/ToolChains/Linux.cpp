@@ -339,7 +339,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     addPathIfExists(D, concat(SysRoot, "/usr", OSLibDir, ABIName), Paths);
   }
   if (IsPrimate) {
-    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    StringRef ABIName = tools::Primate::getPrimateABI(Args, Triple);
     addPathIfExists(D, SysRoot + "/" + OSLibDir + "/" + ABIName, Paths);
     addPathIfExists(D, SysRoot + "/usr/" + OSLibDir + "/" + ABIName, Paths);
   }
@@ -571,13 +571,13 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
         (tools::ppc::hasPPCAbiArg(Args, "elfv1")) ? "ld64.so.1" : "ld64.so.2";
     break;
   case llvm::Triple::primate32: {
-    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    StringRef ABIName = tools::Primate::getPrimateABI(Args, Triple);
     LibDir = "lib";
     Loader = ("ld-linux-primate32-" + ABIName + ".so.1").str();
     break;
   }
   case llvm::Triple::primate64: {
-    StringRef ABIName = tools::primate::getPrimateABI(Args, Triple);
+    StringRef ABIName = tools::Primate::getPrimateABI(Args, Triple);
     LibDir = "lib";
     Loader = ("ld-linux-primate64-" + ABIName + ".so.1").str();
     break;

@@ -574,6 +574,7 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenRISCVSiFiveVectorBuiltinSema:
     EmitRVVBuiltinSema(Records, OS);
+    break;
   //case GenPrimateVectorHeader:
   //  EmitPRVHeader(Records, OS);
   //  break;

@@ -26,7 +26,7 @@
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -36,6 +36,7 @@ using namespace llvm;
 #include "PrimateGenDFAPacketizer.inc"
 
 #define GET_INSTRINFO_CTOR_DTOR
+#define GET_INSTRINFO_NAMED_OPS
 #include "PrimateGenInstrInfo.inc"
 
 namespace llvm {
@@ -146,69 +147,6 @@ void PrimateInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   } else if (Primate::FPR64RegClass.contains(DstReg, SrcReg)) {
     Opc = Primate::FSGNJ_D;
     IsScalableVector = false;
-  } else if (Primate::VRRegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-  } else if (Primate::VRM2RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV2R_V;
-  } else if (Primate::VRM4RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV4R_V;
-  } else if (Primate::VRM8RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV8R_V;
-  } else if (Primate::VRN2M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 2;
-    LMul = 1;
-  } else if (Primate::VRN2M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV2R_V;
-    SubRegIdx = Primate::sub_vrm2_0;
-    NF = 2;
-    LMul = 2;
-  } else if (Primate::VRN2M4RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV4R_V;
-    SubRegIdx = Primate::sub_vrm4_0;
-    NF = 2;
-    LMul = 4;
-  } else if (Primate::VRN3M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 3;
-    LMul = 1;
-  } else if (Primate::VRN3M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV2R_V;
-    SubRegIdx = Primate::sub_vrm2_0;
-    NF = 3;
-    LMul = 2;
-  } else if (Primate::VRN4M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 4;
-    LMul = 1;
-  } else if (Primate::VRN4M2RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV2R_V;
-    SubRegIdx = Primate::sub_vrm2_0;
-    NF = 4;
-    LMul = 2;
-  } else if (Primate::VRN5M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 5;
-    LMul = 1;
-  } else if (Primate::VRN6M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 6;
-    LMul = 1;
-  } else if (Primate::VRN7M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 7;
-    LMul = 1;
-  } else if (Primate::VRN8M1RegClass.contains(DstReg, SrcReg)) {
-    Opc = Primate::PseudoVMV1R_V;
-    SubRegIdx = Primate::sub_vrm1_0;
-    NF = 8;
-    LMul = 1;
   } else {
     llvm_unreachable("Impossible reg-to-reg copy");
   }
@@ -246,7 +184,8 @@ void PrimateInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                          MachineBasicBlock::iterator I,
                                          Register SrcReg, bool IsKill, int FI,
                                          const TargetRegisterClass *RC,
-                                         const TargetRegisterInfo *TRI) const {
+                                         const TargetRegisterInfo *TRI,
+                                         Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -270,41 +209,7 @@ void PrimateInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   } else if (Primate::FPR64RegClass.hasSubClassEq(RC)) {
     Opcode = Primate::FSD;
     IsScalableVector = false;
-  } else if (Primate::VRRegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVSPILL_M1;
-    IsZvlsseg = false;
-  } else if (Primate::VRM2RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVSPILL_M2;
-    IsZvlsseg = false;
-  } else if (Primate::VRM4RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVSPILL_M4;
-    IsZvlsseg = false;
-  } else if (Primate::VRM8RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVSPILL_M8;
-    IsZvlsseg = false;
-  } else if (Primate::VRN2M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL2_M1;
-  else if (Primate::VRN2M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL2_M2;
-  else if (Primate::VRN2M4RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL2_M4;
-  else if (Primate::VRN3M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL3_M1;
-  else if (Primate::VRN3M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL3_M2;
-  else if (Primate::VRN4M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL4_M1;
-  else if (Primate::VRN4M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL4_M2;
-  else if (Primate::VRN5M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL5_M1;
-  else if (Primate::VRN6M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL6_M1;
-  else if (Primate::VRN7M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL7_M1;
-  else if (Primate::VRN8M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVSPILL8_M1;
-  else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
+  } else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
     Opcode = Primate::SW;
     IsScalableVector = false;
   }
@@ -344,7 +249,8 @@ void PrimateInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator I,
                                           Register DstReg, int FI,
                                           const TargetRegisterClass *RC,
-                                          const TargetRegisterInfo *TRI) const {
+                                          const TargetRegisterInfo *TRI,
+                                          Register VReg) const {
   DebugLoc DL;
   if (I != MBB.end())
     DL = I->getDebugLoc();
@@ -368,41 +274,7 @@ void PrimateInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   } else if (Primate::FPR64RegClass.hasSubClassEq(RC)) {
     Opcode = Primate::FLD;
     IsScalableVector = false;
-  } else if (Primate::VRRegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVRELOAD_M1;
-    IsZvlsseg = false;
-  } else if (Primate::VRM2RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVRELOAD_M2;
-    IsZvlsseg = false;
-  } else if (Primate::VRM4RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVRELOAD_M4;
-    IsZvlsseg = false;
-  } else if (Primate::VRM8RegClass.hasSubClassEq(RC)) {
-    Opcode = Primate::PseudoVRELOAD_M8;
-    IsZvlsseg = false;
-  } else if (Primate::VRN2M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD2_M1;
-  else if (Primate::VRN2M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD2_M2;
-  else if (Primate::VRN2M4RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD2_M4;
-  else if (Primate::VRN3M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD3_M1;
-  else if (Primate::VRN3M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD3_M2;
-  else if (Primate::VRN4M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD4_M1;
-  else if (Primate::VRN4M2RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD4_M2;
-  else if (Primate::VRN5M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD5_M1;
-  else if (Primate::VRN6M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD6_M1;
-  else if (Primate::VRN7M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD7_M1;
-  else if (Primate::VRN8M1RegClass.hasSubClassEq(RC))
-    Opcode = Primate::PseudoVRELOAD8_M1;
-  else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
+  } else if (Primate::WIDEREGRegClass.hasSubClassEq(RC)) {
     Opcode = Primate::LW;
     IsScalableVector = false;
   }
@@ -450,7 +322,7 @@ void PrimateInstrInfo::movImm(MachineBasicBlock &MBB,
     report_fatal_error("Should only materialize 32-bit constants for PR32");
 
   PrimateMatInt::InstSeq Seq =
-      PrimateMatInt::generateInstSeq(Val, STI.getFeatureBits());
+      PrimateMatInt::generateInstSeq(Val, STI);
   assert(!Seq.empty());
 
   for (PrimateMatInt::Inst &Inst : Seq) {
@@ -459,19 +331,19 @@ void PrimateInstrInfo::movImm(MachineBasicBlock &MBB,
     if (++Num == Seq.size())
       Result = DstReg;
 
-    if (Inst.Opc == Primate::LUI) {
+    if (Inst.getOpcode() == Primate::LUI) {
       BuildMI(MBB, MBBI, DL, get(Primate::LUI), Result)
-          .addImm(Inst.Imm)
+          .addImm(Inst.getImm())
           .setMIFlag(Flag);
-    } else if (Inst.Opc == Primate::ADDUW) {
-      BuildMI(MBB, MBBI, DL, get(Primate::ADDUW), Result)
+    } else if (Inst.getOpcode() == Primate::ADD_UW) {
+      BuildMI(MBB, MBBI, DL, get(Primate::ADD_UW), Result)
           .addReg(SrcReg, RegState::Kill)
           .addReg(Primate::X0)
           .setMIFlag(Flag);
     } else {
-      BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
+      BuildMI(MBB, MBBI, DL, get(Inst.getOpcode()), Result)
           .addReg(SrcReg, RegState::Kill)
-          .addImm(Inst.Imm)
+          .addImm(Inst.getImm())
           .setMIFlag(Flag);
     }
     // Only the first instruction has X0 as its source.
@@ -580,6 +452,25 @@ bool PrimateInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   return true;
 }
 
+unsigned PrimateCC::getBrCond(PrimateCC::CondCode CC) {
+  switch (CC) {
+  default:
+    llvm_unreachable("Unknown condition code!");
+  case PrimateCC::COND_EQ:
+    return Primate::BEQ;
+  case PrimateCC::COND_NE:
+    return Primate::BNE;
+  case PrimateCC::COND_LT:
+    return Primate::BLT;
+  case PrimateCC::COND_GE:
+    return Primate::BGE;
+  case PrimateCC::COND_LTU:
+    return Primate::BLTU;
+  case PrimateCC::COND_GEU:
+    return Primate::BGEU;
+  }
+}
+
 unsigned PrimateInstrInfo::removeBranch(MachineBasicBlock &MBB,
                                       int *BytesRemoved) const {
   if (BytesRemoved)
@@ -651,11 +542,11 @@ unsigned PrimateInstrInfo::insertBranch(
   return 2;
 }
 
-unsigned PrimateInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
-                                              MachineBasicBlock &DestBB,
-                                              const DebugLoc &DL,
-                                              int64_t BrOffset,
-                                              RegScavenger *RS) const {
+void PrimateInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
+                                                MachineBasicBlock &DestBB,
+                                                MachineBasicBlock &RestoreBB,
+                                                const DebugLoc &DL, int64_t BrOffset,
+                                                RegScavenger *RS) const {
   assert(RS && "RegScavenger required for long branching");
   assert(MBB.empty() &&
          "new block should be inserted for expanding unconditional branch");
@@ -684,7 +575,6 @@ unsigned PrimateInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   MRI.replaceRegWith(ScratchReg, Scav);
   MRI.clearVirtRegs();
   RS->setRegUsed(Scav);
-  return 8;
 }
 
 bool PrimateInstrInfo::reverseBranchCondition(
@@ -737,7 +627,7 @@ unsigned PrimateInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
       const MCRegisterInfo &MRI = *TM.getMCRegisterInfo();
       const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
       const PrimateSubtarget &ST = MF->getSubtarget<PrimateSubtarget>();
-      if (isCompressibleInst(MI, &ST, MRI, STI))
+      if (isCompressibleInst(MI, ST))
         return 2;
     }
     return get(Opcode).getSize();
@@ -786,33 +676,6 @@ unsigned PrimateInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(),
                               *TM.getMCAsmInfo());
   }
-  case Primate::PseudoVSPILL2_M1:
-  case Primate::PseudoVSPILL2_M2:
-  case Primate::PseudoVSPILL2_M4:
-  case Primate::PseudoVSPILL3_M1:
-  case Primate::PseudoVSPILL3_M2:
-  case Primate::PseudoVSPILL4_M1:
-  case Primate::PseudoVSPILL4_M2:
-  case Primate::PseudoVSPILL5_M1:
-  case Primate::PseudoVSPILL6_M1:
-  case Primate::PseudoVSPILL7_M1:
-  case Primate::PseudoVSPILL8_M1:
-  case Primate::PseudoVRELOAD2_M1:
-  case Primate::PseudoVRELOAD2_M2:
-  case Primate::PseudoVRELOAD2_M4:
-  case Primate::PseudoVRELOAD3_M1:
-  case Primate::PseudoVRELOAD3_M2:
-  case Primate::PseudoVRELOAD4_M1:
-  case Primate::PseudoVRELOAD4_M2:
-  case Primate::PseudoVRELOAD5_M1:
-  case Primate::PseudoVRELOAD6_M1:
-  case Primate::PseudoVRELOAD7_M1:
-  case Primate::PseudoVRELOAD8_M1: {
-    // The values are determined based on expandVSPILL and expandVRELOAD that
-    // expand the pseudos depending on NF.
-    unsigned NF = isPRVSpillForZvlsseg(Opcode)->first;
-    return 4 * (2 * NF - 1);
-  }
   }
 }
 
@@ -836,7 +699,7 @@ bool PrimateInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   return MI.isAsCheapAsAMove();
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 PrimateInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg())
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
@@ -857,7 +720,7 @@ PrimateInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
     break;
   }
-  return None;
+  return {};
 }
 
 bool PrimateInstrInfo::verifyInstruction(const MachineInstr &MI,
@@ -865,7 +728,7 @@ bool PrimateInstrInfo::verifyInstruction(const MachineInstr &MI,
   const MCInstrInfo *MCII = STI.getInstrInfo();
   MCInstrDesc const &Desc = MCII->get(MI.getOpcode());
 
-  for (auto &OI : enumerate(Desc.operands())) {
+  for (const auto & OI : enumerate(Desc.operands())) {
     unsigned OpType = OI.value().OperandType;
     if (OpType >= PrimateOp::OPERAND_FIRST_Primate_IMM &&
         OpType <= PrimateOp::OPERAND_LAST_Primate_IMM) {
@@ -993,7 +856,7 @@ PrimateInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_TPREL_ADD, "primate-tprel-add"},
       {MO_TLS_GOT_HI, "primate-tls-got-hi"},
       {MO_TLS_GD_HI, "primate-tls-gd-hi"}};
-  return makeArrayRef(TargetFlags);
+  return ArrayRef(TargetFlags);
 }
 bool PrimateInstrInfo::isFunctionSafeToOutlineFrom(
     MachineFunction &MF, bool OutlineFromLinkOnceODRs) const {
@@ -1023,31 +886,26 @@ enum MachineOutlinerConstructionID {
   MachineOutlinerDefault
 };
 
-outliner::OutlinedFunction PrimateInstrInfo::getOutliningCandidateInfo(
+std::optional<outliner::OutlinedFunction> PrimateInstrInfo::getOutliningCandidateInfo(
     std::vector<outliner::Candidate> &RepeatedSequenceLocs) const {
 
-  // First we need to filter out candidates where the X5 register (IE t0) can't
+// First we need to filter out candidates where the X5 register (IE t0) can't
   // be used to setup the function call.
   auto CannotInsertCall = [](outliner::Candidate &C) {
     const TargetRegisterInfo *TRI = C.getMF()->getSubtarget().getRegisterInfo();
-
-    C.initLRU(*TRI);
-    LiveRegUnits LRU = C.LRU;
-    return !LRU.available(Primate::X5);
+    return !C.isAvailableAcrossAndOutOfSeq(Primate::X5, *TRI);
   };
 
   llvm::erase_if(RepeatedSequenceLocs, CannotInsertCall);
 
   // If the sequence doesn't have enough candidates left, then we're done.
   if (RepeatedSequenceLocs.size() < 2)
-    return outliner::OutlinedFunction();
+    return std::nullopt;
 
   unsigned SequenceSize = 0;
 
-  auto I = RepeatedSequenceLocs[0].front();
-  auto E = std::next(RepeatedSequenceLocs[0].back());
-  for (; I != E; ++I)
-    SequenceSize += getInstSizeInBytes(*I);
+  for (auto &MI : RepeatedSequenceLocs[0])
+    SequenceSize += getInstSizeInBytes(MI);
 
   // call t0, function = 8 bytes.
   unsigned CallOverhead = 8;
@@ -1056,8 +914,10 @@ outliner::OutlinedFunction PrimateInstrInfo::getOutliningCandidateInfo(
 
   // jr t0 = 4 bytes, 2 bytes if compressed instructions are enabled.
   unsigned FrameOverhead = 4;
-  if (RepeatedSequenceLocs[0].getMF()->getSubtarget()
-          .getFeatureBits()[Primate::FeatureStdExtC])
+  if (RepeatedSequenceLocs[0]
+          .getMF()
+          ->getSubtarget<PrimateSubtarget>()
+          .hasStdExtCOrZca())
     FrameOverhead = 2;
 
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
@@ -1143,7 +1003,7 @@ void PrimateInstrInfo::buildOutlinedFrame(
 
 MachineBasicBlock::iterator PrimateInstrInfo::insertOutlinedCall(
     Module &M, MachineBasicBlock &MBB, MachineBasicBlock::iterator &It,
-    MachineFunction &MF, const outliner::Candidate &C) const {
+    MachineFunction &MF, outliner::Candidate &C) const {
 
   // Add in a call instruction to the outlined function at the given location.
   It = MBB.insert(It,
@@ -1179,99 +1039,99 @@ bool PrimateInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   if (!Desc.isCommutable())
     return false;
 
-  switch (MI.getOpcode()) {
-  case CASE_VFMA_SPLATS(FMADD):
-  case CASE_VFMA_SPLATS(FMSUB):
-  case CASE_VFMA_SPLATS(FMACC):
-  case CASE_VFMA_SPLATS(FMSAC):
-  case CASE_VFMA_SPLATS(FNMADD):
-  case CASE_VFMA_SPLATS(FNMSUB):
-  case CASE_VFMA_SPLATS(FNMACC):
-  case CASE_VFMA_SPLATS(FNMSAC):
-  case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
-  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
-  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
-  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
-  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
-  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
-    // For these instructions we can only swap operand 1 and operand 3 by
-    // changing the opcode.
-    unsigned CommutableOpIdx1 = 1;
-    unsigned CommutableOpIdx2 = 3;
-    if (!fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, CommutableOpIdx1,
-                              CommutableOpIdx2))
-      return false;
-    return true;
-  }
-  case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
-  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
-    // For these instructions we have more freedom. We can commute with the
-    // other multiplicand or with the addend/subtrahend/minuend.
+  // switch (MI.getOpcode()) {
+  // case CASE_VFMA_SPLATS(FMADD):
+  // case CASE_VFMA_SPLATS(FMSUB):
+  // case CASE_VFMA_SPLATS(FMACC):
+  // case CASE_VFMA_SPLATS(FMSAC):
+  // case CASE_VFMA_SPLATS(FNMADD):
+  // case CASE_VFMA_SPLATS(FNMSUB):
+  // case CASE_VFMA_SPLATS(FNMACC):
+  // case CASE_VFMA_SPLATS(FNMSAC):
+  // case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  // case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  // case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  // case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  // case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
+  //   // For these instructions we can only swap operand 1 and operand 3 by
+  //   // changing the opcode.
+  //   unsigned CommutableOpIdx1 = 1;
+  //   unsigned CommutableOpIdx2 = 3;
+  //   if (!fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, CommutableOpIdx1,
+  //                             CommutableOpIdx2))
+  //     return false;
+  //   return true;
+  // }
+  // case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  // case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
+  //   // For these instructions we have more freedom. We can commute with the
+  //   // other multiplicand or with the addend/subtrahend/minuend.
 
-    // Any fixed operand must be from source 1, 2 or 3.
-    if (SrcOpIdx1 != CommuteAnyOperandIndex && SrcOpIdx1 > 3)
-      return false;
-    if (SrcOpIdx2 != CommuteAnyOperandIndex && SrcOpIdx2 > 3)
-      return false;
+  //   // Any fixed operand must be from source 1, 2 or 3.
+  //   if (SrcOpIdx1 != CommuteAnyOperandIndex && SrcOpIdx1 > 3)
+  //     return false;
+  //   if (SrcOpIdx2 != CommuteAnyOperandIndex && SrcOpIdx2 > 3)
+  //     return false;
 
-    // It both ops are fixed one must be the tied source.
-    if (SrcOpIdx1 != CommuteAnyOperandIndex &&
-        SrcOpIdx2 != CommuteAnyOperandIndex && SrcOpIdx1 != 1 && SrcOpIdx2 != 1)
-      return false;
+  //   // It both ops are fixed one must be the tied source.
+  //   if (SrcOpIdx1 != CommuteAnyOperandIndex &&
+  //       SrcOpIdx2 != CommuteAnyOperandIndex && SrcOpIdx1 != 1 && SrcOpIdx2 != 1)
+  //     return false;
 
-    // Look for two different register operands assumed to be commutable
-    // regardless of the FMA opcode. The FMA opcode is adjusted later if
-    // needed.
-    if (SrcOpIdx1 == CommuteAnyOperandIndex ||
-        SrcOpIdx2 == CommuteAnyOperandIndex) {
-      // At least one of operands to be commuted is not specified and
-      // this method is free to choose appropriate commutable operands.
-      unsigned CommutableOpIdx1 = SrcOpIdx1;
-      if (SrcOpIdx1 == SrcOpIdx2) {
-        // Both of operands are not fixed. Set one of commutable
-        // operands to the tied source.
-        CommutableOpIdx1 = 1;
-      } else if (SrcOpIdx1 == CommuteAnyOperandIndex) {
-        // Only one of the operands is not fixed.
-        CommutableOpIdx1 = SrcOpIdx2;
-      }
+  //   // Look for two different register operands assumed to be commutable
+  //   // regardless of the FMA opcode. The FMA opcode is adjusted later if
+  //   // needed.
+  //   if (SrcOpIdx1 == CommuteAnyOperandIndex ||
+  //       SrcOpIdx2 == CommuteAnyOperandIndex) {
+  //     // At least one of operands to be commuted is not specified and
+  //     // this method is free to choose appropriate commutable operands.
+  //     unsigned CommutableOpIdx1 = SrcOpIdx1;
+  //     if (SrcOpIdx1 == SrcOpIdx2) {
+  //       // Both of operands are not fixed. Set one of commutable
+  //       // operands to the tied source.
+  //       CommutableOpIdx1 = 1;
+  //     } else if (SrcOpIdx1 == CommuteAnyOperandIndex) {
+  //       // Only one of the operands is not fixed.
+  //       CommutableOpIdx1 = SrcOpIdx2;
+  //     }
 
-      // CommutableOpIdx1 is well defined now. Let's choose another commutable
-      // operand and assign its index to CommutableOpIdx2.
-      unsigned CommutableOpIdx2;
-      if (CommutableOpIdx1 != 1) {
-        // If we haven't already used the tied source, we must use it now.
-        CommutableOpIdx2 = 1;
-      } else {
-        Register Op1Reg = MI.getOperand(CommutableOpIdx1).getReg();
+  //     // CommutableOpIdx1 is well defined now. Let's choose another commutable
+  //     // operand and assign its index to CommutableOpIdx2.
+  //     unsigned CommutableOpIdx2;
+  //     if (CommutableOpIdx1 != 1) {
+  //       // If we haven't already used the tied source, we must use it now.
+  //       CommutableOpIdx2 = 1;
+  //     } else {
+  //       Register Op1Reg = MI.getOperand(CommutableOpIdx1).getReg();
 
-        // The commuted operands should have different registers.
-        // Otherwise, the commute transformation does not change anything and
-        // is useless. We use this as a hint to make our decision.
-        if (Op1Reg != MI.getOperand(2).getReg())
-          CommutableOpIdx2 = 2;
-        else
-          CommutableOpIdx2 = 3;
-      }
+  //       // The commuted operands should have different registers.
+  //       // Otherwise, the commute transformation does not change anything and
+  //       // is useless. We use this as a hint to make our decision.
+  //       if (Op1Reg != MI.getOperand(2).getReg())
+  //         CommutableOpIdx2 = 2;
+  //       else
+  //         CommutableOpIdx2 = 3;
+  //     }
 
-      // Assign the found pair of commutable indices to SrcOpIdx1 and
-      // SrcOpIdx2 to return those values.
-      if (!fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, CommutableOpIdx1,
-                                CommutableOpIdx2))
-        return false;
-    }
+  //     // Assign the found pair of commutable indices to SrcOpIdx1 and
+  //     // SrcOpIdx2 to return those values.
+  //     if (!fixCommutedOpIndices(SrcOpIdx1, SrcOpIdx2, CommutableOpIdx1,
+  //                               CommutableOpIdx2))
+  //       return false;
+  //   }
 
-    return true;
-  }
-  }
+  //   return true;
+  // }
+  // }
 
   return TargetInstrInfo::findCommutedOpIndices(MI, SrcOpIdx1, SrcOpIdx2);
 }
@@ -1305,89 +1165,89 @@ MachineInstr *PrimateInstrInfo::commuteInstructionImpl(MachineInstr &MI,
     return MI;
   };
 
-  switch (MI.getOpcode()) {
-  case CASE_VFMA_SPLATS(FMACC):
-  case CASE_VFMA_SPLATS(FMADD):
-  case CASE_VFMA_SPLATS(FMSAC):
-  case CASE_VFMA_SPLATS(FMSUB):
-  case CASE_VFMA_SPLATS(FNMACC):
-  case CASE_VFMA_SPLATS(FNMADD):
-  case CASE_VFMA_SPLATS(FNMSAC):
-  case CASE_VFMA_SPLATS(FNMSUB):
-  case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
-  case CASE_VFMA_OPCODE_LMULS(MADD, VX):
-  case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
-  case CASE_VFMA_OPCODE_LMULS(MACC, VX):
-  case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
-  case CASE_VFMA_OPCODE_LMULS(MACC, VV):
-  case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
-    // It only make sense to toggle these between clobbering the
-    // addend/subtrahend/minuend one of the multiplicands.
-    assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
-    assert((OpIdx1 == 3 || OpIdx2 == 3) && "Unexpected opcode index");
-    unsigned Opc;
-    switch (MI.getOpcode()) {
-      default:
-        llvm_unreachable("Unexpected opcode");
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FMACC, FMADD)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FMADD, FMACC)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FMSAC, FMSUB)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FMSUB, FMSAC)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMACC, FNMADD)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMADD, FNMACC)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMSAC, FNMSUB)
-      CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMSUB, FNMSAC)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(FMACC, FMADD, VV)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(FMSAC, FMSUB, VV)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(FNMACC, FNMADD, VV)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSAC, FNMSUB, VV)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VX)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VX)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VX)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VX)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VV)
-      CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VV)
-    }
+  // switch (MI.getOpcode()) {
+  // case CASE_VFMA_SPLATS(FMACC):
+  // case CASE_VFMA_SPLATS(FMADD):
+  // case CASE_VFMA_SPLATS(FMSAC):
+  // case CASE_VFMA_SPLATS(FMSUB):
+  // case CASE_VFMA_SPLATS(FNMACC):
+  // case CASE_VFMA_SPLATS(FNMADD):
+  // case CASE_VFMA_SPLATS(FNMSAC):
+  // case CASE_VFMA_SPLATS(FNMSUB):
+  // case CASE_VFMA_OPCODE_LMULS(FMACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FMSAC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMSAC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(MADD, VX):
+  // case CASE_VFMA_OPCODE_LMULS(NMSUB, VX):
+  // case CASE_VFMA_OPCODE_LMULS(MACC, VX):
+  // case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
+  // case CASE_VFMA_OPCODE_LMULS(MACC, VV):
+  // case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
+  //   // It only make sense to toggle these between clobbering the
+  //   // addend/subtrahend/minuend one of the multiplicands.
+  //   assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
+  //   assert((OpIdx1 == 3 || OpIdx2 == 3) && "Unexpected opcode index");
+  //   unsigned Opc;
+  //   switch (MI.getOpcode()) {
+  //     default:
+  //       llvm_unreachable("Unexpected opcode");
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FMACC, FMADD)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FMADD, FMACC)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FMSAC, FMSUB)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FMSUB, FMSAC)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMACC, FNMADD)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMADD, FNMACC)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMSAC, FNMSUB)
+  //     CASE_VFMA_CHANGE_OPCODE_SPLATS(FNMSUB, FNMSAC)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(FMACC, FMADD, VV)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(FMSAC, FMSUB, VV)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(FNMACC, FNMADD, VV)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSAC, FNMSUB, VV)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VX)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VX)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VX)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VX)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(MACC, MADD, VV)
+  //     CASE_VFMA_CHANGE_OPCODE_LMULS(NMSAC, NMSUB, VV)
+  //   }
 
-    auto &WorkingMI = cloneIfNew(MI);
-    WorkingMI.setDesc(get(Opc));
-    return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI=*/false,
-                                                   OpIdx1, OpIdx2);
-  }
-  case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
-  case CASE_VFMA_OPCODE_LMULS(MADD, VV):
-  case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
-    assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
-    // If one of the operands, is the addend we need to change opcode.
-    // Otherwise we're just swapping 2 of the multiplicands.
-    if (OpIdx1 == 3 || OpIdx2 == 3) {
-      unsigned Opc;
-      switch (MI.getOpcode()) {
-        default:
-          llvm_unreachable("Unexpected opcode");
-        CASE_VFMA_CHANGE_OPCODE_LMULS(FMADD, FMACC, VV)
-        CASE_VFMA_CHANGE_OPCODE_LMULS(FMSUB, FMSAC, VV)
-        CASE_VFMA_CHANGE_OPCODE_LMULS(FNMADD, FNMACC, VV)
-        CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSUB, FNMSAC, VV)
-        CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VV)
-        CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VV)
-      }
+  //   auto &WorkingMI = cloneIfNew(MI);
+  //   WorkingMI.setDesc(get(Opc));
+  //   return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI=*/false,
+  //                                                  OpIdx1, OpIdx2);
+  // }
+  // case CASE_VFMA_OPCODE_LMULS(FMADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FMSUB, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
+  // case CASE_VFMA_OPCODE_LMULS(MADD, VV):
+  // case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
+  //   assert((OpIdx1 == 1 || OpIdx2 == 1) && "Unexpected opcode index");
+  //   // If one of the operands, is the addend we need to change opcode.
+  //   // Otherwise we're just swapping 2 of the multiplicands.
+  //   if (OpIdx1 == 3 || OpIdx2 == 3) {
+  //     unsigned Opc;
+  //     switch (MI.getOpcode()) {
+  //       default:
+  //         llvm_unreachable("Unexpected opcode");
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(FMADD, FMACC, VV)
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(FMSUB, FMSAC, VV)
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMADD, FNMACC, VV)
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(FNMSUB, FNMSAC, VV)
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(MADD, MACC, VV)
+  //       CASE_VFMA_CHANGE_OPCODE_LMULS(NMSUB, NMSAC, VV)
+  //     }
 
-      auto &WorkingMI = cloneIfNew(MI);
-      WorkingMI.setDesc(get(Opc));
-      return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI=*/false,
-                                                     OpIdx1, OpIdx2);
-    }
-    // Let the default code handle it.
-    break;
-  }
-  }
+  //     auto &WorkingMI = cloneIfNew(MI);
+  //     WorkingMI.setDesc(get(Opc));
+  //     return TargetInstrInfo::commuteInstructionImpl(WorkingMI, /*NewMI=*/false,
+  //                                                    OpIdx1, OpIdx2);
+  //   }
+  //   // Let the default code handle it.
+  //   break;
+  // }
+  // }
 
   return TargetInstrInfo::commuteInstructionImpl(MI, NewMI, OpIdx1, OpIdx2);
 }
@@ -1426,49 +1286,49 @@ MachineInstr *PrimateInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M4)
 
 MachineInstr *PrimateInstrInfo::convertToThreeAddress(
-    MachineFunction::iterator &MBB, MachineInstr &MI, LiveVariables *LV) const {
+                                MachineInstr &MI, LiveVariables *LV, LiveIntervals* LIV) const {
   switch (MI.getOpcode()) {
   default:
     break;
-  case CASE_WIDEOP_OPCODE_LMULS(FWADD_WV):
-  case CASE_WIDEOP_OPCODE_LMULS(FWSUB_WV):
-  case CASE_WIDEOP_OPCODE_LMULS(WADD_WV):
-  case CASE_WIDEOP_OPCODE_LMULS(WADDU_WV):
-  case CASE_WIDEOP_OPCODE_LMULS(WSUB_WV):
-  case CASE_WIDEOP_OPCODE_LMULS(WSUBU_WV): {
-    // clang-format off
-    unsigned NewOpc;
-    switch (MI.getOpcode()) {
-    default:
-      llvm_unreachable("Unexpected opcode");
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWADD_WV)
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWSUB_WV)
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADD_WV)
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADDU_WV)
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUB_WV)
-    CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUBU_WV)
-    }
-    //clang-format on
+  // case CASE_WIDEOP_OPCODE_LMULS(FWADD_WV):
+  // case CASE_WIDEOP_OPCODE_LMULS(FWSUB_WV):
+  // case CASE_WIDEOP_OPCODE_LMULS(WADD_WV):
+  // case CASE_WIDEOP_OPCODE_LMULS(WADDU_WV):
+  // case CASE_WIDEOP_OPCODE_LMULS(WSUB_WV):
+  // case CASE_WIDEOP_OPCODE_LMULS(WSUBU_WV): {
+  //   // clang-format off
+  //   unsigned NewOpc;
+  //   switch (MI.getOpcode()) {
+  //   default:
+  //     llvm_unreachable("Unexpected opcode");
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWADD_WV)
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(FWSUB_WV)
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADD_WV)
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(WADDU_WV)
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUB_WV)
+  //   CASE_WIDEOP_CHANGE_OPCODE_LMULS(WSUBU_WV)
+  //   }
+  //   //clang-format on
 
-    MachineInstrBuilder MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
-                                  .add(MI.getOperand(0))
-                                  .add(MI.getOperand(1))
-                                  .add(MI.getOperand(2))
-                                  .add(MI.getOperand(3))
-                                  .add(MI.getOperand(4));
-    MIB.copyImplicitOps(MI);
+  //   MachineInstrBuilder MIB = BuildMI(*(MI.getParent()), MI, MI.getDebugLoc(), get(NewOpc))
+  //                                 .add(MI.getOperand(0))
+  //                                 .add(MI.getOperand(1))
+  //                                 .add(MI.getOperand(2))
+  //                                 .add(MI.getOperand(3))
+  //                                 .add(MI.getOperand(4));
+  //   MIB.copyImplicitOps(MI);
 
-    if (LV) {
-      unsigned NumOps = MI.getNumOperands();
-      for (unsigned I = 1; I < NumOps; ++I) {
-        MachineOperand &Op = MI.getOperand(I);
-        if (Op.isReg() && Op.isKill())
-          LV->replaceKillInstruction(Op.getReg(), MI, *MIB);
-      }
-    }
+  //   if (LV) {
+  //     unsigned NumOps = MI.getNumOperands();
+  //     for (unsigned I = 1; I < NumOps; ++I) {
+  //       MachineOperand &Op = MI.getOperand(I);
+  //       if (Op.isReg() && Op.isKill())
+  //         LV->replaceKillInstruction(Op.getReg(), MI, *MIB);
+  //     }
+  //   }
 
-    return MIB;
-  }
+  //   return MIB;
+  // }
   }
 
   return nullptr;
@@ -1485,149 +1345,151 @@ Register PrimateInstrInfo::getVLENFactoredAmount(MachineFunction &MF,
                                                const DebugLoc &DL,
                                                int64_t Amount,
                                                MachineInstr::MIFlag Flag) const {
-  assert(Amount > 0 && "There is no need to get VLEN scaled value.");
-  assert(Amount % 8 == 0 &&
-         "Reserve the stack by the multiple of one vector size.");
+  llvm_unreachable("Primate getVLENFactoredAmount");
+  // assert(Amount > 0 && "There is no need to get VLEN scaled value.");
+  // assert(Amount % 8 == 0 &&
+  //        "Reserve the stack by the multiple of one vector size.");
 
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-  const PrimateInstrInfo *TII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
-  int64_t NumOfVReg = Amount / 8;
+  // MachineRegisterInfo &MRI = MF.getRegInfo();
+  // const PrimateInstrInfo *TII = MF.getSubtarget<PrimateSubtarget>().getInstrInfo();
+  // int64_t NumOfVReg = Amount / 8;
 
-  Register VL = MRI.createVirtualRegister(&Primate::GPRRegClass);
-  BuildMI(MBB, II, DL, TII->get(Primate::PseudoReadVLENB), VL)
-    .setMIFlag(Flag);
-  assert(isInt<32>(NumOfVReg) &&
-         "Expect the number of vector registers within 32-bits.");
-  if (isPowerOf2_32(NumOfVReg)) {
-    uint32_t ShiftAmount = Log2_32(NumOfVReg);
-    if (ShiftAmount == 0)
-      return VL;
-    BuildMI(MBB, II, DL, TII->get(Primate::SLLI), VL)
-        .addReg(VL, RegState::Kill)
-        .addImm(ShiftAmount)
-        .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg - 1)) {
-    Register ScaledRegister = MRI.createVirtualRegister(&Primate::GPRRegClass);
-    uint32_t ShiftAmount = Log2_32(NumOfVReg - 1);
-    BuildMI(MBB, II, DL, TII->get(Primate::SLLI), ScaledRegister)
-        .addReg(VL)
-        .addImm(ShiftAmount)
-        .setMIFlag(Flag);
-    BuildMI(MBB, II, DL, TII->get(Primate::ADD), VL)
-        .addReg(ScaledRegister, RegState::Kill)
-        .addReg(VL, RegState::Kill)
-        .setMIFlag(Flag);
-  } else if (isPowerOf2_32(NumOfVReg + 1)) {
-    Register ScaledRegister = MRI.createVirtualRegister(&Primate::GPRRegClass);
-    uint32_t ShiftAmount = Log2_32(NumOfVReg + 1);
-    BuildMI(MBB, II, DL, TII->get(Primate::SLLI), ScaledRegister)
-        .addReg(VL)
-        .addImm(ShiftAmount)
-        .setMIFlag(Flag);
-    BuildMI(MBB, II, DL, TII->get(Primate::SUB), VL)
-        .addReg(ScaledRegister, RegState::Kill)
-        .addReg(VL, RegState::Kill)
-        .setMIFlag(Flag);
-  } else {
-    Register N = MRI.createVirtualRegister(&Primate::GPRRegClass);
-    if (!isInt<12>(NumOfVReg))
-      movImm(MBB, II, DL, N, NumOfVReg);
-    else {
-      BuildMI(MBB, II, DL, TII->get(Primate::ADDI), N)
-          .addReg(Primate::X0)
-          .addImm(NumOfVReg)
-          .setMIFlag(Flag);
-    }
-    if (!MF.getSubtarget<PrimateSubtarget>().hasStdExtM())
-      MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
-          MF.getFunction(),
-          "M-extension must be enabled to calculate the vscaled size/offset."});
-    BuildMI(MBB, II, DL, TII->get(Primate::MUL), VL)
-        .addReg(VL, RegState::Kill)
-        .addReg(N, RegState::Kill)
-        .setMIFlag(Flag);
-  }
+  // Register VL = MRI.createVirtualRegister(&Primate::GPRRegClass);
+  // BuildMI(MBB, II, DL, TII->get(Primate::PseudoReadVLENB), VL)
+  //   .setMIFlag(Flag);
+  // assert(isInt<32>(NumOfVReg) &&
+  //        "Expect the number of vector registers within 32-bits.");
+  // if (isPowerOf2_32(NumOfVReg)) {
+  //   uint32_t ShiftAmount = Log2_32(NumOfVReg);
+  //   if (ShiftAmount == 0)
+  //     return VL;
+  //   BuildMI(MBB, II, DL, TII->get(Primate::SLLI), VL)
+  //       .addReg(VL, RegState::Kill)
+  //       .addImm(ShiftAmount)
+  //       .setMIFlag(Flag);
+  // } else if (isPowerOf2_32(NumOfVReg - 1)) {
+  //   Register ScaledRegister = MRI.createVirtualRegister(&Primate::GPRRegClass);
+  //   uint32_t ShiftAmount = Log2_32(NumOfVReg - 1);
+  //   BuildMI(MBB, II, DL, TII->get(Primate::SLLI), ScaledRegister)
+  //       .addReg(VL)
+  //       .addImm(ShiftAmount)
+  //       .setMIFlag(Flag);
+  //   BuildMI(MBB, II, DL, TII->get(Primate::ADD), VL)
+  //       .addReg(ScaledRegister, RegState::Kill)
+  //       .addReg(VL, RegState::Kill)
+  //       .setMIFlag(Flag);
+  // } else if (isPowerOf2_32(NumOfVReg + 1)) {
+  //   Register ScaledRegister = MRI.createVirtualRegister(&Primate::GPRRegClass);
+  //   uint32_t ShiftAmount = Log2_32(NumOfVReg + 1);
+  //   BuildMI(MBB, II, DL, TII->get(Primate::SLLI), ScaledRegister)
+  //       .addReg(VL)
+  //       .addImm(ShiftAmount)
+  //       .setMIFlag(Flag);
+  //   BuildMI(MBB, II, DL, TII->get(Primate::SUB), VL)
+  //       .addReg(ScaledRegister, RegState::Kill)
+  //       .addReg(VL, RegState::Kill)
+  //       .setMIFlag(Flag);
+  // } else {
+  //   Register N = MRI.createVirtualRegister(&Primate::GPRRegClass);
+  //   if (!isInt<12>(NumOfVReg))
+  //     movImm(MBB, II, DL, N, NumOfVReg);
+  //   else {
+  //     BuildMI(MBB, II, DL, TII->get(Primate::ADDI), N)
+  //         .addReg(Primate::X0)
+  //         .addImm(NumOfVReg)
+  //         .setMIFlag(Flag);
+  //   }
+  //   if (!MF.getSubtarget<PrimateSubtarget>().hasStdExtM())
+  //     MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
+  //         MF.getFunction(),
+  //         "M-extension must be enabled to calculate the vscaled size/offset."});
+  //   BuildMI(MBB, II, DL, TII->get(Primate::MUL), VL)
+  //       .addReg(VL, RegState::Kill)
+  //       .addReg(N, RegState::Kill)
+  //       .setMIFlag(Flag);
+  // }
 
-  return VL;
+  // return VL;
 }
 
 static bool isPRVWholeLoadStore(unsigned Opcode) {
   switch (Opcode) {
   default:
     return false;
-  case Primate::VS1R_V:
-  case Primate::VS2R_V:
-  case Primate::VS4R_V:
-  case Primate::VS8R_V:
-  case Primate::VL1RE8_V:
-  case Primate::VL2RE8_V:
-  case Primate::VL4RE8_V:
-  case Primate::VL8RE8_V:
-  case Primate::VL1RE16_V:
-  case Primate::VL2RE16_V:
-  case Primate::VL4RE16_V:
-  case Primate::VL8RE16_V:
-  case Primate::VL1RE32_V:
-  case Primate::VL2RE32_V:
-  case Primate::VL4RE32_V:
-  case Primate::VL8RE32_V:
-  case Primate::VL1RE64_V:
-  case Primate::VL2RE64_V:
-  case Primate::VL4RE64_V:
-  case Primate::VL8RE64_V:
-    return true;
+  // case Primate::VS1R_V:
+  // case Primate::VS2R_V:
+  // case Primate::VS4R_V:
+  // case Primate::VS8R_V:
+  // case Primate::VL1RE8_V:
+  // case Primate::VL2RE8_V:
+  // case Primate::VL4RE8_V:
+  // case Primate::VL8RE8_V:
+  // case Primate::VL1RE16_V:
+  // case Primate::VL2RE16_V:
+  // case Primate::VL4RE16_V:
+  // case Primate::VL8RE16_V:
+  // case Primate::VL1RE32_V:
+  // case Primate::VL2RE32_V:
+  // case Primate::VL4RE32_V:
+  // case Primate::VL8RE32_V:
+  // case Primate::VL1RE64_V:
+  // case Primate::VL2RE64_V:
+  // case Primate::VL4RE64_V:
+  // case Primate::VL8RE64_V:
+  //   return true;
   }
 }
 
 bool PrimateInstrInfo::isPRVSpill(const MachineInstr &MI, bool CheckFIs) const {
   // PRV lacks any support for immediate addressing for stack addresses, so be
   // conservative.
-  unsigned Opcode = MI.getOpcode();
-  if (!PrimateVPseudosTable::getPseudoInfo(Opcode) &&
-      !isPRVWholeLoadStore(Opcode) && !isPRVSpillForZvlsseg(Opcode))
-    return false;
-  return !CheckFIs || any_of(MI.operands(), [](const MachineOperand &MO) {
-    return MO.isFI();
-  });
+  return false; // KAYVAN: We are removing PRV cause I am under pressure - David Bowie or John Queen
+  // unsigned Opcode = MI.getOpcode();
+  // if (!PrimateVPseudosTable::getPseudoInfo(Opcode) &&
+  //     !isPRVWholeLoadStore(Opcode) && !isPRVSpillForZvlsseg(Opcode))
+  //   return false;
+  // return !CheckFIs || any_of(MI.operands(), [](const MachineOperand &MO) {
+  //   return MO.isFI();
+  // });
 }
 
-Optional<std::pair<unsigned, unsigned>>
+std::optional<std::pair<unsigned, unsigned>>
 PrimateInstrInfo::isPRVSpillForZvlsseg(unsigned Opcode) const {
   switch (Opcode) {
   default:
-    return None;
-  case Primate::PseudoVSPILL2_M1:
-  case Primate::PseudoVRELOAD2_M1:
-    return std::make_pair(2u, 1u);
-  case Primate::PseudoVSPILL2_M2:
-  case Primate::PseudoVRELOAD2_M2:
-    return std::make_pair(2u, 2u);
-  case Primate::PseudoVSPILL2_M4:
-  case Primate::PseudoVRELOAD2_M4:
-    return std::make_pair(2u, 4u);
-  case Primate::PseudoVSPILL3_M1:
-  case Primate::PseudoVRELOAD3_M1:
-    return std::make_pair(3u, 1u);
-  case Primate::PseudoVSPILL3_M2:
-  case Primate::PseudoVRELOAD3_M2:
-    return std::make_pair(3u, 2u);
-  case Primate::PseudoVSPILL4_M1:
-  case Primate::PseudoVRELOAD4_M1:
-    return std::make_pair(4u, 1u);
-  case Primate::PseudoVSPILL4_M2:
-  case Primate::PseudoVRELOAD4_M2:
-    return std::make_pair(4u, 2u);
-  case Primate::PseudoVSPILL5_M1:
-  case Primate::PseudoVRELOAD5_M1:
-    return std::make_pair(5u, 1u);
-  case Primate::PseudoVSPILL6_M1:
-  case Primate::PseudoVRELOAD6_M1:
-    return std::make_pair(6u, 1u);
-  case Primate::PseudoVSPILL7_M1:
-  case Primate::PseudoVRELOAD7_M1:
-    return std::make_pair(7u, 1u);
-  case Primate::PseudoVSPILL8_M1:
-  case Primate::PseudoVRELOAD8_M1:
-    return std::make_pair(8u, 1u);
+    return {};
+  // case Primate::PseudoVSPILL2_M1:
+  // case Primate::PseudoVRELOAD2_M1:
+  //   return std::make_pair(2u, 1u);
+  // case Primate::PseudoVSPILL2_M2:
+  // case Primate::PseudoVRELOAD2_M2:
+  //   return std::make_pair(2u, 2u);
+  // case Primate::PseudoVSPILL2_M4:
+  // case Primate::PseudoVRELOAD2_M4:
+  //   return std::make_pair(2u, 4u);
+  // case Primate::PseudoVSPILL3_M1:
+  // case Primate::PseudoVRELOAD3_M1:
+  //   return std::make_pair(3u, 1u);
+  // case Primate::PseudoVSPILL3_M2:
+  // case Primate::PseudoVRELOAD3_M2:
+  //   return std::make_pair(3u, 2u);
+  // case Primate::PseudoVSPILL4_M1:
+  // case Primate::PseudoVRELOAD4_M1:
+  //   return std::make_pair(4u, 1u);
+  // case Primate::PseudoVSPILL4_M2:
+  // case Primate::PseudoVRELOAD4_M2:
+  //   return std::make_pair(4u, 2u);
+  // case Primate::PseudoVSPILL5_M1:
+  // case Primate::PseudoVRELOAD5_M1:
+  //   return std::make_pair(5u, 1u);
+  // case Primate::PseudoVSPILL6_M1:
+  // case Primate::PseudoVRELOAD6_M1:
+  //   return std::make_pair(6u, 1u);
+  // case Primate::PseudoVSPILL7_M1:
+  // case Primate::PseudoVRELOAD7_M1:
+  //   return std::make_pair(7u, 1u);
+  // case Primate::PseudoVSPILL8_M1:
+  // case Primate::PseudoVRELOAD8_M1:
+  //   return std::make_pair(8u, 1u);
   }
 }

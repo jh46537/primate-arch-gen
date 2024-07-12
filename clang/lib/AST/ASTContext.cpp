@@ -1383,7 +1383,7 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
 //#define PRV_TYPE(Name, Id, SingletonId)                                        \
 //  InitBuiltinType(SingletonId, BuiltinType::Id);
 //#include "clang/Basic/PrimateVTypes.def"
-//  }
+  }
 
   // Builtin type for __objc_yes and __objc_no
   ObjCBuiltinBoolTy = (Target.useSignedCharForObjCBool() ?

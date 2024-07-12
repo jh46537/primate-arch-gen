@@ -4,11 +4,10 @@ set(LLVM_TARGET_DEFINITIONS Primate.td)
 
 tablegen(LLVM PrimateGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM PrimateGenAsmWriter.inc -gen-asm-writer)
-tablegen(LLVM PrimateGenCompressInstEmitter.inc -gen-primate-compress-inst-emitter)
+tablegen(LLVM PrimateGenCompressInstEmitter.inc -gen-compress-inst-emitter)
 tablegen(LLVM PrimateGenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM PrimateGenDFAPacketizer.inc -gen-dfa-packetizer)
 tablegen(LLVM PrimateGenDisassemblerTables.inc -gen-disassembler)
-tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM PrimateGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM PrimateGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM PrimateGenMCPseudoLowering.inc -gen-pseudo-lowering)
@@ -16,6 +15,15 @@ tablegen(LLVM PrimateGenRegisterBank.inc -gen-register-bank)
 tablegen(LLVM PrimateGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM PrimateGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM PrimateGenSubtargetInfo.inc -gen-subtarget)
+
+# set(LLVM_TARGET_DEFINITIONS PrimateGISel.td)
+# tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
+# tablegen(LLVM PrimateGenO0PreLegalizeGICombiner.inc -gen-global-isel-combiner
+#               -combiners="PrimateO0PreLegalizerCombiner")
+# tablegen(LLVM PrimateGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
+#               -combiners="PrimatePreLegalizerCombiner")
+# tablegen(LLVM PrimateGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
+#               -combiners="PrimatePostLegalizerCombiner")
 
 add_public_tablegen_target(PrimateCommonTableGen)
 
@@ -25,7 +33,6 @@ add_llvm_target(PrimateCodeGen
   PrimateExpandAtomicPseudoInsts.cpp
   PrimateExpandPseudoInsts.cpp
   PrimateFrameLowering.cpp
-  PrimateInsertVSETVLI.cpp
   PrimateInstrInfo.cpp
   PrimateInstructionSelector.cpp
   PrimateISelDAGToDAG.cpp

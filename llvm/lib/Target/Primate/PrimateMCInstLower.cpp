@@ -134,77 +134,7 @@ bool llvm::LowerPrimateMachineOperandToMCOperand(const MachineOperand &MO,
 
 static bool lowerPrimateVMachineInstrToMCInst(const MachineInstr *MI,
                                             MCInst &OutMI) {
-  const PrimateVPseudosTable::PseudoInfo *PRV =
-      PrimateVPseudosTable::getPseudoInfo(MI->getOpcode());
-  if (!PRV)
-    return false;
-
-  OutMI.setOpcode(PRV->BaseInstr);
-
-  const MachineBasicBlock *MBB = MI->getParent();
-  assert(MBB && "MI expected to be in a basic block");
-  const MachineFunction *MF = MBB->getParent();
-  assert(MF && "MBB expected to be in a machine function");
-
-  const TargetRegisterInfo *TRI =
-      MF->getSubtarget<PrimateSubtarget>().getRegisterInfo();
-  assert(TRI && "TargetRegisterInfo expected");
-
-  uint64_t TSFlags = MI->getDesc().TSFlags;
-  int NumOps = MI->getNumExplicitOperands();
-
-  for (const MachineOperand &MO : MI->explicit_operands()) {
-    int OpNo = (int)MI->getOperandNo(&MO);
-    assert(OpNo >= 0 && "Operand number doesn't fit in an 'int' type");
-
-    // Skip VL and SEW operands which are the last two operands if present.
-    if (PrimateII::hasVLOp(TSFlags) && OpNo == (NumOps - 2))
-      continue;
-    if (PrimateII::hasSEWOp(TSFlags) && OpNo == (NumOps - 1))
-      continue;
-
-    // Skip merge op. It should be the first operand after the result.
-    if (PrimateII::hasMergeOp(TSFlags) && OpNo == 1) {
-      assert(MI->getNumExplicitDefs() == 1);
-      continue;
-    }
-
-    MCOperand MCOp;
-    switch (MO.getType()) {
-    default:
-      llvm_unreachable("Unknown operand type");
-    case MachineOperand::MO_Register: {
-      unsigned Reg = MO.getReg();
-
-      if (Primate::VRM2RegClass.contains(Reg) ||
-          Primate::VRM4RegClass.contains(Reg) ||
-          Primate::VRM8RegClass.contains(Reg)) {
-        Reg = TRI->getSubReg(Reg, Primate::sub_vrm1_0);
-        assert(Reg && "Subregister does not exist");
-      } else if (Primate::FPR16RegClass.contains(Reg)) {
-        Reg = TRI->getMatchingSuperReg(Reg, Primate::sub_16, &Primate::FPR32RegClass);
-        assert(Reg && "Subregister does not exist");
-      } else if (Primate::FPR64RegClass.contains(Reg)) {
-        Reg = TRI->getSubReg(Reg, Primate::sub_32);
-        assert(Reg && "Superregister does not exist");
-      }
-
-      MCOp = MCOperand::createReg(Reg);
-      break;
-    }
-    case MachineOperand::MO_Immediate:
-      MCOp = MCOperand::createImm(MO.getImm());
-      break;
-    }
-    OutMI.addOperand(MCOp);
-  }
-
-  // Unmasked pseudo instructions need to append dummy mask operand to
-  // V instructions. All V instructions are modeled as the masked version.
-  if (PrimateII::hasDummyMaskOp(TSFlags))
-    OutMI.addOperand(MCOperand::createReg(Primate::NoRegister));
-
-  return true;
+  return false;
 }
 
 bool llvm::lowerPrimateMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
@@ -234,18 +164,6 @@ bool llvm::lowerPrimateMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutM
     }
     break;
   }
-  case Primate::PseudoReadVLENB:
-    OutMI.setOpcode(Primate::CSRRS);
-    OutMI.addOperand(MCOperand::createImm(
-        PrimateSysReg::lookupSysRegByName("VLENB")->Encoding));
-    OutMI.addOperand(MCOperand::createReg(Primate::X0));
-    break;
-  case Primate::PseudoReadVL:
-    OutMI.setOpcode(Primate::CSRRS);
-    OutMI.addOperand(
-        MCOperand::createImm(PrimateSysReg::lookupSysRegByName("VL")->Encoding));
-    OutMI.addOperand(MCOperand::createReg(Primate::X0));
-    break;
   }
   return false;
 }
