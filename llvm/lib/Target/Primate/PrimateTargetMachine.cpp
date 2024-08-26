@@ -20,9 +20,12 @@
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
 #include "PrimateScheduleStrategy.h"
+#include "PrimateMachineFunctionInfo.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/CodeGen/MIRParser/MIParser.h"
+#include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
@@ -81,6 +84,8 @@ PrimateTargetMachine::PrimateTargetMachine(const Target &T, const Triple &TT,
 
   // Primate supports the MachineOutliner.
   setMachineOutliner(true);
+  setSupportsDefaultOutlining(true);
+  dbgs() << "Init Target Machine for CPU: " << CPU << "\n";
 }
 
 const PrimateSubtarget *
@@ -91,6 +96,12 @@ PrimateTargetMachine::getSubtargetImpl(const Function &F) const {
 
   std::string CPU =
       CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
+  dbgs() << "Compiling to primate CPU: " << CPU << "\n";
+  // TODO: KAYVAN
+  // FIX THIS SO WE DON'T FAIL ON A BACK TARGET CPU. Make the default the correct thing
+  if(CPU.length() == 0) {
+    CPU = "PrimateModel";
+  }
   std::string TuneCPU =
       TuneAttr.isValid() ? TuneAttr.getValueAsString().str() : CPU;
   std::string FS =
@@ -250,4 +261,31 @@ void PrimatePassConfig::addPreRegAlloc() {
     addPass(createPrimateMergeBaseOffsetOptPass());
 
   addPass(createPrimateCustomSchedulePass());
+}
+
+yaml::MachineFunctionInfo *
+PrimateTargetMachine::createDefaultFuncInfoYAML() const {
+  return new yaml::PrimateMachineFunctionInfo();
+}
+
+yaml::MachineFunctionInfo *
+PrimateTargetMachine::convertFuncInfoToYAML(const MachineFunction &MF) const {
+  const auto *MFI = MF.getInfo<PrimateMachineFunctionInfo>();
+  return new yaml::PrimateMachineFunctionInfo(*MFI);
+}
+
+bool PrimateTargetMachine::parseMachineFunctionInfo(
+    const yaml::MachineFunctionInfo &MFI, PerFunctionMIParsingState &PFS,
+    SMDiagnostic &Error, SMRange &SourceRange) const {
+  const auto &YamlMFI =
+      static_cast<const yaml::PrimateMachineFunctionInfo &>(MFI);
+  PFS.MF.getInfo<PrimateMachineFunctionInfo>()->initializeBaseYamlFields(YamlMFI);
+  return false;
+}
+
+MachineFunctionInfo *PrimateTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return PrimateMachineFunctionInfo::create<PrimateMachineFunctionInfo>(Allocator,
+                                                                    F, STI);
 }

@@ -876,6 +876,9 @@ void PrimateFrameLowering::processFunctionBeforeFrameFinalized(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const TargetRegisterClass *RC = &Primate::GPRRegClass;
   auto *PRFI = MF.getInfo<PrimateMachineFunctionInfo>();
+  if(!PRFI) {
+    errs() << "Machine Function Info missing? How does this happen?";
+  }
 
   int64_t PRVStackSize = assignPRVStackObjectOffsets(MFI);
   PRFI->setPRVStackSize(PRVStackSize);

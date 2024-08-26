@@ -16,8 +16,8 @@ tablegen(LLVM PrimateGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM PrimateGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM PrimateGenSubtargetInfo.inc -gen-subtarget)
 
-# set(LLVM_TARGET_DEFINITIONS PrimateGISel.td)
-# tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
+set(LLVM_TARGET_DEFINITIONS PrimateGISel.td)
+tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
 # tablegen(LLVM PrimateGenO0PreLegalizeGICombiner.inc -gen-global-isel-combiner
 #               -combiners="PrimateO0PreLegalizerCombiner")
 # tablegen(LLVM PrimateGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
@@ -57,6 +57,7 @@ add_llvm_target(PrimateCodeGen
   PrimateOpMerge.cpp
   PrimatePacketLegalizer.cpp
   PrimateBFUTypeFindingPass.cpp
+  PrimateMachineFunctionInfo.cpp
 
   LINK_COMPONENTS
   Analysis

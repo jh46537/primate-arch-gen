@@ -141,7 +141,6 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
   // Loop over all of the basic blocks.
   for (auto &MB : MF) {
     // TODO(ahsu): fix scheduling boundary
-    printf("");
     LLVM_DEBUG({
       dbgs() << "starting packetizing on MB:\n ";
       MB.print(dbgs());
@@ -152,7 +151,6 @@ bool PrimatePacketizer::runOnMachineFunction(MachineFunction &MF) {
       continue;
     }
     Packetizer.PacketizeMIs(&MB, MB.begin(), MB.end());
-    printf("");
   }
   return true;
 }
@@ -388,6 +386,7 @@ void PrimatePacketizerList::initPacketizerState() {
 // Ignore bundling of pseudo instructions.
 bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
                                                     const MachineBasicBlock *) {
+  dbgs() << "check ignore for MI: "; MI.dump();
   // FIXME: ignore END or maybe in isSoloInstruction?
   if (MI.isCFIInstruction()) {
     MI.dump();
@@ -398,10 +397,14 @@ bool PrimatePacketizerList::ignorePseudoInstruction(const MachineInstr &MI,
   // We check if MI has any functional units mapped to it. If it doesn't,
   // we ignore the instruction.
   const MCInstrDesc& TID = MI.getDesc();
-  auto *IS = ResourceTracker->getInstrItins()->beginStage(TID.getSchedClass());
+  dbgs() << "Schedule Class: " << TID.getSchedClass() << "\n";
+  auto *Itins = ResourceTracker->getInstrItins();
+  if(!Itins) {llvm_unreachable("ResourceTracker has no intruction itineraries");}
+  auto *IS = Itins->beginStage(TID.getSchedClass());
   if(!IS->getUnits()) {
     dbgs() << "Pseudo Instr is ignored...\n";
   }
+  dbgs() << "not ignoring: "; MI.dump();
   return !IS->getUnits();
 }
 

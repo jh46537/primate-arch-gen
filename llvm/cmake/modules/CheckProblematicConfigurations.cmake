@@ -11,6 +11,9 @@ endmacro()
 
 # MSVC and /arch:AVX is untested and have created problems before. See:
 # https://github.com/llvm/llvm-project/issues/54645
+message(CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}) # kayvan: debug
+message(CMAKE_CXX_COMPILER_ID=${CMAKE_CXX_COMPILER_ID}) # kayvan: debug
+
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
   string(TOLOWER "${CMAKE_CXX_FLAGS} ${CMAKE_C_FLAGS}" _FLAGS)
   if(_FLAGS MATCHES "/arch:avx[0-9]*")

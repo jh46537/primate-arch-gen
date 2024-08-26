@@ -31,6 +31,10 @@ public:
                      std::optional<Reloc::Model> RM, std::optional<CodeModel::Model> CM,
                      CodeGenOptLevel OL, bool JIT);
 
+  MachineFunctionInfo *createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const override;
+
   const PrimateSubtarget *getSubtargetImpl(const Function &F) const override;
   // DO NOT IMPLEMENT: There is no such thing as a valid default subtarget,
   // subtargets are per-function entities based on the target-specific
@@ -50,6 +54,14 @@ public:
 
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS,
                                    unsigned DstAS) const override;
+
+  yaml::MachineFunctionInfo *createDefaultFuncInfoYAML() const override;
+  yaml::MachineFunctionInfo *
+  convertFuncInfoToYAML(const MachineFunction &MF) const override;
+  bool parseMachineFunctionInfo(const yaml::MachineFunctionInfo &,
+                                PerFunctionMIParsingState &PFS,
+                                SMDiagnostic &Error,
+                                SMRange &SourceRange) const override;
 };
 } // namespace llvm
 

@@ -14,11 +14,34 @@
 #define LLVM_LIB_TARGET_PRIMATE_PRIMATEMACHINEFUNCTIONINFO_H
 
 #include "PrimateSubtarget.h"
+#include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
 namespace llvm {
 
+class PrimateMachineFunctionInfo;
+
+namespace yaml {
+struct PrimateMachineFunctionInfo final : public yaml::MachineFunctionInfo {
+  int VarArgsFrameIndex;
+  int VarArgsSaveSize;
+
+  PrimateMachineFunctionInfo() = default;
+  PrimateMachineFunctionInfo(const llvm::PrimateMachineFunctionInfo &MFI);
+
+  void mappingImpl(yaml::IO &YamlIO) override;
+  ~PrimateMachineFunctionInfo() = default;
+};
+
+  template <> struct MappingTraits<PrimateMachineFunctionInfo> {
+  static void mapping(IO &YamlIO, PrimateMachineFunctionInfo &MFI) {
+    YamlIO.mapOptional("varArgsFrameIndex", MFI.VarArgsFrameIndex);
+    YamlIO.mapOptional("varArgsSaveSize", MFI.VarArgsSaveSize);
+  }
+};
+} // end namespace yaml
+  
 /// PrimateMachineFunctionInfo - This class is derived from MachineFunctionInfo
 /// and contains private Primate-specific information for each MachineFunction.
 class PrimateMachineFunctionInfo : public MachineFunctionInfo {
@@ -40,8 +63,13 @@ private:
   unsigned CalleeSavedStackSize = 0;
 
 public:
-  PrimateMachineFunctionInfo(const MachineFunction &MF) {}
+  PrimateMachineFunctionInfo(const Function &F, const TargetSubtargetInfo *STI) {}
 
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
+  
   int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
   void setVarArgsFrameIndex(int Index) { VarArgsFrameIndex = Index; }
 
@@ -74,6 +102,8 @@ public:
 
   unsigned getCalleeSavedStackSize() const { return CalleeSavedStackSize; }
   void setCalleeSavedStackSize(unsigned Size) { CalleeSavedStackSize = Size; }
+
+  void initializeBaseYamlFields(const yaml::PrimateMachineFunctionInfo &YamlMFI);
 };
 
 } // end namespace llvm

@@ -108,6 +108,7 @@ struct InstrItinerary {
 /// Itinerary data supplied by a subtarget to be used by a target.
 ///
 class InstrItineraryData {
+
 public:
   MCSchedModel SchedModel =
       MCSchedModel::Default;               ///< Basic machine properties.
@@ -134,6 +135,9 @@ public:
 
   /// Return the first stage of the itinerary.
   const InstrStage *beginStage(unsigned ItinClassIndx) const {
+    if(!Itineraries) {
+      assert(0 && "CPU MODEL HAS NO ITINERARIES! CANNOT PACKETIZE! (bad TableGen?)");
+    }
     unsigned StageIdx = Itineraries[ItinClassIndx].FirstStage;
     return Stages + StageIdx;
   }

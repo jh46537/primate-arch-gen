@@ -53,10 +53,10 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     SDNode *N = &*I++; // Preincrement iterator to avoid invalidation issues.
 
     SDLoc DL(N);
-    // if (N->getOpcode() == PrimateISD::EXTRACT || N->getOpcode() == PrimateISD::INSERT ||
-    //     N->getOpcode() == ISD::Constant) {
-    //   continue;
-    // }
+    if (N->getOpcode() == PrimateISD::EXTRACT || N->getOpcode() == PrimateISD::INSERT ||
+        N->getOpcode() == ISD::Constant) {
+      continue;
+    }
 
     // for(unsigned i = 0; i < N->getNumValues(); i++ ) {
     //   SDValue curVal = SDValue(N, i);
@@ -67,64 +67,6 @@ void PrimateDAGToDAGISel::PreprocessISelDAG() {
     //     CurDAG->getNode(Primate::INSERTdef, DL, MVT::Primate_aggregate, ops);
     //   }
     // }
-
-    // // Lower SPLAT_VECTOR_SPLIT_I64 to two scalar stores and a stride 0 vector
-    // // load. Done after lowering and combining so that we have a chance to
-    // // optimize this to VMV_V_X_VL when the upper bits aren't needed.
-    // if (N->getOpcode() != PrimateISD::SPLAT_VECTOR_SPLIT_I64_VL)
-    //   continue;
-
-    assert(N->getNumOperands() == 3 && "Unexpected number of operands");
-    MVT VT = N->getSimpleValueType(0);
-    SDValue Lo = N->getOperand(0);
-    SDValue Hi = N->getOperand(1);
-    SDValue VL = N->getOperand(2);
-    assert(VT.getVectorElementType() == MVT::i64 && VT.isScalableVector() &&
-           Lo.getValueType() == MVT::i32 && Hi.getValueType() == MVT::i32 &&
-           "Unexpected VTs!");
-    MachineFunction &MF = CurDAG->getMachineFunction();
-    PrimateMachineFunctionInfo *FuncInfo = MF.getInfo<PrimateMachineFunctionInfo>();
-    
-
-    // We use the same frame index we use for moving two i32s into 64-bit FPR.
-    // This is an analogous operation.
-    int FI = FuncInfo->getMoveF64FrameIndex(MF);
-    MachinePointerInfo MPI = MachinePointerInfo::getFixedStack(MF, FI);
-    const TargetLowering &TLI = CurDAG->getTargetLoweringInfo();
-    SDValue StackSlot =
-        CurDAG->getFrameIndex(FI, TLI.getPointerTy(CurDAG->getDataLayout()));
-
-    SDValue Chain = CurDAG->getEntryNode();
-    Lo = CurDAG->getStore(Chain, DL, Lo, StackSlot, MPI, Align(8));
-
-    SDValue OffsetSlot =
-        CurDAG->getMemBasePlusOffset(StackSlot, TypeSize::getFixed(4), DL);
-    Hi = CurDAG->getStore(Chain, DL, Hi, OffsetSlot, MPI.getWithOffset(4),
-                          Align(8));
-
-    Chain = CurDAG->getNode(ISD::TokenFactor, DL, MVT::Other, Lo, Hi);
-
-    SDVTList VTs = CurDAG->getVTList({VT, MVT::Other});
-    SDValue IntID =
-        CurDAG->getTargetConstant(Intrinsic::primate_vlse, DL, MVT::i64);
-    SDValue Ops[] = {Chain, IntID, StackSlot,
-                     CurDAG->getRegister(Primate::X0, MVT::i64), VL};
-
-    SDValue Result = CurDAG->getMemIntrinsicNode(
-        ISD::INTRINSIC_W_CHAIN, DL, VTs, Ops, MVT::i64, MPI, Align(8),
-        MachineMemOperand::MOLoad);
-
-    // We're about to replace all uses of the SPLAT_VECTOR_SPLIT_I64 with the
-    // vlse we created.  This will cause general havok on the dag because
-    // anything below the conversion could be folded into other existing nodes.
-    // To avoid invalidating 'I', back it up to the convert node.
-    --I;
-    CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Result);
-
-    // Now that we did that, the node is dead.  Increment the iterator to the
-    // next node to process, then delete N.
-    ++I;
-    CurDAG->DeleteNode(N);
   }
 }
 

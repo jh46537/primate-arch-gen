@@ -884,36 +884,46 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   // Need to read in the archgen params for the reg file.
   dbgs() << "reading in register indexing parameters\n";
   std::ifstream archgenParams ("primate.cfg");
-  while(archgenParams.good()) {
-    std::string paramString;
-    getline(archgenParams, paramString);
-    std::string name  = paramString.substr(0, paramString.find("=")); 
-    std::string value = paramString.substr(paramString.find("=")+1, paramString.length());
-    if(name == "SRC_POS") {
-      dbgs() << value << "\n";
-      auto iss = std::istringstream{value};
-      auto str = std::string{};
+  if(!archgenParams.good()) {
+    // primate.cfg doesn't exist
+    // create scalar 1 wide machine
+    allPoses.push_back(0);
+    allSizes.push_back(32);
+    alucount = 1;
+    bfucount = 2; // IO and mem unit
+  }
+  else {
+    while(archgenParams.good()) {
+      std::string paramString;
+      getline(archgenParams, paramString);
+      std::string name  = paramString.substr(0, paramString.find("=")); 
+      std::string value = paramString.substr(paramString.find("=")+1, paramString.length());
+      if(name == "SRC_POS") {
+	dbgs() << value << "\n";
+	auto iss = std::istringstream{value};
+	auto str = std::string{};
 
-      while (iss >> str) {
-        allPoses.push_back(std::stoi(str));
+	while (iss >> str) {
+	  allPoses.push_back(std::stoi(str));
+	}
       }
-    }
-    else if(name == "SRC_MODE") {
-      dbgs() << value << "\n";
-      auto iss = std::istringstream{value};
-      auto str = std::string{};
+      else if(name == "SRC_MODE") {
+	dbgs() << value << "\n";
+	auto iss = std::istringstream{value};
+	auto str = std::string{};
 
-      while (iss >> str) {
-        allSizes.push_back(std::stoi(str));
+	while (iss >> str) {
+	  allSizes.push_back(std::stoi(str));
+	}
       }
-    }
-    else if(name == "NUM_ALUS") {
-      alucount = std::stoi(value);
-      dbgs() << "number of ALUs found: " << alucount << "\n";
-    }
-    else if(name == "NUM_BFUS") {
-      bfucount = std::stoi(value) + 2;
-      dbgs() << "number of BFUs found: " << bfucount << "\n";
+      else if(name == "NUM_ALUS") {
+	alucount = std::stoi(value);
+	dbgs() << "number of ALUs found: " << alucount << "\n";
+      }
+      else if(name == "NUM_BFUS") {
+	bfucount = std::stoi(value) + 2;
+	dbgs() << "number of BFUs found: " << bfucount << "\n";
+      }
     }
   }
 
