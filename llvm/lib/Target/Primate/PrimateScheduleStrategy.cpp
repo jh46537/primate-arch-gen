@@ -22,9 +22,14 @@ SUnit *PrimateSchedStrategy::pickNode(bool &IsTopNode) {
     }
 
     for (SUnit* SU: candidates) {
-        if(ResourceTracker->canReserveResources(*(SU->getInstr()))) {
-            selectedNode = SU;
-        }
+      if(ResourceTracker->canReserveResources(*(SU->getInstr()))) {
+	if(selectedNode && selectedNode->getDepth() > SU->getDepth()) {
+	  selectedNode = SU;
+	}
+	else if (!selectedNode) {
+	  selectedNode = SU;
+	}
+      }
     }
     if(selectedNode) {
         dbgs() << " that can be bundled, by the resource tracker\n";
