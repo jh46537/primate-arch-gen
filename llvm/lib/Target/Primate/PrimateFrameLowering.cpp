@@ -333,6 +333,7 @@ void PrimateFrameLowering::adjustStackForPRV(MachineFunction &MF,
 
 void PrimateFrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
+  return;
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *PRFI = MF.getInfo<PrimateMachineFunctionInfo>();
   const PrimateRegisterInfo *RI = STI.getRegisterInfo();
@@ -534,6 +535,7 @@ void PrimateFrameLowering::emitPrologue(MachineFunction &MF,
 
 void PrimateFrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
+  return;
   const PrimateRegisterInfo *RI = STI.getRegisterInfo();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *PRFI = MF.getInfo<PrimateMachineFunctionInfo>();
@@ -787,6 +789,7 @@ void PrimateFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                               BitVector &SavedRegs,
                                               RegScavenger *RS) const {
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+  return;
   // Unconditionally spill RA and FP only if the function uses a frame
   // pointer.
   if (hasFP(MF)) {

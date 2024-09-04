@@ -182,7 +182,7 @@ let TargetPrefix = "primate" in {
   // Input: (pointer, vl)
   class PrimateUSLoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [llvm_ptr_ty, LLVMMatchType<0>,
+                    [llvm_ptr_ty,
                      llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For unit stride fault-only-first load
@@ -192,7 +192,7 @@ let TargetPrefix = "primate" in {
   // VL as a side effect. IntrReadMem, IntrHasSideEffects does not work.
   class PrimateUSLoadFF
         : Intrinsic<[llvm_anyvector_ty, llvm_anyint_ty],
-                    [llvm_ptr_ty, LLVMMatchType<0>, LLVMMatchType<1>],
+                    [llvm_ptr_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>]>,
                     PrimateVIntrinsic;
   // For unit stride load with mask
@@ -220,7 +220,7 @@ let TargetPrefix = "primate" in {
   // Input: (pointer, stride, vl)
   class PrimateSLoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [llvm_ptr_ty, LLVMMatchType<0>,
+                    [llvm_ptr_ty,
                      llvm_anyint_ty, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For strided load with mask
@@ -235,7 +235,7 @@ let TargetPrefix = "primate" in {
   // Input: (pointer, index, vl)
   class PrimateILoad
         : Intrinsic<[llvm_anyvector_ty],
-                    [llvm_ptr_ty, LLVMMatchType<0>,
+                    [llvm_ptr_ty,
                      llvm_anyvector_ty, llvm_anyint_ty],
                     [NoCapture<ArgIndex<0>>, IntrReadMem]>, PrimateVIntrinsic;
   // For indexed load with mask
@@ -278,8 +278,8 @@ let TargetPrefix = "primate" in {
   // Input: (vector_in, pointer, stirde, mask, vl)
   class PrimateSStoreMask
         : Intrinsic<[],
-                    [llvm_anyvector_ty, llvm_ptr_ty,
-                     LLVMMatchType<0>, llvm_anyint_ty,
+                    [llvm_anyvector_ty,
+                     llvm_ptr_ty, LLVMMatchType<0>, llvm_anyint_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, LLVMMatchType<1>],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For indexed store
@@ -295,8 +295,8 @@ let TargetPrefix = "primate" in {
   // Input: (vector_in, pointer, index, mask, vl)
   class PrimateIStoreMask
         : Intrinsic<[],
-                    [llvm_anyvector_ty, llvm_ptr_ty,
-                     LLVMMatchType<0>, llvm_anyvector_ty,
+                    [llvm_anyvector_ty,
+                     llvm_ptr_ty, LLVMMatchType<0>, llvm_anyvector_ty,
                      LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_anyint_ty],
                     [NoCapture<ArgIndex<1>>, IntrWriteMem]>, PrimateVIntrinsic;
   // For destination vector type is the same as source vector.

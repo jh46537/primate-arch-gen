@@ -26,7 +26,7 @@ namespace llvm {
     static AnalysisKey Key;
 
     using Result = std::set<Type*>;
-    Result run(Module& M, ModuleAnalysisManager& PA);
+    Result run(Function& M, FunctionAnalysisManager& PA);
   };
 }
 

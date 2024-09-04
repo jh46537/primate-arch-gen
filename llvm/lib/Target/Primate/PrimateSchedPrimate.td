@@ -160,9 +160,6 @@ let Latency = 5 in {
 def : WriteRes<WriteFALU32, [GreenPipes]>;
 def : WriteRes<WriteFMul32, [GreenPipes]>;
 def : WriteRes<WriteFMA32, [GreenPipes]>;
-def : WriteRes<WriteFAdd64, [GreenPipes]>;
-def : WriteRes<WriteFAdd32, [GreenPipes]>;
-def : WriteRes<WriteFAdd16, [GreenPipes]>;
 }
 let Latency = 3 in {
 def : WriteRes<WriteFSGNJ32, [GreenPipes]>;

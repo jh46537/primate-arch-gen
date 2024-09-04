@@ -39,9 +39,9 @@ Type* KayvanfollowPointerForType(Value* start) {
 
 AnalysisKey PrimateBFUTypeFinding::Key;
 
-PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalysisManager& PA) {
+PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Function& F, FunctionAnalysisManager& PA) {
 
-    for(auto& F: M){
+  {
         for(auto& BB: F) {
             for(auto& inst: BB) {
                 if(CallInst* ci = dyn_cast<CallInst>(&inst)) {
@@ -88,9 +88,9 @@ PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Module& M, ModuleAnalys
                 }
             }
         }
-    }
+  }
     // might get a void from a BFU that only consumes things. 
-    BFUTypes.erase(Type::getVoidTy(M.getContext()));
+  BFUTypes.erase(Type::getVoidTy(F.getParent()->getContext()));
 
     return BFUTypes;
 }

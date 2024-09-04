@@ -155,9 +155,9 @@ def ReadFMul16      : SchedRead;    // 16-bit floating point multiply
 def ReadFMA16       : SchedRead;    // 16-bit floating point fused multiply-add
 def ReadFMA16Addend : SchedRead;    // 16-bit floating point fused multiply-add
 def ReadFMul32      : SchedRead;    // 32-bit floating point multiply
+def ReadFMA64Addend : SchedRead;
 def ReadFMul64      : SchedRead;    // 64-bit floating point multiply
 def ReadFMA64       : SchedRead;    // 64-bit floating point fused multiply-add
-def ReadFMA64Addend : SchedRead;
 def ReadFDiv16      : SchedRead;    // 16-bit floating point divide
 def ReadFDiv32      : SchedRead;    // 32-bit floating point divide
 def ReadFDiv64      : SchedRead;    // 64-bit floating point divide
@@ -227,6 +227,9 @@ def : WriteRes<WriteFMovF16ToI16, []>;
 def : WriteRes<WriteFSGNJ16, []>;
 def : WriteRes<WriteFST16, []>;
 def : WriteRes<WriteFSqrt16, []>;
+def : WriteRes<WriteFAdd64, []>;
+def : WriteRes<WriteFAdd32, []>;
+def : WriteRes<WriteFAdd16, []>;
 
 def : ReadAdvance<ReadFALU16, 0>;
 def : ReadAdvance<ReadFClass16, 0>;

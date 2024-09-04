@@ -89,7 +89,7 @@ def primate_extract   : SDNode<"PrimateISD::EXTRACT", SDT_PrimateExtract,
 def primate_read_cycle_wide : SDNode<"PrimateISD::READ_CYCLE_WIDE",
                                    SDT_PrimateReadCycleWide,
                                    [SDNPHasChain, SDNPSideEffect]>;
-                                   
+
 def primate_add_lo : SDNode<"PrimateISD::ADD_LO", SDTIntBinOp>;
 def primate_hi : SDNode<"PrimateISD::HI", SDTIntUnaryOp>;
 def primate_lla : SDNode<"PrimateISD::LLA", SDTIntUnaryOp>;
@@ -98,6 +98,7 @@ def primate_add_tprel : SDNode<"PrimateISD::ADD_TPREL",
                                                   SDTCisSameAs<0, 2>,
                                                   SDTCisSameAs<0, 3>,
                                                   SDTCisInt<0>]>>;
+
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -174,7 +175,6 @@ class PrimateSImmOp<int bitsNum> : PrimateOp {
 
 class PrimateSImmLeafOp<int bitsNum> :
   PrimateSImmOp<bitsNum>, ImmLeaf<XLenVT, "return isInt<" # bitsNum # ">(Imm);">;
-
 
 def FenceArg : AsmOperandClass {
   let Name = "FenceArg";
@@ -471,6 +471,7 @@ def AddiPairImmB : SDNodeXForm<imm, [{
                                    N->getValueType(0));
 }]>;
 
+
 def TrailingZeros : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(llvm::countr_zero(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
@@ -509,7 +510,6 @@ def LeadingOnesWMask : PatLeaf<(imm), [{
   return !isInt<32>(Imm) && isUInt<32>(Imm) && isShiftedMask_64(Imm) &&
          Imm != UINT64_C(0xffffffff);
 }], TrailingZeros>;
-
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -1204,7 +1204,6 @@ def or_is_add : PatFrag<(ops node:$lhs, node:$rhs), (or node:$lhs, node:$rhs),[{
 }]>;
 def : PatGprSimm12<or_is_add, ADDI>;
 
-
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and
 // zero-extends it). For Primate, the mask is unnecessary as shifts in the base
@@ -1455,8 +1454,8 @@ class PatWideScalarScalar<SDPatternOperator OpNode, PRInst Inst>
     (insert_value 
       WIDEREG:$rs0, 
       (OpNode 
-        (XLenVT GPR:$rs1),  
-        (XLenVT GPR:$rs2)), 
+      (XLenVT GPR:$rs1),  
+      (XLenVT GPR:$rs2)),  
       simm12:$imm0),
     (Inst WIDEREG:$rs0, simm12:$imm0, (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))>;
 class PatWideScalarImm<SDPatternOperator OpNode, PRInst Inst> 
@@ -1592,7 +1591,6 @@ def : Pat<(insert_value WIDEREG:$rs1, (XLenVT GPR:$rs2), simm12:$imm1),
            (PrimateAGGVT (INSERT WIDEREG:$rs1, GPR:$rs2, simm12:$imm1))>;
 
 
-
 // PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually// expand to auipc and jalr while encoding.
 // Define AsmString to print "tail" when compile with -S flag.
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, Uses = [X2],
@@ -1695,7 +1693,6 @@ class StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,
     : Pat<(StoreOp (vt StTy:$rs2), (AddrRegImm (XLenVT GPR:$rs1),
                    simm12:$imm12)),
           (Inst StTy:$rs2, GPR:$rs1, simm12:$imm12)>;
-
 
 let Predicates = [HasFullI] in {
 multiclass StPat<PatFrag StoreOp, PRInst Inst, RegisterClass StTy,

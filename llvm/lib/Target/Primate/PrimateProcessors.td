@@ -55,7 +55,7 @@ class PrimateTuneProcessorModel<string n,
       : ProcessorModel<n, m, f,tunef>;
 
 def GENERIC_PR32 : PrimateProcessorModel<"generic-pr32",
-                                       NoSchedModel,
+                                       PrimateModel,
                                        [Feature32Bit]>,
                    GenericTuneInfo;
 def GENERIC_PR64 : PrimateProcessorModel<"generic-pr64",

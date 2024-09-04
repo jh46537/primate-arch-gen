@@ -33,7 +33,7 @@ namespace llvm {
     TargetMachine& TM; 
     PrimateStructToAggre(TargetMachine& TM) : TM(TM){}
 
-    PreservedAnalyses run(Module& M, ModuleAnalysisManager& PA);
+    PreservedAnalyses run(Function&, FunctionAnalysisManager&);
 
     Type* followPointerForType(Value*);
     void normalizeFuncs(Function& F);
@@ -42,7 +42,7 @@ namespace llvm {
     void convertAndTrimGEP(GetElementPtrInst* gepI);
     void findBFUTypes(Module& M);
     bool isBFUType(Type* ty);
-
+    static bool isRequired() { return true; }
   };
 }
 

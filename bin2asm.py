@@ -12,11 +12,8 @@ ANOTATION_STR = "			"
 HANDLED_FIXUPS = ["R_PRIMATE_BRANCH",
                   "R_PRIMATE_JAL"]
 
-# pkt size in bytes
-PACKET_SIZE = PACKET_SIZE_IN_BYTES / LOCATIONS_PER_PACKET
-
 if len(sys.argv) != 4:
-    print("use is ./fixup <file objdump -dr> <file of objdump -t> <output binary>")
+    print("use is ./bin2asm.py <file objdump -dr> <file of objdump -t> <output binary>")
     exit(-1)
 
 fname = sys.argv[1]
@@ -41,13 +38,14 @@ def write_packet(packet):
     outFile.write("\n")
 
 def fix_last_branch(packet, location, instr_pc):
-    instr_pc += 4
     target = symTable[location]
     offset = target - instr_pc
-    offset = offset & 0xFFFFFFFF
+    offset = (offset*4) & 0xFFFFFFFF
+    offset = 0
 
-    # print("fix up for branch:", packet[-1])
-    # print("offset is:", str(offset))
+    print("fix up for branch:", packet[-1])
+    print("offset is:", str(offset))
+    print(f"pc: {instr_pc} target: {target}")
     
     iToks = packet[-1].split()
     instr_val = 0
@@ -55,6 +53,39 @@ def fix_last_branch(packet, location, instr_pc):
         instr_val = instr_val << 8
         instr_val += int(i, 16)
     added_val = 0
+
+    # get offset
+    if(iToks[4].startswith("j")):
+        offset += ((instr_val & (0x001 << 20)) >> 20) << 11
+        offset += ((instr_val & (0x3FF << 21)) >> 21) <<  1
+        offset += ((instr_val & (0x001 << 31)) >> 31) << 20
+        offset += ((instr_val & (0x0FF << 12)) >> 12) << 12
+        
+    elif(iToks[4].startswith("b")):
+        offset += ((instr_val & (0x03F << 25)) >> 25) <<  5
+        offset += ((instr_val & (0x00F <<  8)) >>  8) <<  1
+        offset += ((instr_val & (0x001 <<  7)) >>  7) << 11
+        offset += ((instr_val & (0x001 << 31)) >> 31) << 12
+
+    offset = (offset / 13)
+    assert int(offset) == offset, "branch offset wrong"
+
+    print(f"normal {instr_val}")
+    # zero offset 
+    if(iToks[4].startswith("j")):
+        instr_val = (instr_val & ~(0x001 << 20))
+        instr_val = (instr_val & ~(0x3FF << 21))
+        instr_val = (instr_val & ~(0x001 << 31))
+        instr_val = (instr_val & ~(0x0FF << 12))
+        
+    elif(iToks[4].startswith("b")):
+        instr_val = (instr_val & ~(0x03F << 25))
+        instr_val = (instr_val & ~(0x00F <<  8))
+        instr_val = (instr_val & ~(0x001 <<  7))
+        instr_val = (instr_val & ~(0x001 << 31))
+    print(f"zerod {instr_val}")
+
+    # patch in the offset
     if(iToks[4].startswith("j")):
         added_val += ((offset & (0x001 << 11)) >> 11) << 20
         added_val += ((offset & (0x3FF <<  1)) >>  1) << 21
@@ -67,7 +98,8 @@ def fix_last_branch(packet, location, instr_pc):
         added_val += ((offset & (0x001 << 11)) >> 11) << 7
         added_val += ((offset & (0x001 << 12)) >> 12) << 31
 
-    instr_val += added_val
+    # Primate compiler now handles relocs
+    # instr_val += added_val
     # print("instr    ", hex(instr_val))
     # print("added_val", hex(added_val))
 
@@ -84,14 +116,14 @@ with open(symname) as f:
     print("generating symbol table")
     for line in f:
         toks = line.strip().split()
-        if int(toks[0], 16) % PACKET_SIZE != 0:
+        if int(toks[0], 16) % PACKET_SIZE_IN_BYTES != 0:
             print("BAD SYM: offset doesn't match packet_size")
             print(line)
-            print("offset:", int(toks[0], 16) % PACKET_SIZE)
-            print("Packet size:", PACKET_SIZE)
+            print("offset:", int(toks[0], 16) % PACKET_SIZE_IN_BYTES)
+            print("Packet size:", PACKET_SIZE_IN_BYTES)
             exit(-1)
-        addr = int(int(toks[0], 16) / PACKET_SIZE)
-        print(f"sym {toks[-1]} at {addr}")
+        addr = int(int(toks[0], 16) / PACKET_SIZE_IN_BYTES)
+        print(f"sym {toks[-1]} at 0x{hex(addr)}")
         sym = toks[-1]
         symTable[sym] = addr
 
@@ -117,7 +149,7 @@ with open(fname) as f:
                 line_address, rest = line.split(":")
                 rest = rest.strip()
                 
-                line_address = int(int(line_address, 16) / PACKET_SIZE)
+                line_address = int(int(line_address, 16) / PACKET_SIZE_IN_BYTES)
                 if rest.split()[0].startswith("R_PRIMATE"):
                     loc = rest.split()[1]
                     fix_last_branch(currentPacket, loc, line_address)

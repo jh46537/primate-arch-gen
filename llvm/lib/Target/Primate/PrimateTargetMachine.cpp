@@ -23,6 +23,7 @@
 #include "PrimateMachineFunctionInfo.h"
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/MIRParser/MIParser.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
@@ -41,6 +42,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/Transforms/Scalar.h"
 #include <memory>
 using namespace llvm;
 
@@ -219,13 +221,17 @@ bool PrimatePassConfig::addRegBankSelect() {
 
 void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB, bool PopulateClassToPassNames=true) {
   dbgs() << "This is a string\n";
-  PB.registerAnalysisRegistrationCallback([](ModuleAnalysisManager &C) {
+  PB.registerAnalysisRegistrationCallback([](FunctionAnalysisManager &C) {
     C.registerPass([](){
       return llvm::PrimateBFUTypeFinding();
     });
   });
-  PB.registerPipelineStartEPCallback([this](llvm::ModulePassManager& MPM, OptimizationLevel opt) {
-    MPM.addPass(llvm::PrimateStructToAggre(*this));
+  // need to run primateStructToAggre before SROA otherwise we won't promote any allocas...
+  PB.registerCGSCCOptimizerLateEPCallback([this](llvm::CGSCCPassManager& MPM, OptimizationLevel opt) {
+    FunctionPassManager FPM;
+    FPM.addPass(llvm::PrimateStructToAggre(*this));
+
+    MPM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
   });
   PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, OptimizationLevel Level){
     // FPM.addPass(llvm::PrimateGEPFilterPass());

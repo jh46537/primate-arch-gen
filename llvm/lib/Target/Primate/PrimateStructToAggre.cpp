@@ -51,7 +51,7 @@ namespace llvm {
     void PrimateStructToAggre::findBFUTypes(Module& M) {
     }
 
-    PreservedAnalyses PrimateStructToAggre::run(Module& M, ModuleAnalysisManager& PA) {
+    PreservedAnalyses PrimateStructToAggre::run(Function& F, FunctionAnalysisManager& PA) {
         std::ifstream bfuMapping("../../hw/bfu_list.txt");
         int bfu_schedule_slot = 0;
         bool inscope = false;
@@ -78,12 +78,12 @@ namespace llvm {
                 }
         }
 
-        BFUTypes = PA.getResult<PrimateBFUTypeFinding>(M);
+        BFUTypes = PA.getResult<PrimateBFUTypeFinding>(F);
         dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";
         for(Type* type: BFUTypes) {
             type->dump();
         }
-        for(auto& F: M) {
+	{
             TLI = TM.getSubtarget<PrimateSubtarget>(F).getTargetLowering();
             // first normalize all the function calls to the same form 
             // 1. revert all vectorized aggregates to structs
@@ -169,7 +169,7 @@ namespace llvm {
 
         // TODO: MOVE TO CLANG
         // TODO: if you see this in the future and hate the if else tree just know me too. its a hack. 
-        for(auto& F: M) {
+        {
             LLVM_DEBUG(dbgs() << "looking for intrinics in func: " << F.getName() << "\n");
             SmallVector<CallInst*> workList;
             for(auto& bb: F) {
@@ -306,7 +306,7 @@ namespace llvm {
             bleh->eraseFromParent();
         }
 
-        M.dump();
+        F.dump();
 
         return PreservedAnalyses::none();
     }

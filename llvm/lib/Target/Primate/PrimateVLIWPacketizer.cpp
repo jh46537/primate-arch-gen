@@ -244,28 +244,31 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   llvm::SmallVector<MachineInstr*, 2> generated_bypass_instrs;
   MachineBasicBlock::iterator old_end_instr = MI;
   bool push_branch_to_next_packet = false;
+  bool handle_bypass_now = false;
   if(packet_breaking_instr->isBranch()) {
     push_branch_to_next_packet = insertBypassOps(packet_breaking_instr, generated_bypass_instrs);
 
-    // if we push to the next packet then pop the branch from the back && set the isntr pointer back.
+    // if we push to the next packet then pop the branch from the back && set the isntr pointer back for the next round.
     if(push_branch_to_next_packet) {
       LLVM_DEBUG({dbgs() << "pushing branch to a new packet.\n";});
       CurrentPacketMIs.pop_back();
-      --MI;
+      --MI; // before the branch
       for(unsigned long i = 0; i < generated_bypass_instrs.size(); i++){
-        --MI;
+        --MI; // before the new bypass isntrs
       }
       MI->dump();
     }
-    else if(generated_bypass_instrs.size() > 0) { 
+    else if(generated_bypass_instrs.size() > 0) {
+      handle_bypass_now = true;
       LLVM_DEBUG({dbgs() << "Bypasses fit into same packet: "
           << generated_bypass_instrs.size() << " ops\n";});
       for(auto& bypass_op: generated_bypass_instrs) {
-        ResourceTracker->reserveResources(*bypass_op);
-        CurrentPacketMIs.push_back(bypass_op);
+        ResourceTracker->reserveResources(*bypass_op);	
       }
     }
   }
+
+  // once we hit here we are 100% going to packetize what is in the CurrentPacketMIs
 
   unsigned Idx = 0;
   for (MachineInstr *MI : CurrentPacketMIs) {
@@ -275,6 +278,20 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
                 MI->dump();
                 dbgs() << "used resource: 0x" << R << " Turned to slotIdx: " << slotIdx << "\n";});
     MI->setSlotIdx(slotIdx);
+  }
+  // set the slot idx of bypasses, and add them infront of the branch
+  if (handle_bypass_now) {
+    auto existingInstrs = --CurrentPacketMIs.end();
+    for (auto it = generated_bypass_instrs.rbegin(); it != generated_bypass_instrs.rend(); it++) {
+      auto MI = *it;
+      unsigned R = ResourceTracker->getUsedResources(Idx++);
+      unsigned slotIdx = llvm::countr_zero(R);  // convert bitvector to ID; assume single bit set
+      LLVM_DEBUG({dbgs() << "Instruction number " << Idx-1 << " aka: "; 
+	  MI->dump();
+	  dbgs() << "used resource: 0x" << R << " Turned to slotIdx: " << slotIdx << "\n";});
+      MI->setSlotIdx(slotIdx);
+      CurrentPacketMIs.insert(existingInstrs, MI);
+    }
   }
 
   // in-place fixup for packetized dependent branches
