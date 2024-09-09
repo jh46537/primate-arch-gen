@@ -622,6 +622,9 @@ void PrimateDAGToDAGISel::Select(SDNode *Node) {
       // By default we do not custom select any intrinsic.
     default:
       break;
+    #define BFU_WITH_CHAIN
+      //    #include "PrimateBFUTypeLegalizer.inc"
+    #undef BFU_WITH_CHAIN
     // case Intrinsic::primate_input: {
     //   LLVM_DEBUG(dbgs() << "input lower w/ chain thing\n");
     //   LLVM_DEBUG(dbgs() << "Node num vals: " << Node->getNumValues() << "\n");

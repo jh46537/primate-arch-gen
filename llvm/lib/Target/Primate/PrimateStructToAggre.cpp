@@ -52,7 +52,7 @@ namespace llvm {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Function& F, FunctionAnalysisManager& PA) {
-        std::ifstream bfuMapping("../../hw/bfu_list.txt");
+        std::ifstream bfuMapping("./bfu_list.txt");
         int bfu_schedule_slot = 0;
         bool inscope = false;
         for (std::string line; std::getline(bfuMapping, line); ) {

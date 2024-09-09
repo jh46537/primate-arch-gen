@@ -696,7 +696,7 @@ include "PrimateScheduleV.td"
 with open(os.path.join(gen_file_dir, "./PrimateSchedule.td"), "w") as f:
     print(PrimateSchedule, file=f)
 
-BFUInstPatternTemplate = "def : Pat<(int_primate_BFU_{0} WIDEREG:$rs1), (BFU{0} WIDEREG:$rs1)>;\n"
+BFUInstPatternTemplate = ("def : Pat<(int_primate_BFU_{0} WIDEREG:$rs1), (BFU{0} WIDEREG:$rs1)>;\n")
 
 BFUInstPattern = combStr(BFUInstPatternTemplate, max(numBFUs-2, 1))
 

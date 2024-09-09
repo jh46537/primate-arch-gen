@@ -2218,7 +2218,8 @@ SDValue PrimateTargetLowering::expandUnalignedPRVStore(SDValue Op,
 
 SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
-  switch (Op.getOpcode()) {
+  dbgs() << "kayvan lowerOperation()\n";
+    switch (Op.getOpcode()) {
   default:
     report_fatal_error("unimplemented operand");
   case ISD::GlobalAddress:
@@ -3840,8 +3841,13 @@ SDValue PrimateTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
 SDValue PrimateTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
                                                     SelectionDAG &DAG) const {
-  LLVM_DEBUG(dbgs() << "lower intrinsic w chain while trying to construct dag\n");
-  return lowerVectorIntrinsicSplats(Op, DAG, Subtarget);
+  dbgs() << "lowerINTRINSIC_W_CHAIN()\n";
+  SDLoc DL(Op);
+  unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  switch (IntNo) {
+  default:
+    return lowerVectorIntrinsicSplats(Op, DAG, Subtarget);
+  }
 }
 
 static MVT getLMUL1VT(MVT VT) {
@@ -5379,35 +5385,12 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     // break;
   }
   case ISD::INTRINSIC_WO_CHAIN: {
+    dbgs() << "replaceNodeResults for intrinsic wo chain\n";
     unsigned IntNo = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
     switch (IntNo) {
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
-    // case Intrinsic::primate_BFU_1: {
-    //   LLVM_DEBUG({
-    //     dbgs() << "Num ops: " << N->getNumOperands() << "\n";
-    //     dbgs() << "Lowered op: ";
-    //     N->dump();
-    //   }); 
-    //   llvm_unreachable(
-    //       "Don't know how to custom type legalize this intrinsic!");
-
-    // }
-    // case Intrinsic::primate_BFU_2: {
-    //   LLVM_DEBUG({
-    //     dbgs() << "Num ops: " << N->getNumOperands() << "\n";
-    //     dbgs() << "Lowered op: ";
-    //     N->dump();
-    //   });
-    //   llvm_unreachable(
-    //       "Don't know how to custom type legalize this intrinsic!");
-
-    // }
-    // case Intrinsic::primate_input: {
-    //   dbgs() << "tried to lower the input intrinsic\n";
-    //   return;
-    // }
     case Intrinsic::primate_extract: {
       // check and replace ops
       
