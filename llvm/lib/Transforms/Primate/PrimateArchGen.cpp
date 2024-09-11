@@ -33,9 +33,12 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 #include<llvm/ADT/DenseMap.h>
 
 #include<llvm/IR/LegacyPassManager.h>
-#include<llvm/Transforms/IPO/PassManagerBuilder.h>
+// #include<llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include "dataflow.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <ostream>
 #include <fstream>
@@ -44,6 +47,8 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 #include <algorithm>
 #include <math.h>
 #include <set>
+#include <map>
+#include <stdexcept>
 
 #define MAX_BR_LEVEL 2
 #define MAX_PERF 0
@@ -55,7 +60,7 @@ using namespace llvm;
 
 namespace {
 
-    class PrimateArchGen : public ModulePass, public DataFlow<BitVector>, public AssemblyAnnotationWriter{
+    class PrimateArchGen : public PassInfoMixin<PrimateArchGen>, public DataFlow<BitVector>, public AssemblyAnnotationWriter{
 
         public:
             static char ID;
@@ -120,7 +125,7 @@ namespace {
 
             //print functions
 			//live variables before each basic block
-            virtual void emitBasicBlockStartAnnot(const BasicBlock *bb, formatted_raw_ostream &os) {
+            virtual void emitBasicBlockStartAnnot(const BasicBlock *bb, formatted_raw_ostream &os) override {
                 os << "; ";
                 if (!isa<PHINode>(*(bb))) {
                     const BitVector *bv = (*in)[&*bb];
@@ -136,7 +141,7 @@ namespace {
             }
 
 			//live variables before each instruction: used for computing histogram
-            virtual void emitInstructionAnnot(const Instruction *i, formatted_raw_ostream &os) {
+            virtual void emitInstructionAnnot(const Instruction *i, formatted_raw_ostream &os) override {
                 os << "; ";
                 if (!isa<PHINode>(*(i))) {
                     const BitVector *bv = (*instrInSet)[&*i];
@@ -159,17 +164,17 @@ namespace {
 
             //set the boundary condition for block
             //explicit constructor of BitVector
-            virtual void setBoundaryCondition(BitVector *blockBoundary) {
+            virtual void setBoundaryCondition(BitVector *blockBoundary) override {
                 *blockBoundary = BitVector(domainSize, false); 
             }
 
             //union (bitwise OR) operator '|=' overriden in BitVector class
-            virtual void meetOp(BitVector* lhs, const BitVector* rhs){
+            virtual void meetOp(BitVector* lhs, const BitVector* rhs) override {
                 *lhs |= *rhs; 
             }
 
             //empty set initially; each bit represent a value
-            virtual BitVector* initializeFlowValue(BasicBlock& b, SetType setType){ 
+            virtual BitVector* initializeFlowValue(BasicBlock& b, SetType setType) override{ 
                 return new BitVector(domainSize, false); 
             }
 
@@ -177,7 +182,7 @@ namespace {
             //transfer function:
             //IN[n] = USE[n] U (OUT[n] - DEF[n])
             
-            virtual BitVector* transferFn(BasicBlock& bb) {
+            virtual BitVector* transferFn(BasicBlock& bb) override {
                 BitVector* outNowIn = new BitVector(*((*out)[&bb]));
                                    
                 BitVector* immIn = outNowIn; // for empty blocks
@@ -434,12 +439,23 @@ namespace {
                             // we need to use the call instruction 
                             // so we don't use the type of the pointer :/
                             Type *argTy = nullptr;
-                            if(arg.getType()->isPointerTy()) {
-                                argTy = arg.getType()->getPointerElementType();
+                            if (arg.getParamByValType()) {
+                                argTy = arg.getParamByValType();
+                            } 
+                            else if (arg.getParamStructRetType()) {
+                                argTy = arg.getParamStructRetType();
                             }
                             else {
-                                argTy = arg.getType();
+                                F.dump();
+                                llvm_unreachable("Invalid argument in function\n");
                             }
+
+                            // if(arg.getType()->isPointerTy()) {
+                            //     argTy = arg.getType()->getPointerElementType();
+                            // }
+                            // else {
+                            //     argTy = arg.getType();
+                            // }
                             unsigned regWidth = getTypeBitWidth(argTy, true); 
                             if (regWidth > maxRegWidth) {
                                 maxRegWidth = regWidth;
@@ -674,12 +690,14 @@ namespace {
 
             bool checkMemAlias(Value *ptr0, unsigned size0, Value *ptr1, unsigned size1) {
                 if (pointerMap->find(ptr0) == pointerMap->end()) {
+  		    ptr0->dump();
                     errs() << "pointer0 not initialized\n";
                     ptr0->print(errs());
                     errs() << "\n";
                     exit(1);
                 }
                 if (pointerMap->find(ptr1) == pointerMap->end()) {
+		    ptr1->dump();
                     errs() << "pointer1 not initialized\n";
                     ptr1->print(errs());
                     errs() << "\n";
@@ -748,6 +766,10 @@ namespace {
 
             inline void memInstAddWARDep(Instruction* inst, Value* dstPtr, unsigned size, ValueMap<Value*, std::vector<std::pair<Value*, unsigned>>> &loadInsts) {
                 for (auto li = loadInsts.begin(); li != loadInsts.end(); li++) {
+		  if(llvm::dyn_cast<llvm::CallInst>(li->first)) {
+		    LLVM_DEBUG(errs() << "checking alias on a call inst.... NOT!\n";);
+		    continue;
+		  }
                     // check all instructions that read memory
                     // li->first->print(errs());
                     // errs() << ":\n";
@@ -778,9 +800,10 @@ namespace {
                             // errs() << ":\n";
                             dependencyForest[&*inst] = new std::map<Value*, bool>();
                             Value* srcPtr = inst->getOperand(0);
-                            PointerType *ptrType = dyn_cast<PointerType>(srcPtr->getType());
-                            Type *pteType = ptrType->getElementType();
-                            unsigned size = getTypeBitWidth(pteType, false);
+                            // PointerType *ptrType = dyn_cast<PointerType>(srcPtr->getType());
+                            // Type *pteType = ptrType->getElementType();
+                            // unsigned size = getTypeBitWidth(pteType, false);
+                            unsigned size = getTypeBitWidth(inst->getType(), false);
                             loadInsts[&*inst].push_back({srcPtr, size});
                             memInstAddRAWDep(inst, srcPtr, size, storeInsts);
                         } else if (isa<StoreInst>(*inst)) {
@@ -796,8 +819,10 @@ namespace {
                                     (*dependencyForest[&*inst])[srcOp] = true;
                             }
                             PointerType *ptrType = dyn_cast<PointerType>(ptrOp->getType());
-                            Type *pteType = ptrType->getElementType();
-                            unsigned size = getTypeBitWidth(pteType, false);
+                            // Type *pteType = ptrType->getElementType();
+                            // unsigned size = getTypeBitWidth(pteType, false);
+                            unsigned size = 
+                                getTypeBitWidth(tmp->getValueOperand()->getType(), false);
                             storeInsts[&*inst].push_back({ptrOp, size});
                             memInstAddWARDep(inst, ptrOp, size, loadInsts);
                         } else if (isa<CallInst>(*inst)) {
@@ -831,9 +856,10 @@ namespace {
                                         Type* op_type = (*op)->getType();
                                         if (op_type->isPointerTy()) {
                                             Value *srcPtr = *op;
-                                            PointerType *ptrType = dyn_cast<PointerType>(op_type);
-                                            Type *pteType = ptrType->getElementType();
-                                            unsigned size = getTypeBitWidth(pteType, false);
+                                            // PointerType *ptrType = dyn_cast<PointerType>(op_type);
+                                            // Type *pteType = ptrType->getElementType();
+                                            // unsigned size = getTypeBitWidth(pteType, false);
+                                            unsigned size = getTypeBitWidth(op_type, false);
                                             inOps.push_back({srcPtr, size});
                                             memInstAddRAWDep(inst, srcPtr, size, storeInsts);
                                         }
@@ -845,9 +871,10 @@ namespace {
                                         Type* op_type = (*op)->getType();
                                         if (op_type->isPointerTy()) {
                                             Value *dstPtr = *op;
-                                            PointerType *ptrType = dyn_cast<PointerType>(op_type);
-                                            Type *pteType = ptrType->getElementType();
-                                            unsigned size = getTypeBitWidth(pteType);
+                                            // PointerType *ptrType = dyn_cast<PointerType>(op_type);
+                                            // Type *pteType = ptrType->getElementType();
+                                            // unsigned size = getTypeBitWidth(pteType);
+                                            unsigned size = getTypeBitWidth(op_type);
                                             outOps.push_back({dstPtr, size});
                                             memInstAddWARDep(inst, dstPtr, size, loadInsts);
                                         }
@@ -1597,7 +1624,6 @@ namespace {
             }
 
             void initializeBBWeight(Function &F) {
-                int numBB;
                 for (Function::iterator bi = F.begin(); bi != F.end(); bi++) {
                     BasicBlock *bb = &*bi;
                     bbWeight[bb] = 1.0;
@@ -1667,7 +1693,6 @@ namespace {
             void initializeBFCMeta(Module &M) {
                 // Collect info about blue functions
                 numBFs = 0;
-                int numBFUs = 0;
                 numALU_min = 1;
                 for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
                     MDNode *metadata = MI->getMetadata("primate");
@@ -1681,9 +1706,11 @@ namespace {
                             if (numIn > numALU_min) numALU_min = numIn;
                             auto bfuName = cast<MDString>(metadata->getOperand(1))->getString().str();
                             if (bfu2bf.find(bfuName) != bfu2bf.end()) {
+			      errs() << "Found another BFU with name: " << bfuName << "\n";
                                 (bfu2bf[bfuName])->insert(&*MI);
                                 if (numIn > bfuNumInputs[bfuName]) bfuNumInputs[bfuName] = numIn;
                             } else {
+			      errs() << "Found a new BFU with name: " << bfuName << "\n";
                                 bfu2bf[bfuName] = new std::set<Value*>();
                                 bfu2bf[bfuName]->insert(&*MI);
                                 bfuNumInputs[bfuName] = numIn;
@@ -1707,7 +1734,7 @@ namespace {
             void generateInterconnect(int numALU) {
                 std::map<std::string, int> bfuIdx;
                 std::map<std::string, std::set<int>> bfuALUassigned;
-                int id;
+                int id = -1;
                 for (int i = 0; i < numBFs; i++) {
                     blueFunctions[i]->print(errs());
                     errs() << '\n';
@@ -1851,7 +1878,7 @@ namespace {
 
             void InitializePointerMap(Function &F) {
                 pointerMap = new ValueMap<Value*, ptrInfo_t*>();
-                for (Function::arg_iterator arg = F.arg_begin(); arg != F.arg_end(); ++arg){
+                for (Function::arg_iterator arg = F.arg_begin(); arg != F.arg_end(); ++arg) {
                     const Type* arg_type = arg->getType();
                     if (arg_type->isPointerTy()) {
                         (*pointerMap)[&*arg] = new ptrInfo_t(&*arg, 0);
@@ -1902,8 +1929,8 @@ namespace {
                                         offset += idx_u * elemWidth;
                                     } else {
                                         int j = 0;
-                                        Type *tmp;
-                                        for (auto elem = stype->element_begin(); elem != stype->element_end(), j <= idx_u; elem++, j++) {
+                                        Type *tmp = nullptr;
+                                        for (auto elem = stype->element_begin(); elem != stype->element_end() && j <= idx_u; elem++, j++) {
                                             if (j == idx_u) {
                                                 tmp = (*elem);
                                                 break;
@@ -2057,7 +2084,7 @@ namespace {
                 return false;
             }
             
-            virtual bool runOnModule(Module &M){
+            virtual bool runOnModule(Module &M) override {
             	std::fill_n(live,50,0);
 
                 primateCFG.open("primate.cfg");
@@ -2134,14 +2161,12 @@ namespace {
 
     };
 
-    char PrimateArchGen::ID = 0;
 
-    static RegisterPass<PrimateArchGen> X("primate", "primate pass");
+    // static RegisterStandardPasses Y   // PassManagerBuilder::EP_EarlyAsPossible,
+    // [](const PassManagerBuilder &Builder,
+    //    legacy::PassManagerBase &PM) { PM.add(new PrimateArchGen()); });
 
-    static RegisterStandardPasses Y(
-    PassManagerBuilder::EP_EarlyAsPossible,
-    [](const PassManagerBuilder &Builder,
-       legacy::PassManagerBase &PM) { PM.add(new PrimateArchGen()); });
+} // anonymous namespace
 
-}
-
+char PrimateArchGen::ID = 0;
+static RegisterPass<PrimateArchGen> X("primate", "primate pass");
