@@ -15,19 +15,13 @@ os.makedirs(gen_file_dir, exist_ok=True)
 def combStr(in_str, num_iter):
     return "".join([in_str.format(i) for i in range(num_iter)])
 
-
-with open(sys.argv[1]) as f:
-    f_str = f.read()
-    numBFUs = len(re.findall(r"(.+\n?)\{([^\}]*\n?)+\}", f_str))
-
-# add the slots for IO unit and LSU
-numBFUs += 2
-
 with open(sys.argv[2]) as f:
     for line in f:
         toks = line.split("=")
         if toks[0] == "NUM_ALUS":
             numALUs = int(toks[1])
+        if toks[0] == "NUM_BFUS":
+            numBFUs = int(toks[1]) + 1 # memory unit is hidden
 
 numSlots = max(numBFUs, numALUs)
 
