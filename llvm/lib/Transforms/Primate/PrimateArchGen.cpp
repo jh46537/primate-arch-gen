@@ -674,12 +674,14 @@ namespace {
 
             bool checkMemAlias(Value *ptr0, unsigned size0, Value *ptr1, unsigned size1) {
                 if (pointerMap->find(ptr0) == pointerMap->end()) {
+  		    ptr0->dump();
                     errs() << "pointer0 not initialized\n";
                     ptr0->print(errs());
                     errs() << "\n";
                     exit(1);
                 }
                 if (pointerMap->find(ptr1) == pointerMap->end()) {
+		    ptr1->dump();
                     errs() << "pointer1 not initialized\n";
                     ptr1->print(errs());
                     errs() << "\n";
@@ -748,6 +750,10 @@ namespace {
 
             inline void memInstAddWARDep(Instruction* inst, Value* dstPtr, unsigned size, ValueMap<Value*, std::vector<std::pair<Value*, unsigned>>> &loadInsts) {
                 for (auto li = loadInsts.begin(); li != loadInsts.end(); li++) {
+		  if(llvm::dyn_cast<llvm::CallInst>(li->first)) {
+		    LLVM_DEBUG(errs() << "checking alias on a call inst.... NOT!\n";);
+		    continue;
+		  }
                     // check all instructions that read memory
                     // li->first->print(errs());
                     // errs() << ":\n";
@@ -1679,9 +1685,11 @@ namespace {
                             if (numIn > numALU_min) numALU_min = numIn;
                             auto bfuName = cast<MDString>(metadata->getOperand(1))->getString().str();
                             if (bfu2bf.find(bfuName) != bfu2bf.end()) {
+			      errs() << "Found another BFU with name: " << bfuName << "\n";
                                 (bfu2bf[bfuName])->insert(&*MI);
                                 if (numIn > bfuNumInputs[bfuName]) bfuNumInputs[bfuName] = numIn;
                             } else {
+			      errs() << "Found a new BFU with name: " << bfuName << "\n";
                                 bfu2bf[bfuName] = new std::set<Value*>();
                                 bfu2bf[bfuName]->insert(&*MI);
                                 bfuNumInputs[bfuName] = numIn;
@@ -1849,7 +1857,7 @@ namespace {
 
             void InitializePointerMap(Function &F) {
                 pointerMap = new ValueMap<Value*, ptrInfo_t*>();
-                for (Function::arg_iterator arg = F.arg_begin(); arg != F.arg_end(); ++arg){
+                for (Function::arg_iterator arg = F.arg_begin(); arg != F.arg_end(); ++arg) {
                     const Type* arg_type = arg->getType();
                     if (arg_type->isPointerTy()) {
                         (*pointerMap)[&*arg] = new ptrInfo_t(&*arg, 0);
