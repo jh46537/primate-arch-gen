@@ -44,7 +44,7 @@ namespace {
                 visited = new ValueMap<BasicBlock*, bool>();
             }
 
-            ~DataFlow(){
+            virtual ~DataFlow(){
                 delete in;
                 delete out;
                 delete neighbourSpecificValues;
@@ -84,7 +84,7 @@ namespace {
                 bool changed = false;
                 changed = (*newOut != *(*out)[hotBlock]);
 
-                if(changed)
+                if(changed) {
                     *(*out)[hotBlock] = *newOut;
 
                     for (succ_iterator SI = succ_begin(hotBlock), E = succ_end(hotBlock); SI != E; ++SI) {
@@ -92,6 +92,7 @@ namespace {
                             w.push_back(*SI); 
                         } 
                     }
+                }
             }
 
             void performBackwardAnalysis(Worklist &w){
@@ -128,16 +129,15 @@ namespace {
                 if(changed)
                     *(*in)[hotBlock] = *newIn;
                     
-                    for (pred_iterator PI = pred_begin(hotBlock), E = pred_end(hotBlock); PI != E; ++PI) {
-                        if(changed || !(*visited)[*PI]){                            
-                            w.push_back(*PI); 
-                        } 
-                    }
+                for (pred_iterator PI = pred_begin(hotBlock), E = pred_end(hotBlock); PI != E; ++PI) {
+                    if(changed || !(*visited)[*PI]){                            
+                        w.push_back(*PI); 
+                    } 
+                }
             }
             
             void finalizeBackwardAnalysis(Function &func){
                 for (Function::iterator i = func.begin(), e = func.end(); i != e; ++i){
-                    int numSucc = 0;
                     BasicBlock *hotBlock = &*i;
                     if((*neighbourSpecificValues).find(hotBlock) != (*neighbourSpecificValues).end()){
                         for (succ_iterator SI = succ_begin(&*i), SE = succ_end(&*i); SI != SE; SI++){
@@ -185,6 +185,9 @@ namespace {
                         performBackwardAnalysis(*worklist);
                 }
                 finalizeBackwardAnalysis(F);
+                
+                // this should be an analysis pass, but regardless we did not change the IR
+                return false;
             }
 
             protected:
