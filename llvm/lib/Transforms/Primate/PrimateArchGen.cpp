@@ -19,6 +19,7 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 
  *********************************************************************************/
 
+#include"llvm/Transforms/Primate/PrimateArchGen.h"
 #include<llvm/Pass.h>
 #include<llvm/IR/DebugInfo.h>
 #include<llvm/IR/Function.h>
@@ -58,7 +59,6 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 
 using namespace llvm;
 
-namespace {
 
     class PrimateArchGen : public PassInfoMixin<PrimateArchGen>, public DataFlow<BitVector>, public AssemblyAnnotationWriter{
 
@@ -66,7 +66,7 @@ namespace {
             static char ID;
 
             // set forward false in the constructor DataFlow()
-            PrimateArchGen() : DataFlow<BitVector>(false), ModulePass(ID) {
+            PrimateArchGen() : DataFlow<BitVector>(false) {
                 bvIndexToInstrArg = new std::vector<Value*>();
                 valueToBitVectorIndex = new ValueMap<Value*, int>();
                 instrInSet = new ValueMap<const Instruction*, BitVector*>();
@@ -2084,7 +2084,7 @@ namespace {
                 return false;
             }
             
-            virtual bool runOnModule(Module &M) override {
+            virtual PreservedAnalyses run(Module &M, ModuleAnalysisManager& pa) {
             	std::fill_n(live,50,0);
 
                 primateCFG.open("primate.cfg");
@@ -2152,7 +2152,7 @@ namespace {
                 interconnectCFG.close();
                 primateHeader.close();
                 assemblerHeader.close();
-                return false;
+                return PreservedAnalyses::all();
             }
 
             virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -2162,11 +2162,3 @@ namespace {
     };
 
 
-    // static RegisterStandardPasses Y   // PassManagerBuilder::EP_EarlyAsPossible,
-    // [](const PassManagerBuilder &Builder,
-    //    legacy::PassManagerBase &PM) { PM.add(new PrimateArchGen()); });
-
-} // anonymous namespace
-
-char PrimateArchGen::ID = 0;
-static RegisterPass<PrimateArchGen> X("primate", "primate pass");
