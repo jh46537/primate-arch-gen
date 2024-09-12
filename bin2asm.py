@@ -42,6 +42,8 @@ PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_INSTRS*4
 # addresses per packet
 LOCATIONS_PER_PACKET = 4
 
+NOP_STR = "00000013"
+RET_STR = "fffff06f"
 ANOTATION_STR = "			"
 HANDLED_FIXUPS = ["R_PRIMATE_BRANCH",
                   "R_PRIMATE_JAL"]
@@ -59,6 +61,11 @@ symPat = re.compile(r"[0-9a-f]{8} <..*:")
 symTable = {}
 
 def write_packet(packet):
+    instr_byte_str = "".join(currentPacket[-1].split()[0:4][::-1])
+    if not (instr_byte_str == NOP_STR or instr_byte_str == RET_STR):
+        print("REAL branch found")
+        fix_last_branch(packet)
+        
     for instr in currentPacket[::-1]:
         iToks = instr.split()
         instr_val = ""
@@ -68,16 +75,7 @@ def write_packet(packet):
         outFile.write(instr_val)
     outFile.write("\n")
 
-def fix_last_branch(packet, location, instr_pc):
-    target = symTable[location]
-    offset = target - instr_pc
-    offset = (offset*4) & 0xFFFFFFFF
-    offset = 0
-
-    print("fix up for branch:", packet[-1])
-    print("offset is:", str(offset))
-    print(f"pc: {instr_pc} target: {target}")
-    
+def fix_last_branch(packet):
     iToks = packet[-1].split()
     instr_val = 0
     for i in iToks[0:4][::-1]:
@@ -85,60 +83,57 @@ def fix_last_branch(packet, location, instr_pc):
         instr_val += int(i, 16)
     added_val = 0
 
+    offset = 0
     # get offset
     if(iToks[4].startswith("j")):
         offset += ((instr_val & (0x001 << 20)) >> 20) << 11
         offset += ((instr_val & (0x3FF << 21)) >> 21) <<  1
         offset += ((instr_val & (0x001 << 31)) >> 31) << 20
         offset += ((instr_val & (0x0FF << 12)) >> 12) << 12
-        
     elif(iToks[4].startswith("b")):
         offset += ((instr_val & (0x03F << 25)) >> 25) <<  5
         offset += ((instr_val & (0x00F <<  8)) >>  8) <<  1
         offset += ((instr_val & (0x001 <<  7)) >>  7) << 11
         offset += ((instr_val & (0x001 << 31)) >> 31) << 12
-
-    offset = (offset / 13)
-    assert int(offset) == offset, "branch offset wrong"
-
+    
+    offset = int(offset / PACKET_SIZE_IN_BYTES)
     print(f"normal {instr_val}")
+    
     # zero offset 
     if(iToks[4].startswith("j")):
         instr_val = (instr_val & ~(0x001 << 20))
         instr_val = (instr_val & ~(0x3FF << 21))
         instr_val = (instr_val & ~(0x001 << 31))
         instr_val = (instr_val & ~(0x0FF << 12))
-        
     elif(iToks[4].startswith("b")):
         instr_val = (instr_val & ~(0x03F << 25))
         instr_val = (instr_val & ~(0x00F <<  8))
         instr_val = (instr_val & ~(0x001 <<  7))
         instr_val = (instr_val & ~(0x001 << 31))
-    print(f"zerod {instr_val}")
-
+    print(f"zerod {hex(instr_val)}")
+    
     # patch in the offset
     if(iToks[4].startswith("j")):
         added_val += ((offset & (0x001 << 11)) >> 11) << 20
         added_val += ((offset & (0x3FF <<  1)) >>  1) << 21
         added_val += ((offset & (0x001 << 20)) >> 20) << 31
         added_val += ((offset & (0x0FF << 12)) >> 12) << 12
-        
     elif(iToks[4].startswith("b")):
         added_val += ((offset & (0x03F <<  5)) >>  5) << 25
         added_val += ((offset & (0x00F <<  1)) >>  1) << 8
         added_val += ((offset & (0x001 << 11)) >> 11) << 7
         added_val += ((offset & (0x001 << 12)) >> 12) << 31
-
+    
     # Primate compiler now handles relocs
-    # instr_val += added_val
-    # print("instr    ", hex(instr_val))
-    # print("added_val", hex(added_val))
-
+    instr_val += added_val
+    print("instr    ", hex(instr_val))
+    print("added_val", hex(added_val))
+    
     newInstr = packet[-1].split()
     for i in range(4):
         newInstr[i] = "{:02x}".format(instr_val & 0xff)
         instr_val = instr_val >> 8
-    newInstr[-1] = "<" + location + ">"
+    newInstr[-1] = "<" + " this is blah blah " + ">"
     packet[-1] = ' '.join(newInstr)
         
 with open(symname) as f:
