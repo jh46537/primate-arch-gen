@@ -136,6 +136,13 @@ clang_tablegen(riscv_sifive_vector_builtin_cg.inc -gen-riscv-sifive-vector-built
 clang_tablegen(riscv_sifive_vector_builtin_sema.inc -gen-riscv-sifive-vector-builtin-sema
   SOURCE riscv_sifive_vector.td
   TARGET ClangRISCVSiFiveVectorBuiltinSema)
+
+clang_tablegen(primate_bfu_buitin_cg.inc -gen-primate-bfu-builtin-codegen
+  SOURCE primate_bfu.td
+  TARGET ClangPrimateBFUBuiltinCG)
+clang_tablegen(primate_bfu_buitin_sema.inc -gen-primate-bfu-builtin-sema
+  SOURCE primate_bfu.td
+  TARGET ClangPrimateBFUBuiltinSema)
 #clang_tablegen(primate_vector_builtins.inc -gen-primate-vector-builtins
 #  SOURCE primate_vector.td
 #  TARGET ClangPrimateVectorBuiltins)

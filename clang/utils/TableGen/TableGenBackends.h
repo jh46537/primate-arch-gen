@@ -133,7 +133,8 @@ void EmitRVVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitRVVBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 void EmitRVVBuiltinSema(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
-//void EmitPRVHeader(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitPrimateBFUBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitPrimateBFUBuiltinSema(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 //void EmitPRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 //void EmitPRVBuiltinCG(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
