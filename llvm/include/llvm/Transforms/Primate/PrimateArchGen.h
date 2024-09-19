@@ -37,42 +37,7 @@ class PrimateArchGen : public PassInfoMixin<PrimateArchGen>,
 public:
     // set forward false in the constructor DataFlow()
     PrimateArchGen() : DataFlow<BitVector>(false) {
-        // bvIndexToInstrArg = new std::vector<Value*>();
-        // valueToBitVectorIndex = new ValueMap<Value*, int>();
-        // instrInSet = new ValueMap<const Instruction*, BitVector*>();
-        aliasMap = new ValueMap<Value*, Value*>();
-        branchLevel = new ValueMap<Value*, int>();
-
-        dependencyForest = new ValueMap<Value*, std::map<Value*, bool>*>();
-        dependencyForestOp = new ValueMap<Value*, std::map<Value*, bool>*>();
-        instPriority = new ValueMap<Value*, int>();
-        bfIdx = new ValueMap<Value*, int>();
     }
-
-    // ~PrimateArchGen() {
-    //     dbgs() << "1\n";
-    //     delete bvIndexToInstrArg;
-    //     dbgs() << "2\n";
-    //     delete valueToBitVectorIndex;
-    //     dbgs() << "3\n";
-    //     delete instrInSet;
-    //     dbgs() << "4\n";
-    //     delete aliasMap;
-    //     dbgs() << "5\n";
-    //     delete branchLevel;
-    //     dbgs() << "6\n";
-
-    //     delete pointerMap;
-    //     dbgs() << "7\n";
-    //     delete dependencyForest;
-    //     dbgs() << "8\n";
-    //     delete dependencyForestOp;
-    //     dbgs() << "9\n";
-    //     delete instPriority;
-    //     dbgs() << "10\n";
-    //     delete bfIdx;
-    //     dbgs() << "11\n";
-    // }
     
     PreservedAnalyses run(Module &M, ModuleAnalysisManager& AM);
     void getAnalysisUsage(AnalysisUsage &AU) const;
