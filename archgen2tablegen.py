@@ -3970,3 +3970,119 @@ let TargetPrefix = "primate" in {{
 
 with open(os.path.join(gen_file_dir, "./IntrinsicsPrimate.td"), "w") as f:
     print(IntrinsicsPrimate, file=f)
+
+builtin_single = """TARGET_BUILTIN(__primate_bfu_{0}, "v", "nt", "")"""
+BFU_BUILTINS = combStr(builtin_single, max(numBFUs-2, 1))
+
+builtins_str = f"""
+//==- BuiltinsPrimate.def - Primate Builtin function database ----*- C++ -*-==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the Primate-specific builtin function database.  Users of
+// this file must define the BUILTIN macro to make use of this information.
+//
+//===----------------------------------------------------------------------===//
+
+#if defined(BUILTIN) && !defined(TARGET_BUILTIN)
+#   define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
+#endif
+
+//#include "clang/Basic/primate_vector_builtins.inc"
+
+// Primate BFUs
+TARGET_BUILTIN(__primate_input, "v*Ci", "nt", "")
+TARGET_BUILTIN(__primate_input_done, "v", "nt", "")
+TARGET_BUILTIN(__primate_output, "vv*Ci", "nt", "")
+TARGET_BUILTIN(__primate_output_done, "v", "nt", "")
+{BFU_BUILTINS}
+
+// Zbb extension
+TARGET_BUILTIN(__builtin_primate_orc_b_32, "ZiZi", "nc", "experimental-zbb")
+TARGET_BUILTIN(__builtin_primate_orc_b_64, "WiWi", "nc", "experimental-zbb,64bit")
+
+// Zbc extension
+TARGET_BUILTIN(__builtin_primate_clmul, "LiLiLi", "nc", "experimental-zbc")
+TARGET_BUILTIN(__builtin_primate_clmulh, "LiLiLi", "nc", "experimental-zbc")
+TARGET_BUILTIN(__builtin_primate_clmulr, "LiLiLi", "nc", "experimental-zbc")
+
+// Zbe extension
+TARGET_BUILTIN(__builtin_primate_bcompress_32, "ZiZiZi", "nc", "experimental-zbe")
+TARGET_BUILTIN(__builtin_primate_bcompress_64, "WiWiWi", "nc",
+               "experimental-zbe,64bit")
+TARGET_BUILTIN(__builtin_primate_bdecompress_32, "ZiZiZi", "nc",
+               "experimental-zbe")
+TARGET_BUILTIN(__builtin_primate_bdecompress_64, "WiWiWi", "nc",
+               "experimental-zbe,64bit")
+
+// Zbp extension
+TARGET_BUILTIN(__builtin_primate_grev_32, "ZiZiZi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_grev_64, "WiWiWi", "nc", "experimental-zbp,64bit")
+TARGET_BUILTIN(__builtin_primate_gorc_32, "ZiZiZi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_gorc_64, "WiWiWi", "nc", "experimental-zbp,64bit")
+TARGET_BUILTIN(__builtin_primate_shfl_32, "ZiZiZi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_shfl_64, "WiWiWi", "nc", "experimental-zbp,64bit")
+TARGET_BUILTIN(__builtin_primate_unshfl_32, "ZiZiZi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_unshfl_64, "WiWiWi", "nc", "experimental-zbp,64bit")
+TARGET_BUILTIN(__builtin_primate_xperm_n, "LiLiLi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_xperm_b, "LiLiLi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_xperm_h, "LiLiLi", "nc", "experimental-zbp")
+TARGET_BUILTIN(__builtin_primate_xperm_w, "WiWiWi", "nc", "experimental-zbp,64bit")
+
+// Zbr extension
+TARGET_BUILTIN(__builtin_primate_crc32_b, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32_h, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32_w, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32c_b, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32c_h, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32c_w, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32_d, "LiLi", "nc", "experimental-zbr")
+TARGET_BUILTIN(__builtin_primate_crc32c_d, "LiLi", "nc", "experimental-zbr")
+
+#undef BUILTIN
+#undef TARGET_BUILTIN
+"""
+
+with open(os.path.join(gen_file_dir, "./BuiltinsPrimate.def"), "w") as f:
+    print(builtins_str, file=f)
+
+# front end language tablegen 
+# /primate/primate-compiler/clang/include/clang/Basic/primate_bfu.td
+
+BFU_BUILTINS_TEMPS = """def BFU_{0}:      PrimateBuiltin<"__primate_BFU_{0}", "BB", "primate_BFU_{0}">;"""
+BFU_BUILTINS = combStr(BFU_BUILTINS_TEMPS, max(numBFUs-2, 1))
+
+front_end_stuff_template = f"""
+// name is the builtin name from clang/include/clang/Basic/BuiltinsPrimate.def
+//
+// prototype gets one char per argument
+// example: BBi is a built in that returns BFU, and takes BFU, integer
+// supported types:
+//      B: BFU type
+//      v: void
+//      i: integers
+//
+// intrin_name is the name of the backend intrinsic to use
+// defined in llvm/include/llvm/IR/IntrinsicsPrimate.td (strip the int_ from the tablegen name)
+
+
+class PrimateBuiltin<string name, string prototype, string intrin_name> {{
+    string Name = name;
+    string PType = prototype;
+    string IntrinName = intrin_name;
+}}
+
+
+def input:      PrimateBuiltin<"__primate_input", "B", "primate_input">;
+def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done">;
+def output:     PrimateBuiltin<"__primate_output", "B", "primate_output">;
+def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done">;
+{BFU_BUILTINS}
+"""
+with open(os.path.join(gen_file_dir, "primate_bfu.td"), "w") as f:
+    print(front_end_stuff_template, file=f)
+
