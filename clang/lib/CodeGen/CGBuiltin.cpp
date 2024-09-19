@@ -21371,9 +21371,15 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
   case Primate::BI__builtin_primate_crc32c_b:
   case Primate::BI__builtin_primate_crc32c_h:
   case Primate::BI__builtin_primate_crc32c_w:
+  case Primate::BI__primate_input:
   case Primate::BI__builtin_primate_crc32c_d: {
     switch (BuiltinID) {
     default: llvm_unreachable("unexpected builtin ID");
+
+    case Primate::BI__primate_input:
+      ID = Intrinsic::primate_input;
+      break;
+
     // Zbb
     case Primate::BI__builtin_primate_orc_b_32:
     case Primate::BI__builtin_primate_orc_b_64:

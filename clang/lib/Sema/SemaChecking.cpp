@@ -6150,6 +6150,8 @@ bool Sema::CheckPrimateBuiltinFunctionCall(const TargetInfo &TI,
 
   // Check if each required feature is included
   for (StringRef F : ReqFeatures) {
+    if(F.empty())
+      continue;
     if (TI.hasFeature(F))
       continue;
 
@@ -6173,6 +6175,9 @@ bool Sema::CheckPrimateBuiltinFunctionCall(const TargetInfo &TI,
     return true;
 
   switch (BuiltinID) {
+    case Primate::BI__primate_input:
+    case Primate::BI__primate_output:
+      return false;
   //case Primate::BI__builtin_prv_vsetvli:
   //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3) ||
   //         CheckPrimateLMUL(TheCall, 2);
