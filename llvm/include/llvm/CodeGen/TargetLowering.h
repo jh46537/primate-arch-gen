@@ -3714,8 +3714,13 @@ public:
   }
 
   // returns true if the target can support this aggregate as a 
-  // register/single type in the DAG
-  virtual bool supportedAggregate(StructType &STy) const {
+  // register/single type in the ISEL DAG
+  virtual bool supportedAggregate(StructType &STy, int=0) const {
+    return false;
+  }
+  // returns true if the target can support this array as a 
+  // register/single type in the ISEL DAG
+  virtual bool supportedArray(ArrayType &ATy, int=0) const {
     return false;
   }
 
