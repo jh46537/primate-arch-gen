@@ -909,8 +909,8 @@ def : CompressPat<(ADDIW GPRNoX0:$rs1, GPRNoX0:$rs1, simm6:$imm),
 let Predicates = [HasStdExtCOrZca] in {
 def : CompressPat<(ADDI GPRNoX0:$rd, X0, simm6:$imm),
                   (C_LI GPRNoX0:$rd, simm6:$imm)>;
-def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
-                  (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
+// def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
+//                   (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
 def : CompressPat<(LUI GPRNoX0X2:$rd, c_lui_imm:$imm),
                   (C_LUI GPRNoX0X2:$rd, c_lui_imm:$imm)>;
 def : CompressPat<(SRLI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
