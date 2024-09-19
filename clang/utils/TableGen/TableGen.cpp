@@ -105,6 +105,8 @@ enum ActionType {
   GenRISCVSiFiveVectorBuiltins,
   GenRISCVSiFiveVectorBuiltinCG,
   GenRISCVSiFiveVectorBuiltinSema,
+  GenPrimateBFUBuiltinCG,
+  GenPrimateBFUBuiltinSema,
   //GenPrimateVectorHeader,
   //GenPrimateVectorBuiltins,
   //GenPrimateVectorBuiltinCG,
@@ -305,8 +307,10 @@ cl::opt<ActionType> Action(
         clEnumValN(GenRISCVSiFiveVectorBuiltinSema,
                    "gen-riscv-sifive-vector-builtin-sema",
                    "Generate riscv_sifive_vector_builtin_sema.inc for clang"),
-        //clEnumValN(GenPrimateVectorHeader, "gen-primate-vector-header",
-        //           "Generate primate_vector.h for clang"),
+        clEnumValN(GenPrimateBFUBuiltinCG, "gen-primate-bfu-builtin-codegen",
+                   "Generate primate_bfu_buitin_cg.inc for clang"),
+        clEnumValN(GenPrimateBFUBuiltinSema, "gen-primate-bfu-builtin-sema",
+                   "Generate primate_bfu_buitin_sema.inc for clang"),
         //clEnumValN(GenPrimateVectorBuiltins, "gen-primate-vector-builtins",
         //           "Generate primate_vector_builtins.inc for clang"),
         //clEnumValN(GenPrimateVectorBuiltinCG,
@@ -574,6 +578,12 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenRISCVSiFiveVectorBuiltinSema:
     EmitRVVBuiltinSema(Records, OS);
+    break;
+  case GenPrimateBFUBuiltinCG:
+    EmitPrimateBFUBuiltinCG(Records, OS);
+    break;
+  case GenPrimateBFUBuiltinSema:
+    EmitPrimateBFUBuiltinSema(Records, OS);
     break;
   //case GenPrimateVectorHeader:
   //  EmitPRVHeader(Records, OS);

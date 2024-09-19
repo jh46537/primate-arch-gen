@@ -6175,9 +6175,7 @@ bool Sema::CheckPrimateBuiltinFunctionCall(const TargetInfo &TI,
     return true;
 
   switch (BuiltinID) {
-    case Primate::BI__primate_input:
-    case Primate::BI__primate_output:
-      return false;
+    #include "clang/Basic/primate_bfu_buitin_sema.inc"
   //case Primate::BI__builtin_prv_vsetvli:
   //  return SemaBuiltinConstantArgRange(TheCall, 1, 0, 3) ||
   //         CheckPrimateLMUL(TheCall, 2);
