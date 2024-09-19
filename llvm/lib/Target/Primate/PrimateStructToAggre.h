@@ -14,6 +14,7 @@
 
 #include "Primate.h"
 #include "PrimateTargetMachine.h"
+#include "llvm/IR/User.h" 
 
 #include "llvm/Pass.h"
 #include "llvm/IR/PassManager.h"
@@ -35,6 +36,7 @@ namespace llvm {
 
     PreservedAnalyses run(Function&, FunctionAnalysisManager&);
 
+    Type* getGEPTargetType(User::op_iterator, User::op_iterator, Type*);
     Type* followPointerForType(Value*);
     void normalizeFuncs(Function& F);
     void removeAllocas(Function& F);

@@ -3,6 +3,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/iterator_range.h"
+#include "llvm/IR/User.h" 
 
 #include <fstream>
 #include <algorithm> 
@@ -13,11 +15,9 @@
 #include "llvm/Demangle/Demangle.h"
 // TODO: DONT USE FUNC NAME FOR GENERATING INTRINSICS!!!!
 
-
 #define DEBUG_TYPE "PrimateStructToAggre"
 
-
-
+using namespace llvm;
 
 // trim from start (in place)
 inline void ltrim(std::string &s) {
@@ -72,7 +72,7 @@ namespace llvm {
                 rtrim(line);
                 ltrim(line);
                 dbgs() << "Found a BFU Named: " << line << "\n";
-                nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)(llvm::Intrinsic::primate_BFU_0 + (bfu_schedule_slot++));
+                nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)F.lookupIntrinsicID("primate_BFU_" + std::to_string(bfu_schedule_slot++));
                 for (const auto& nameIntrinPair : nameToIntrins)
                     dbgs() << nameIntrinPair.first << "\n";
                 }
@@ -83,7 +83,7 @@ namespace llvm {
         for(Type* type: BFUTypes) {
             type->dump();
         }
-	{
+	    {
             TLI = TM.getSubtarget<PrimateSubtarget>(F).getTargetLowering();
             // first normalize all the function calls to the same form 
             // 1. revert all vectorized aggregates to structs
@@ -473,35 +473,89 @@ namespace llvm {
             ci->replaceAllUsesWith(newCall);
         }
 
-
         instructionsToRemove.push_back(ci);
     }
 
+    Type* PrimateStructToAggre::getGEPTargetType(User::op_iterator ind_begin, User::op_iterator ind_end, Type* ptr_type) {
+        if(auto* vty = dyn_cast<VectorType>(ptr_type)) {
+            return vty->getElementType();
+        }
+        else if(auto* aty = dyn_cast<ArrayType>(ptr_type)) {
+            return aty->getElementType();
+        }
+        else if(auto* sty = dyn_cast<StructType>(ptr_type)) {
+            unsigned int const_idx = 0;
+            if (ConstantInt* CI = dyn_cast<ConstantInt>(ind_begin->get())) {
+                if (CI->getBitWidth() <= 32) {
+                    const_idx = CI->getSExtValue();
+                }
+            }
+            else {
+                LLVM_DEBUG(dbgs() << "failed to find the type due to non-const ptr\n";);
+                return nullptr;
+            }
+            if (std::next(ind_begin) == ind_end) {
+                return sty->getTypeAtIndex(const_idx);
+            }
+            else {
+                return getGEPTargetType(std::next(ind_begin), ind_end, sty->getTypeAtIndex(const_idx));
+            }
+        }
+        else if(auto* ity = dyn_cast<IntegerType>(ptr_type)) {
+            return ptr_type;
+        }
+        else {
+            LLVM_DEBUG(dbgs() << "GEP is not targetting a vec, arr, or struct. weird.\n"; );
+            return nullptr;
+        }
+    }
+
+    // given some gep using an alloca, attempt to change all the load and stores using this
+    // GEP into load, store, insert, extract instructions
     void PrimateStructToAggre::convertAndTrimGEP(GetElementPtrInst* gepI) {
+        if(gepI->idx_begin() == gepI->idx_end()) { // is this possible?
+            return;
+        }
+
         IRBuilder<> builder(gepI->getParent());
         builder.SetInsertPoint(gepI);
         Value* srcPtr = gepI->getPointerOperand();
-        Type* srcType = gepI->getSourceElementType();
+        Type* srcType = followPointerForType(srcPtr); // GEP type might not match the thing pointed to. Grab the alloca
+        if(srcType != gepI->getSourceElementType()) {
+            LLVM_DEBUG(dbgs() << "Gep type and pointer type are not the same. Can't generate insert/extracts so we bail.\n";);
+            return;
+        }
+
+        auto b = std::next(gepI->idx_begin());
+        auto e = gepI->idx_end();
+        Type* finalType = getGEPTargetType(b, e, gepI->getSourceElementType()); // type of the final thing the GEP is calculating an address for. Sometimes the GEP will toss a 0 index.
         SmallVector<Use*> gepInds;
+        unsigned int lastIndex;
+        if(finalType == nullptr) {
+            return;
+        }
         for(auto& ind : gepI->indices()) {
             gepInds.push_back(&ind);
         }
-        unsigned int lastIndex;
         if (ConstantInt* CI = dyn_cast<ConstantInt>((gepInds.back()--))) {
-            if (CI->getBitWidth() <= 32) {
+            if(CI->getBitWidth() <= 32) {
                 lastIndex = CI->getSExtValue();
             }
         }
         else {
-            llvm_unreachable("no support for variable last index GEPs");
+            return;
         }
 
 
         for(auto uIter: gepI->users()) {
             if(auto* li = dyn_cast<LoadInst>(uIter)) {
+                // bail if the loaded value type is not the same as the final type
+                if (li->getType() != finalType) {
+                    return;
+                }
                 builder.SetInsertPoint(li);
                 LoadInst* newLoad = builder.CreateLoad(srcType, srcPtr);
-                Value* extLoad = builder.CreateExtractValue(newLoad, lastIndex, li->getName());
+                Value* extLoad    = builder.CreateExtractValue(newLoad, lastIndex, li->getName());
                 LLVM_DEBUG(dbgs() << "replaced: "; li->dump(); 
                 dbgs() << " with: "; extLoad->dump());
                 li->replaceAllUsesWith(extLoad);
@@ -511,20 +565,28 @@ namespace llvm {
                 instructionsToRemove.push_back(li);
             }
             else if(auto* si = dyn_cast<StoreInst>(uIter)) {
+                // bail if the stored value type is not the same as the final type
+                if (si->getValueOperand()->getType() != finalType) {
+                    return;
+                }
+
                 // TODO: HACK SHOULD BE OPT
                 // load insert and store....
+                LLVM_DEBUG(dbgs() << "Hit a store instr on the GEP users\n";);
                 builder.SetInsertPoint(si);
-                LoadInst *newLoad = builder.CreateLoad(srcType, srcPtr);
-                Value *insLoad = builder.CreateInsertValue(newLoad, si->getValueOperand(), lastIndex);
+                LoadInst *newLoad   = builder.CreateLoad(srcType, srcPtr);
+                LLVM_DEBUG(newLoad->dump(););
+                Value *insLoad      = builder.CreateInsertValue(newLoad, si->getValueOperand(), lastIndex);
+                LLVM_DEBUG(insLoad->dump(););
                 StoreInst *newStore = builder.CreateStore(insLoad, srcPtr);
-                LLVM_DEBUG(dbgs() << "Created Ops: ";
-                newLoad->dump();
-                insLoad->dump();
-                newStore->dump(););
+                LLVM_DEBUG(newStore->dump(););
                 instructionsToRemove.push_back(si);
             }
             else {
-                llvm_unreachable("gep used by not a load/store D:");
+                LLVM_DEBUG(dbgs() << "Missed optimization due to gep being used by non load/store: "; uIter->dump();
+                           dbgs() << "leaving the ops cleaned so far and bailing.\n";
+                );
+                return;
             }
         }
         instructionsToRemove.push_back(gepI);
