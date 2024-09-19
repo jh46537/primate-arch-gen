@@ -306,23 +306,21 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
                 // we need to use the call instruction 
                 // so we don't use the type of the pointer :/
                 Type *argTy = nullptr;
-                if (arg.getParamByValType()) {
-                    argTy = arg.getParamByValType();
-                } 
-                else if (arg.getParamStructRetType()) {
-                    argTy = arg.getParamStructRetType();
+                if (arg.getType()->isPointerTy()) { 
+                    if (arg.hasByValAttr()) {
+                        argTy = arg.getParamByValType();
+                    } 
+                    else if (arg.hasStructRetAttr()) {
+                        argTy = arg.getParamStructRetType();
+                    }
+                    else {
+                        F.dump(); 
+                        llvm_unreachable("Invalid argument in function\n");
+                    }
                 }
                 else {
-                    F.dump();
-                    llvm_unreachable("Invalid argument in function\n");
+                    argTy = arg.getType();
                 }
-
-                // if(arg.getType()->isPointerTy()) {
-                //     argTy = arg.getType()->getPointerElementType();
-                // }
-                // else {
-                //     argTy = arg.getType();
-                // }
 
                 unsigned regWidth = getTypeBitWidth(argTy, true); 
                 if (regWidth > maxRegWidth) {
@@ -2105,6 +2103,17 @@ PrimateArchGen::emitInstructionAnnot(const Instruction *i,
 }
 
 PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
+    bvIndexToInstrArg = new std::vector<Value*>();
+    valueToBitVectorIndex = new ValueMap<Value*, int>();
+    instrInSet = new ValueMap<const Instruction*, BitVector*>();
+    aliasMap = new ValueMap<Value*, Value*>();
+    branchLevel = new ValueMap<Value*, int>();
+
+    dependencyForest = new ValueMap<Value*, std::map<Value*, bool>*>();
+    dependencyForestOp = new ValueMap<Value*, std::map<Value*, bool>*>();
+    instPriority = new ValueMap<Value*, int>();
+    bfIdx = new ValueMap<Value*, int>();
+
     std::fill_n(live,50,0);
 
     std::error_code primateEC, interconnEC, primateHeaderEC, asmHeaderEC;
@@ -2175,6 +2184,21 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     interconnectCFG.close();
     primateHeader.close();
     assemblerHeader.close();
+
+    delete bvIndexToInstrArg;
+    delete valueToBitVectorIndex;
+    delete instrInSet;
+    delete aliasMap;
+    delete branchLevel;
+
+    delete pointerMap;
+    delete dependencyForest;
+    delete dependencyForestOp;
+    delete instPriority;
+    delete bfIdx;
+    
+    cleanDataFlow();
+
     return PreservedAnalyses::all();
 }
 

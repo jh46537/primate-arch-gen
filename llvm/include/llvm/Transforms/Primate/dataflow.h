@@ -44,8 +44,9 @@ public:
         neighbourSpecificValues = new BlockInOutMap();
         visited = new ValueMap<BasicBlock*, bool>();
     }
+    virtual ~DataFlow(){}
 
-    virtual ~DataFlow(){
+    void cleanDataFlow(){
         delete in;
         delete out;
         delete neighbourSpecificValues;
