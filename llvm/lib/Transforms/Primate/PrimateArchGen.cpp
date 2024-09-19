@@ -19,21 +19,12 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 
  *********************************************************************************/
 
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/IR/DebugInfo.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/InstIterator.h>
-#include <llvm/IR/Instruction.h>
-// #include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/ValueMap.h>
-#include <llvm/Pass.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/FormattedStream.h>
-#include <llvm/Support/raw_ostream.h>
-// #include<llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Primate/PrimateArchGen.h>
+#include <cstddef>
+#include <system_error>
 
 using namespace llvm;
 
@@ -144,7 +135,7 @@ bool PrimateArchGen::isDefinition(Instruction *i) {
 
 void PrimateArchGen::calculate(const Instruction *ii) {
     //static unsigned int live[50], n=0;
-    int count=0;
+    unsigned int count = 0;
 
     if (!isa<PHINode>(*(ii))) {
     const BitVector *bv = (*instrInSet)[&*ii];
@@ -296,7 +287,7 @@ unsigned PrimateArchGen::getTypeBitWidth(Type *ty, bool trackSizes) {
     return size;
 }
 
-void PrimateArchGen::printRegfileKnobs(Module &M) {
+void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
     auto structTypes = M.getIdentifiedStructTypes();
     unsigned maxRegWidth = 0;
     gatherModes = new std::set<unsigned>();
@@ -471,7 +462,7 @@ void PrimateArchGen::printRegfileKnobs(Module &M) {
                << "NUM_WB_ENS=" << scatterWbens.size() << "\n";
 }
 
-void PrimateArchGen::generate_header(Module &M) {
+void PrimateArchGen::generate_header(Module &M, raw_fd_stream &primateHeader) {
     auto structTypes = M.getIdentifiedStructTypes();
     unsigned maxRegWidth = 0;
     gatherModes = new std::set<unsigned>();
@@ -620,8 +611,8 @@ PrimateArchGen::checkMemAlias(Value *ptr0, unsigned size0,
 bool PrimateArchGen::isReachable(Value* src, std::set<Value*> &dst) {
     // simple DFS
     std::vector<Value*> stack;
-    for (auto it = dependencyForest[src]->begin(); 
-         it != dependencyForest[src]->end(); it++) {
+    for (auto it = (*dependencyForest)[src]->begin(); 
+         it != (*dependencyForest)[src]->end(); it++) {
         stack.push_back(it->first);
     }
     while (!stack.empty()) {
@@ -630,8 +621,8 @@ bool PrimateArchGen::isReachable(Value* src, std::set<Value*> &dst) {
             return true;
         } else {
             stack.pop_back();
-            for (auto it = dependencyForest[inst]->begin(); 
-                 it != dependencyForest[inst]->end(); it++) {
+            for (auto it = (*dependencyForest)[inst]->begin(); 
+                 it != (*dependencyForest)[inst]->end(); it++) {
                 stack.push_back(it->first);
             }
         }
@@ -661,15 +652,15 @@ PrimateArchGen::memInstAddRAWDep(Instruction* inst, Value* srcPtr, unsigned size
             // Only add to the dependency list if it's an immediate dependency
             std::set<Value*> dst{si->first};
             bool immDep = true;
-            for (auto dep = dependencyForest[&*inst]->begin(); 
-                 dep != dependencyForest[&*inst]->end(); dep++) {
+            for (auto dep = (*dependencyForest)[&*inst]->begin(); 
+                 dep != (*dependencyForest)[&*inst]->end(); dep++) {
                 if (dep->second && (isReachable(dep->first, dst))) {
                     immDep = false;
                     break;
                 }
             }
             if (immDep) 
-                (*dependencyForest[&*inst])[si->first] = true;
+                (*(*dependencyForest)[&*inst])[si->first] = true;
         }
     }
 }
@@ -690,7 +681,7 @@ PrimateArchGen::memInstAddWARDep(Instruction* inst, Value* dstPtr, unsigned size
         for (auto lp = li->second.begin(); lp != li->second.end(); lp++) {
             if (checkMemAlias(dstPtr, size, lp->first, lp->second)) {
                 // WAR dependency
-                dependencyForest[&*inst]->insert({li->first, false});
+                (*dependencyForest)[&*inst]->insert({li->first, false});
             }
         }
     }
@@ -699,7 +690,7 @@ PrimateArchGen::memInstAddWARDep(Instruction* inst, Value* dstPtr, unsigned size
 void PrimateArchGen::initializeDependencyForest(Function &F) {
     ValueMap<Value*, std::vector<std::pair<Value*, unsigned>>> loadInsts;
     ValueMap<Value*, std::vector<std::pair<Value*, unsigned>>> storeInsts;
-    dependencyForest.clear();
+    dependencyForest->clear();
     loadMergedInst.clear();
     for (Function::iterator bi = F.begin(), be = F.end(); bi != be; bi++) {
         BasicBlock *bb = &*bi;
@@ -713,7 +704,7 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
             if (isa<LoadInst>(*inst)) {
                 // inst->print(errs());
                 // errs() << ":\n";
-                dependencyForest[&*inst] = new std::map<Value*, bool>();
+                (*dependencyForest)[&*inst] = new std::map<Value*, bool>();
                 Value* srcPtr = inst->getOperand(0);
                 // PointerType *ptrType = dyn_cast<PointerType>(srcPtr->getType());
                 // Type *pteType = ptrType->getElementType();
@@ -724,14 +715,14 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
             } else if (isa<StoreInst>(*inst)) {
                 // inst->print(errs());
                 // errs() << ":\n";
-                dependencyForest[&*inst] = new std::map<Value*, bool>();
+                (*dependencyForest)[&*inst] = new std::map<Value*, bool>();
                 auto *tmp = dyn_cast<llvm::StoreInst>(&*inst);
                 Value *srcOp = tmp->getValueOperand();
                 Value *ptrOp = tmp->getPointerOperand();
                 if (isa<Instruction>(*srcOp)) {
                     Instruction *op_inst = dyn_cast<Instruction>(srcOp);
                     if (op_inst->getParent() == bb && (!isa<PHINode>(*op_inst)))
-                        (*dependencyForest[&*inst])[srcOp] = true;
+                        (*(*dependencyForest)[&*inst])[srcOp] = true;
                 }
                 PointerType *ptrType = dyn_cast<PointerType>(ptrOp->getType());
                 // Type *pteType = ptrType->getElementType();
@@ -744,7 +735,7 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
                 auto *tmp = dyn_cast<llvm::CallInst>(&*inst);
                 Function* foo = tmp->getCalledFunction();
                 if (foo->getName().contains("memcpy")) {
-                    dependencyForest[&*inst] = new std::map<Value*, bool>();
+                    (*dependencyForest)[&*inst] = new std::map<Value*, bool>();
                     Value *dstPtr = tmp->getOperand(0);
                     Value *srcPtr = tmp->getOperand(1);
                     Value *size = tmp->getOperand(2);
@@ -762,7 +753,7 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
                     loadInsts[&*inst].push_back({srcPtr, size_u*8});
                     storeInsts[&*inst].push_back({dstPtr, size_u*8});
                 } else if (isBlueCall(inst)) {
-                    dependencyForest[&*inst] = new std::map<Value*, bool>();
+                    (*dependencyForest)[&*inst] = new std::map<Value*, bool>();
                     std::vector<std::pair<Value*, unsigned>> inOps;
                     std::vector<std::pair<Value*, unsigned>> outOps;
                     auto inList = getBFCInputs(inst);
@@ -806,12 +797,12 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
                          isa<BitCastInst>(*inst)       || 
                          isa<AllocaInst>(*inst)        || 
                          isa<PHINode>(*inst))) {
-                dependencyForest[&*inst] = new std::map<Value*, bool>();
+                (*dependencyForest)[&*inst] = new std::map<Value*, bool>();
                 for (auto OI = inst->op_begin(); OI != inst->op_end(); ++OI) {
                     if (isa<Instruction>(*OI)) {
                         Instruction* op_inst = dyn_cast<Instruction>(OI);
                         if (op_inst->getParent() == bb && (!isa<PHINode>(*op_inst)))
-                            (*dependencyForest[&*inst])[&*op_inst] = true;
+                            (*(*dependencyForest)[&*inst])[&*op_inst] = true;
                     }
                 }
             }
@@ -820,11 +811,11 @@ void PrimateArchGen::initializeDependencyForest(Function &F) {
 }
 
 void PrimateArchGen::mergeExtInstructions() {
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end(); it++) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end(); it++) {
         for (auto dep = it->second->begin(); dep != it->second->end();) {
             Value* dep_inst = dep->first;
             if (isa<ZExtInst>(*dep_inst) || isa<SExtInst>(*dep_inst)) {
-                Value* new_dep = dependencyForest[dep_inst]->begin()->first;
+                Value* new_dep = (*dependencyForest)[dep_inst]->begin()->first;
                 bool rel = dep->second;
                 // errs() << "start erase\n";
                 // errs() << "erase success\n";
@@ -841,10 +832,10 @@ void PrimateArchGen::mergeExtInstructions() {
             }
         }
     }
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end();) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end();) {
         Value *inst = it->first;
         if (isa<ZExtInst>(*inst) || isa<SExtInst>(*inst)) {
-            dependencyForest.erase(it++);
+            dependencyForest->erase(it++);
         } else {
             ++it;
         }
@@ -856,7 +847,7 @@ void PrimateArchGen::mergeLoadInstructions() {
     ValueMap<Value*, std::set<Value*>> loadWARDependents;
     ValueMap<Value*, bool> loadMergeable;
     unmergeableLoad.clear();
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end(); it++) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end(); it++) {
         if (isa<LoadInst>(*(it->first))) {
             loadMergeable[it->first] = true;
         } else {
@@ -883,23 +874,23 @@ void PrimateArchGen::mergeLoadInstructions() {
     for (auto it = loadMergeable.begin(); it != loadMergeable.end(); it++) {
         if (it->second) {
             // errs() << "load mergeable\n";
-            auto newDepList = dependencyForest[it->first];
+            auto newDepList = (*dependencyForest)[it->first];
             for (auto inst_it = loadRAWDependents[it->first].begin(); 
                  inst_it != loadRAWDependents[it->first].end(); inst_it++) {
                 loadMergedInst.insert(*inst_it);
-                int erase_count = dependencyForest[*inst_it]->erase(it->first);
+                int erase_count = (*dependencyForest)[*inst_it]->erase(it->first);
                 // (*inst_it)->print(errs());
                 // errs() << ": erase " << erase_count << "\n";
                 for (auto newDep = newDepList->begin(); 
                      newDep != newDepList->end(); newDep++) {
-                    (*dependencyForest[*inst_it])[newDep->first] = newDep->second;
+                    (*(*dependencyForest)[*inst_it])[newDep->first] = newDep->second;
                 }
             }
             for (auto inst_it = loadWARDependents[it->first].begin(); 
                  inst_it != loadWARDependents[it->first].end(); inst_it++) {
-                dependencyForest[*inst_it]->erase(it->first);
+                (*dependencyForest)[*inst_it]->erase(it->first);
             }
-            dependencyForest.erase(it->first);
+            dependencyForest->erase(it->first);
         }
     }
 }
@@ -907,7 +898,7 @@ void PrimateArchGen::mergeLoadInstructions() {
 void PrimateArchGen::mergeStoreInstructions() {
     ValueMap<Value*, Value*> storeMap;
     unmergeableStore.clear();
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end();) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end();) {
         if(isa<StoreInst>(*(it->first))) {
             std::set<Value*> storeRAWDependents;
             std::set<Value*> storeWARDependents;
@@ -932,10 +923,10 @@ void PrimateArchGen::mergeStoreInstructions() {
             if (mergeable) {
                 for (auto dep = storeWARDependents.begin(); 
                      dep != storeWARDependents.end(); dep++) {
-                    dependencyForest[storeSrc]->insert({*dep, false});
+                    (*dependencyForest)[storeSrc]->insert({*dep, false});
                 }
                 storeMap[it->first] = storeSrc;
-                dependencyForest.erase(it++);
+                dependencyForest->erase(it++);
             } else {
                 unmergeableStore.insert(it->first);
                 ++it;
@@ -944,7 +935,7 @@ void PrimateArchGen::mergeStoreInstructions() {
             ++it;
         }
     }
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end(); it++) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end(); it++) {
         for (auto dep = it->second->begin(); dep != it->second->end();) {
             if (storeMap.find(dep->first) != storeMap.end()) {
                 // depend on a mergeable store instruction
@@ -963,16 +954,16 @@ void PrimateArchGen::mergeStoreInstructions() {
 }
 
 void PrimateArchGen::addControlDependency() {
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end(); it++) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end(); it++) {
         Instruction *inst = dyn_cast<Instruction>(it->first);
         if (inst->isTerminator()) {
             // terminator instruction has control dependence on 
             // all other instructions in the same BB
             BasicBlock *bb = inst->getParent();
             for (BasicBlock::iterator dep = bb->begin(); dep != bb->end(); dep++) {
-                if ((dependencyForest.find(&*dep) != dependencyForest.end()) && 
+                if ((dependencyForest->find(&*dep) != dependencyForest->end()) && 
                     (&*dep != &*inst))
-                    dependencyForest[&*inst]->insert({&*dep, false});
+                    (*dependencyForest)[&*inst]->insert({&*dep, false});
             }
         }
     }
@@ -1015,16 +1006,16 @@ void PrimateArchGen::bruMerge(Instruction* inst, int level, int numALU) {
             int numRAWDep = 0;
             std::vector<Value*> mergeableDep;
             // Check all RAW dependencies and find which instruction is mergeable
-            for (auto dep = dependencyForestOp[*it]->begin(); 
-                 dep != dependencyForestOp[*it]->end(); dep++) {
+            for (auto dep = (*dependencyForestOp)[*it]->begin(); 
+                 dep != (*dependencyForestOp)[*it]->end(); dep++) {
                 if (dep->second) {
                     Value *RAWDepInst = dep->first;
                     bool mergeable = true;
                     if (!isBlueCall(dyn_cast<Instruction>(RAWDepInst))) {
                         // Check all Primate instructions in the same BB
                         for (auto pInst = bb->rbegin(); pInst != bb->rend(); pInst++) {
-                            auto pInstDep = dependencyForestOp.find(&*pInst);
-                            if (pInstDep != dependencyForestOp.end()) {
+                            auto pInstDep = dependencyForestOp->find(&*pInst);
+                            if (pInstDep != dependencyForestOp->end()) {
                                 // Only instructions in the new frontier can depend 
                                 // on the instruction to be merged to
                                 if (newFrontier.find(&*pInst) == newFrontier.end()) {
@@ -1061,12 +1052,12 @@ void PrimateArchGen::bruMerge(Instruction* inst, int level, int numALU) {
                 } else {
                     newFrontierNext.insert(mergeDep);
                 }
-                (*dependencyForestOp[*it])[mergeDep] = false;
+                (*(*dependencyForestOp)[*it])[mergeDep] = false;
                 mergeableDep.erase(mergeableDep.begin());
             }
             if (erasable) {
                 combinedBranchInst.insert(*it);
-                dependencyForestOp.erase(*it);
+                dependencyForestOp->erase(*it);
             } else {
                 frontier->insert(*it);
             }
@@ -1079,12 +1070,12 @@ void PrimateArchGen::bruMerge(Instruction* inst, int level, int numALU) {
     // Instructions in the frontier must be scheduled with or after all other instructions
     // Add WAR dependency on all other instructions to the frontier instructions
     for (auto pInst = bb->begin(); pInst != bb->end(); pInst++) {
-        auto pInstDep = dependencyForestOp.find(&*pInst);
-        if (pInstDep != dependencyForestOp.end()) {
+        auto pInstDep = dependencyForestOp->find(&*pInst);
+        if (pInstDep != dependencyForestOp->end()) {
             if (frontier->find(pInstDep->first) == frontier->end()) {
                 for (auto brInst = frontier->begin(); 
                      brInst != frontier->end(); brInst++) {
-                    dependencyForestOp[*brInst]->insert({pInstDep->first, false});
+                    (*dependencyForestOp)[*brInst]->insert({pInstDep->first, false});
                 }
             }
         }
@@ -1094,14 +1085,14 @@ void PrimateArchGen::bruMerge(Instruction* inst, int level, int numALU) {
 
 void PrimateArchGen::mergeBranchInstructions(int level, int numALU) {
     combinedBranchInst.clear();
-    for (auto it = dependencyForest.begin(); it != dependencyForest.end(); it++) {
+    for (auto it = dependencyForest->begin(); it != dependencyForest->end(); it++) {
         Instruction *inst = dyn_cast<Instruction>(it->first);
         Value* cond;
         if (inst->isTerminator()) {
             if (isa<BranchInst>(*inst)) {
                 BranchInst* brInst = dyn_cast<BranchInst>(inst);
                 if (brInst->isUnconditional()) {
-                    dependencyForestOp.erase(it->first);
+                    dependencyForestOp->erase(it->first);
                     continue;
                 } else {
                     cond = brInst->getCondition();
@@ -1111,7 +1102,7 @@ void PrimateArchGen::mergeBranchInstructions(int level, int numALU) {
                 cond = swInst->getCondition();
             } else if (isa<ReturnInst>(*inst)) {
                 // Primate program must return results through BFU
-                dependencyForestOp.erase(it->first);
+                dependencyForestOp->erase(it->first);
                 continue;
             } else {
                 errs() << "Terminator instruction not supported!\n";
@@ -1121,13 +1112,13 @@ void PrimateArchGen::mergeBranchInstructions(int level, int numALU) {
             if (isa<Instruction>(*cond)) {
                 auto condInst = dyn_cast<Instruction>(cond);
                 // Condition value must be an instruction to merge to
-                if (dependencyForestOp.find(cond) != dependencyForestOp.end()) {
+                if (dependencyForestOp->find(cond) != dependencyForestOp->end()) {
                     bool mergeable = true;
                     BasicBlock *bb = inst->getParent();
                     // Check all Primate instructions in the same BB
                     for (auto pInst = bb->rbegin(); pInst != bb->rend(); pInst++) {
-                        auto pInstDep = dependencyForestOp.find(&*pInst);
-                        if (pInstDep != dependencyForestOp.end()) {
+                        auto pInstDep = dependencyForestOp->find(&*pInst);
+                        if (pInstDep != dependencyForestOp->end()) {
                             // No instruction other than branch instruction depends 
                             // on the condition value
                             if (pInstDep->first != (&*inst)) {
@@ -1141,7 +1132,7 @@ void PrimateArchGen::mergeBranchInstructions(int level, int numALU) {
                     }
                     if (mergeable) {
                         combinedBranchInst.insert(it->first);
-                        dependencyForestOp.erase(it->first);
+                        dependencyForestOp->erase(it->first);
                         bruMerge(condInst, level-1, numALU);
                     } else {
                         frontiers[bb] = new std::set<Value*>({it->first});
@@ -1182,11 +1173,11 @@ void PrimateArchGen::buildDependencyForest(Function &F) {
 }
 
 void PrimateArchGen::optimizeDependencyForest(int bruDepth, int numALU) {
-    dependencyForestOp.clear();
+    dependencyForestOp->clear();
     frontiers.clear();
-    for (auto it = dependencyForest.begin(); 
-         it != dependencyForest.end(); it++) {
-        dependencyForestOp[it->first] = 
+    for (auto it = dependencyForest->begin(); 
+         it != dependencyForest->end(); it++) {
+        (*dependencyForestOp)[it->first] = 
             new std::map<Value*, bool>((*it->second));
     }
     mergeBranchInstructions(bruDepth, numALU);
@@ -1195,11 +1186,11 @@ void PrimateArchGen::optimizeDependencyForest(int bruDepth, int numALU) {
 void PrimateArchGen::printDependencyForest(Function &F) {
     int n = 0;
     for (inst_iterator ii = inst_begin(F), ie = inst_end(F); ii != ie; ii++) {
-        if (dependencyForestOp.find(&*ii) != dependencyForestOp.end()) {
+        if (dependencyForestOp->find(&*ii) != dependencyForestOp->end()) {
             ii->print(errs());
             errs() << "\ndepends on:\n";
             int i = 1;
-            auto depList = dependencyForestOp[&*ii];
+            auto depList = (*dependencyForestOp)[&*ii];
             for (auto dep = depList->begin(); dep != depList->end(); dep++) {
                 errs() << i << ": ";
                 dep->first->print(errs());
@@ -1229,11 +1220,11 @@ void PrimateArchGen::printDependencyForest(Function &F) {
 void PrimateArchGen::annotatePriority(Function &F, bool optimized) {
     ValueMap<Value*, std::map<Value*, bool>*>* dag;
     if (optimized) 
-        dag = &dependencyForestOp;
+        dag = dependencyForestOp;
     else
-        dag = &dependencyForest;
+        dag = dependencyForest;
     
-    instPriority.clear();
+    instPriority->clear();
     std::vector<Value*> waitlist;
     for (Function::iterator bi = F.begin(); bi != F.end(); bi++) {
         BasicBlock *bb = &*bi;
@@ -1242,10 +1233,10 @@ void PrimateArchGen::annotatePriority(Function &F, bool optimized) {
             if (dag->find(&*ii) != dag->end()) {
                 // is a Primate instruction
                 int selfPriority = 0;
-                if (instPriority.find(&*ii) == instPriority.end()) {
-                    instPriority[(&*ii)] = 0;
+                if (instPriority->find(&*ii) == instPriority->end()) {
+                    (*instPriority)[(&*ii)] = 0;
                 } else {
-                    selfPriority = instPriority[&*ii];
+                    selfPriority = (*instPriority)[&*ii];
                 }
                 for (auto dep = (*dag)[&*ii]->begin(); dep != (*dag)[&*ii]->end(); dep++) {
                     int newPriority;
@@ -1258,10 +1249,10 @@ void PrimateArchGen::annotatePriority(Function &F, bool optimized) {
                             newPriority = selfPriority + 1;
                         }
                     }
-                    if (instPriority.find(dep->first) == instPriority.end()) {
-                        instPriority[dep->first] = newPriority;
-                    } else if (instPriority[dep->first] < newPriority) {
-                        instPriority[dep->first] = newPriority;
+                    if (instPriority->find(dep->first) == instPriority->end()) {
+                        (*instPriority)[dep->first] = newPriority;
+                    } else if ((*instPriority)[dep->first] < newPriority) {
+                        (*instPriority)[dep->first] = newPriority;
                         waitlist.push_back(dep->first);
                     }
                 }
@@ -1273,16 +1264,16 @@ void PrimateArchGen::annotatePriority(Function &F, bool optimized) {
             for (auto dep = (*dag)[pInst]->begin(); dep != (*dag)[pInst]->end(); dep++) {
                 int newPriority;
                 Instruction *inst = dyn_cast<Instruction>(pInst);
-                if (isBlueCall(inst)) newPriority = instPriority[pInst];
+                if (isBlueCall(inst)) newPriority = (*instPriority)[pInst];
                 else {
                     if (dep->second) {
-                        newPriority = instPriority[pInst] + 2;
+                        newPriority = (*instPriority)[pInst] + 2;
                     } else {
-                        newPriority = instPriority[pInst] + 1;
+                        newPriority = (*instPriority)[pInst] + 1;
                     }
                 }
-                if (instPriority[dep->first] < newPriority) {
-                    instPriority[dep->first] = newPriority;
+                if ((*instPriority)[dep->first] < newPriority) {
+                    (*instPriority)[dep->first] = newPriority;
                     waitlist.push_back(dep->first);
                 }
             }
@@ -1298,15 +1289,15 @@ int PrimateArchGen::estimateNumALUs(Function &F) {
         int maxPriority = 0;
         int numALUInst = 0;
         for (auto ii = bb->begin(); ii != bb->end(); ++ii) {
-            if (dependencyForest.find(&*ii) != dependencyForest.end()) {
+            if (dependencyForest->find(&*ii) != dependencyForest->end()) {
                 Instruction *inst = dyn_cast<Instruction>(&*ii);
                 if (!isBlueCall(inst) && !inst->isTerminator()) {
                     // inst->print(errs());
                     // errs() << "\n";
                     numALUInst++;
                 }
-                if (instPriority[&*ii] > maxPriority) {
-                    maxPriority = instPriority[&*ii];
+                if ((*instPriority)[&*ii] > maxPriority) {
+                    maxPriority = (*instPriority)[&*ii];
                 }
             }
         }
@@ -1324,8 +1315,8 @@ void
 PrimateArchGen::addBFCDependency(Value* bfc, 
                                  std::map<Value*, std::set<Value*>> &bfcConflict, 
                                  std::set<Value*> &toScheduleInst) {
-    for (auto dep = dependencyForestOp[bfc]->begin(); 
-         dep != dependencyForestOp[bfc]->end(); dep++) {
+    for (auto dep = (*dependencyForestOp)[bfc]->begin(); 
+         dep != (*dependencyForestOp)[bfc]->end(); dep++) {
         Instruction* depInst = dyn_cast<Instruction>(dep->first);
         if (dep->second) {
             if ((!isBlueCall(depInst)) && 
@@ -1363,8 +1354,8 @@ PrimateArchGen::addBFDependency(std::map<Value*,
         auto *tmp0 = dyn_cast<llvm::CallInst>((bfcPair->first).first);
         Function *foo = tmp0->getCalledFunction();
         int fooIdx;
-        auto fooIdx_it = bfIdx.find(&*foo);
-        if (fooIdx_it != bfIdx.end()) {
+        auto fooIdx_it = bfIdx->find(&*foo);
+        if (fooIdx_it != bfIdx->end()) {
             fooIdx = fooIdx_it->second;
         } else {
             errs() << "Blue Function not found!\n";
@@ -1373,8 +1364,8 @@ PrimateArchGen::addBFDependency(std::map<Value*,
         auto *tmp1 = dyn_cast<llvm::CallInst>((bfcPair->first).second);
         Function *bar = tmp1->getCalledFunction();
         int barIdx;
-        auto barIdx_it = bfIdx.find(&*bar);
-        if (barIdx_it != bfIdx.end()) {
+        auto barIdx_it = bfIdx->find(&*bar);
+        if (barIdx_it != bfIdx->end()) {
             barIdx = barIdx_it->second;
         } else {
             errs() << "Blue Function not found!\n";
@@ -1410,21 +1401,21 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
             frontier_size = frontier_it->second->size();
         }
         for (auto ii = bb->begin(); ii != bb->end(); ++ii) {
-            if (dependencyForestOp.find(&*ii) != dependencyForestOp.end()) {
+            if (dependencyForestOp->find(&*ii) != dependencyForestOp->end()) {
                 Instruction *inst = dyn_cast<Instruction>(&*ii);
                 if (frontier_it != frontiers.end()) {
                     if (frontier_it->second->find(&*ii) == frontier_it->second->end()) {
                         if (isBlueCall(inst)) {
                             blueCalls.push_back(&*ii);
                         } else {
-                            nonFrontier.push_back({instPriority[&*ii], &*ii});
+                            nonFrontier.push_back({(*instPriority)[&*ii], &*ii});
                         }
                     }
                 } else {
                     if (isBlueCall(inst)) {
                         blueCalls.push_back(&*ii);
                     } else {
-                        nonFrontier.push_back({instPriority[&*ii], &*ii});
+                        nonFrontier.push_back({(*instPriority)[&*ii], &*ii});
                     }
                 }
             }
@@ -1445,8 +1436,8 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
                     break;
                 }
                 bool scheduleable = true;
-                for (auto dep = dependencyForestOp[inst->second]->begin(); 
-                     dep != dependencyForestOp[inst->second]->end(); dep++) {
+                for (auto dep = (*dependencyForestOp)[inst->second]->begin(); 
+                     dep != (*dependencyForestOp)[inst->second]->end(); dep++) {
                     // Loop all instructions it depends on
                     if (dep->second) {
                         if (scheduledInst.find(dep->first) == scheduledInst.end()) {
@@ -1480,8 +1471,8 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
             while (binst != blueCalls.end()) {
                 bool scheduleable = true;
                 int aluNeed = 0;
-                for (auto dep = dependencyForestOp[*binst]->begin(); 
-                     dep != dependencyForestOp[*binst]->end(); dep++) {
+                for (auto dep = (*dependencyForestOp)[*binst]->begin(); 
+                     dep != (*dependencyForestOp)[*binst]->end(); dep++) {
                     Instruction* depInst = dyn_cast<Instruction>(dep->first);
                     if (dep->second) {
                         // BFC inputs
@@ -1552,8 +1543,8 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
             // previous instructions, it must be a new VLIW instruction
             for (auto inst = frontier_it->second->begin(); 
                  inst != frontier_it->second->end(); inst++) {
-                for (auto dep = dependencyForestOp[*inst]->begin(); 
-                     dep != dependencyForestOp[*inst]->end(); dep++) {
+                for (auto dep = (*dependencyForestOp)[*inst]->begin(); 
+                     dep != (*dependencyForestOp)[*inst]->end(); dep++) {
                     if (dep->second) {
                         newInst = true;
                         break;
@@ -1672,7 +1663,7 @@ void PrimateArchGen::initializeBFCMeta(Module &M) {
         if (metadata) {
             if (cast<MDString>(metadata->getOperand(0))->getString() == "blue") {
                 blueFunctions.push_back(&*MI);
-                bfIdx[&*MI] = numBFs;
+                (*bfIdx)[&*MI] = numBFs;
                 numBFs++;
                 auto numIn_i = 
                     cast<ConstantInt>(
@@ -1708,7 +1699,8 @@ void PrimateArchGen::initializeBFCMeta(Module &M) {
     }
 }
 
-void PrimateArchGen::generateInterconnect(int numALU) {
+void PrimateArchGen::generateInterconnect(int numALU, 
+                                          raw_fd_stream &interconnectCFG) {
     std::map<std::string, int> bfuIdx;
     std::map<std::string, std::set<int>> bfuALUassigned;
     int id = -1;
@@ -1729,7 +1721,7 @@ void PrimateArchGen::generateInterconnect(int numALU) {
         std::set<int> conflictIdx;
         std::set<int> shareIdx;
         for (auto bf = bfu->second->begin(); bf != bfu->second->end(); bf++) {
-            int idx = bfIdx[*bf];
+            int idx = (*bfIdx)[*bf];
             for (int i = 0; i < numBFs-1; i++) {
                 if (bfConflictMap[idx][i] > 0) {
                     conflictCount = 0;
@@ -2115,14 +2107,17 @@ PrimateArchGen::emitInstructionAnnot(const Instruction *i,
 PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     std::fill_n(live,50,0);
 
-    primateCFG.open("primate.cfg");
-    interconnectCFG.open("interconnect.cfg");
-    primateHeader.open("header.scala");
-    assemblerHeader.open("primate_assembler.h");
+    std::error_code primateEC, interconnEC, primateHeaderEC, asmHeaderEC;
+
+    raw_fd_stream primateCFG("primate.cfg", primateEC);
+    raw_fd_stream interconnectCFG("interconnect.cfg", interconnEC);
+    raw_fd_stream primateHeader("header.scala", primateHeaderEC);
+    raw_fd_stream assemblerHeader("primate_assembler.h", asmHeaderEC);
+    // Check error codes
 
     assemblerHeader << "#include <iostream>\n#include <map>\n#include <string>\n\n";
-    printRegfileKnobs(M);
-    generate_header(M);
+    printRegfileKnobs(M, primateCFG);
+    generate_header(M, primateHeader);
 
     int maxNumALU = 0;
     int maxNumInst = 0;
@@ -2174,7 +2169,7 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     primateCFG << "IMM_WIDTH=" << int(ceil(log2(maxConst))) << "\n";
     assemblerHeader << "#define IMM_W " << int(ceil(log2(maxConst))) << "\n";
 
-    generateInterconnect(maxNumALU);
+    generateInterconnect(maxNumALU, interconnectCFG);
 
     primateCFG.close();
     interconnectCFG.close();

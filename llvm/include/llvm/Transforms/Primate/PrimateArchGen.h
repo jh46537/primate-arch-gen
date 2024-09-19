@@ -2,20 +2,26 @@
 #define LLVM_TRANSFORMS_PRIMATE_PRIMATEARCHGEN_H
 
 #include <llvm/ADT/BitVector.h>
+#include <llvm/ADT/DenseMap.h>
 #include <llvm/IR/AssemblyAnnotationWriter.h>
+#include <llvm/IR/DebugInfo.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/InstIterator.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
+#include <llvm/IR/ValueMap.h>
+#include <llvm/Pass.h>
+#include <llvm/Support/raw_ostream.h>
 
-#include <ostream>
-#include <fstream>
-#include <iostream>
-#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <math.h>
 #include <set>
 #include <stdlib.h>
 
-#include "dataflow.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Transforms/Primate/dataflow.h"
 
 #define MAX_BR_LEVEL 2
 #define MAX_PERF 0
@@ -31,14 +37,45 @@ class PrimateArchGen : public PassInfoMixin<PrimateArchGen>,
 public:
     // set forward false in the constructor DataFlow()
     PrimateArchGen() : DataFlow<BitVector>(false) {
-        bvIndexToInstrArg = new std::vector<Value*>();
-        valueToBitVectorIndex = new ValueMap<Value*, int>();
-        instrInSet = new ValueMap<const Instruction*, BitVector*>();
+        // bvIndexToInstrArg = new std::vector<Value*>();
+        // valueToBitVectorIndex = new ValueMap<Value*, int>();
+        // instrInSet = new ValueMap<const Instruction*, BitVector*>();
         aliasMap = new ValueMap<Value*, Value*>();
         branchLevel = new ValueMap<Value*, int>();
+
+        dependencyForest = new ValueMap<Value*, std::map<Value*, bool>*>();
+        dependencyForestOp = new ValueMap<Value*, std::map<Value*, bool>*>();
+        instPriority = new ValueMap<Value*, int>();
+        bfIdx = new ValueMap<Value*, int>();
     }
-    // PrimateArchGen(const PrimateArchGen &);
-    // PrimateArchGen(PrimateArchGen &&);
+
+    // ~PrimateArchGen() {
+    //     dbgs() << "1\n";
+    //     delete bvIndexToInstrArg;
+    //     dbgs() << "2\n";
+    //     delete valueToBitVectorIndex;
+    //     dbgs() << "3\n";
+    //     delete instrInSet;
+    //     dbgs() << "4\n";
+    //     delete aliasMap;
+    //     dbgs() << "5\n";
+    //     delete branchLevel;
+    //     dbgs() << "6\n";
+
+    //     delete pointerMap;
+    //     dbgs() << "7\n";
+    //     delete dependencyForest;
+    //     dbgs() << "8\n";
+    //     delete dependencyForestOp;
+    //     dbgs() << "9\n";
+    //     delete instPriority;
+    //     dbgs() << "10\n";
+    //     delete bfIdx;
+    //     dbgs() << "11\n";
+    // }
+    
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager& AM);
+    void getAnalysisUsage(AnalysisUsage &AU) const;
     
 private:
     struct ptrInfo_t {
@@ -58,9 +95,9 @@ private:
     std::set<unsigned> *gatherModes;
     std::map<unsigned, std::set<unsigned>*> *fieldIndex;
     ValueMap<Value*, ptrInfo_t*> *pointerMap;
-    ValueMap<Value*, std::map<Value*, bool>*> dependencyForest;
-    ValueMap<Value*, std::map<Value*, bool>*> dependencyForestOp;
-    ValueMap<Value*, int> instPriority;
+    ValueMap<Value*, std::map<Value*, bool>*> *dependencyForest;
+    ValueMap<Value*, std::map<Value*, bool>*> *dependencyForestOp;
+    ValueMap<Value*, int> *instPriority;
     std::set<Value*> loadMergedInst;
     std::set<Value*> unmergeableLoad;
     std::set<Value*> unmergeableStore;
@@ -74,7 +111,7 @@ private:
     std::map<std::string, std::set<Value*>*> bfu2bf;
     std::map<std::string, int> bfuNumInputs;
     std::vector<Value*> blueFunctions;
-    ValueMap<Value*, int> bfIdx;
+    ValueMap<Value*, int> *bfIdx;
     int **bfConflictMap;
     int **bfConflictMap_tmp;
 
@@ -85,14 +122,19 @@ private:
     
     int live[50];
     unsigned int n = 0;
-
-    std::ofstream primateCFG;
-    std::ofstream interconnectCFG;
-    std::ofstream primateHeader;
-    std::ofstream assemblerHeader;
-
+    
 public:
     static char ID;
+
+    // print live variables before each basic block
+    virtual void 
+    emitBasicBlockStartAnnot(const BasicBlock *bb, 
+                             formatted_raw_ostream &os) override;
+    // print live variables before each instruction
+    // (used for computing histogram)
+    virtual void 
+    emitInstructionAnnot(const Instruction *i, 
+                         formatted_raw_ostream &os) override;
 
 private:
     virtual void setBoundaryCondition(BitVector *BlkBoundry) override;
@@ -109,8 +151,8 @@ private:
     unsigned getArrayWidthArcGen(ArrayType &a, unsigned start);
     unsigned getStructWidth(StructType &s, unsigned start, const bool arcGen);
     unsigned getTypeBitWidth(Type *ty, bool trackSizes = false);
-    void printRegfileKnobs(Module &M);
-    void generate_header(Module &M);
+    void printRegfileKnobs(Module &M, raw_fd_stream &primateCFG);
+    void generate_header(Module &M, raw_fd_stream &primateHeader);
     unsigned getMaxConst(Function &F);
     std::vector<Value*>* getBFCOutputs(Instruction *ii);
     std::vector<Value*>* getBFCInputs(Instruction *ii);
@@ -151,29 +193,15 @@ private:
     int evalPerf(Function &F, int numALU, double &perf, double &util);
     void numALUDSE(Function &F, int &numALU, int &numInst, int option);
     void initializeBFCMeta(Module &M);
-    void generateInterconnect(int numALU);
+    void generateInterconnect(int numALU, raw_fd_stream &interconnectCFG);
     unsigned getNumThreads(Module &M, unsigned numALU);
 
     virtual void InitializeBranchLevel(Function &F);
-    void InitializePointerMap(Function &F);
+    virtual void InitializePointerMap(Function &F);
     virtual void InitializeAliasMap(Function &F);
     virtual bool evalFunc(Function &F, int &numALU, 
                           int &numInst, unsigned &maxConst);
-
-public:
-    // print live variables before each basic block
-    virtual void 
-    emitBasicBlockStartAnnot(const BasicBlock *bb, 
-                             formatted_raw_ostream &os) override;
-    // print live variables before each instruction
-    // (used for computing histogram)
-    virtual void 
-    emitInstructionAnnot(const Instruction *i, 
-                         formatted_raw_ostream &os) override;
     
-    virtual PreservedAnalyses run(Module &M, ModuleAnalysisManager& AM);
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-
 };
 
 } // namespace llvm
