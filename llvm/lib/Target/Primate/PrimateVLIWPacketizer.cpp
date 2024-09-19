@@ -281,6 +281,7 @@ void PrimatePacketizerList::endPacket(MachineBasicBlock *MBB,
   }
   // set the slot idx of bypasses, and add them infront of the branch
   if (handle_bypass_now) {
+    CurrentPacketMIs.reserve(20);
     auto existingInstrs = --CurrentPacketMIs.end();
     for (auto it = generated_bypass_instrs.rbegin(); it != generated_bypass_instrs.rend(); it++) {
       auto MI = *it;
