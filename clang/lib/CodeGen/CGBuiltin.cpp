@@ -21371,8 +21371,8 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
   case Primate::BI__builtin_primate_crc32c_b:
   case Primate::BI__builtin_primate_crc32c_h:
   case Primate::BI__builtin_primate_crc32c_w:
-  case Primate::BI__primate_input:
-  case Primate::BI__builtin_primate_crc32c_d: {
+  case Primate::BI__builtin_primate_crc32c_d:
+  case Primate::BI__primate_input: {
     switch (BuiltinID) {
     default: llvm_unreachable("unexpected builtin ID");
 
@@ -21467,6 +21467,10 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
   }
+  case Primate::BI__primate_output:
+      ID = Intrinsic::primate_output;
+      IntrinsicTypes = {llvm::PointerType::getUnqual(getLLVMContext())}; // only need to spec the llvm_any types
+      break;
 //  // Vector builtins are handled from here.
 //#include "clang/Basic/primate_vector_builtin_cg.inc"
   }
