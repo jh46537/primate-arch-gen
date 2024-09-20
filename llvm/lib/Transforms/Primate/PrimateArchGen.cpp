@@ -287,6 +287,26 @@ unsigned PrimateArchGen::getTypeBitWidth(Type *ty, bool trackSizes) {
     return size;
 }
 
+Type* followPointerForType(Value* start) {
+    Value* curInst = start;
+    while(true) {
+        if(AllocaInst* allocaArg = dyn_cast<AllocaInst>(curInst)) {
+            return allocaArg->getAllocatedType();
+            break;
+        }
+        else if(BitCastInst* bci = dyn_cast<BitCastInst>(curInst)) {
+            curInst = bci->getOperand(0);
+        }
+        else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
+            curInst = gepI->getPointerOperand(); 
+        }
+        else {
+            curInst->dump();
+            llvm_unreachable("can't follow a pointer...");
+        }
+    }
+}
+
 void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
     auto structTypes = M.getIdentifiedStructTypes();
     unsigned maxRegWidth = 0;
@@ -300,39 +320,55 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
         MDNode* primateMD = F.getMetadata("primate");
         if (primateMD && 
             dyn_cast<MDString>(primateMD->getOperand(0))->getString() == "blue") {
-            LLVM_DEBUG(dbgs() << "found primate type: "; F.dump(););
-            for(auto& arg: F.args()) {
+            LLVM_DEBUG(dbgs() << "found primate Function: "; F.dump(););
+            int argIdx = 0;
+            for (auto& arg: F.args()) {
                 // this uses the type of pointers. 
                 // we need to use the call instruction 
                 // so we don't use the type of the pointer :/
                 Type *argTy = nullptr;
-                if (arg.getType()->isPointerTy()) { 
-                    if (arg.hasByValAttr()) {
-                        argTy = arg.getParamByValType();
-                    } 
-                    else if (arg.hasStructRetAttr()) {
-                        argTy = arg.getParamStructRetType();
-                    }
-                    else {
-                        F.dump(); 
-                        llvm_unreachable("Invalid argument in function\n");
+                LLVM_DEBUG(dbgs() << "arg type: "; arg.dump();
+                           dbgs() << "arg type: "; arg.getType()->dump();
+                           F.getType()->dump(););
+                if(arg.getType()->isPointerTy()) {
+                    // get users (calls) and check their args
+                    for (auto user: F.users()) {
+                        if (auto *call = dyn_cast<CallInst>(user)) {
+                            auto* callArg = call->getOperand(argIdx);
+                            if(callArg->getType()->isPointerTy()) {
+                                argTy = followPointerForType(callArg);
+                            }
+                            else {
+                                llvm_unreachable("pointer in signature is not a pointer in call");
+                            }
+                        }
                     }
                 }
                 else {
                     argTy = arg.getType();
                 }
-
-                unsigned regWidth = getTypeBitWidth(argTy, true); 
+                unsigned regWidth = getTypeBitWidth(argTy, true);
                 if (regWidth > maxRegWidth) {
                     maxRegWidth = regWidth;
                 }
                 LLVM_DEBUG(dbgs() << "reg width of type : "; argTy->dump(););
                 LLVM_DEBUG(dbgs() << regWidth << "\n";);
+                argIdx++;
             }
         }
     }
     // fieldIndex contains the sizes and offsets of all fields in all Primate Structs
-    fieldIndex->at(0)->insert(maxRegWidth);
+    if(maxRegWidth == 0) {
+        maxRegWidth = 32;
+    }
+    if(fieldIndex->size() == 0) {
+        (*fieldIndex)[0] = new std::set<unsigned>();
+        fieldIndex->at(0)->insert(maxRegWidth);
+    }
+    else {
+        fieldIndex->at(0)->insert(maxRegWidth);
+        // fieldIndex contains the sizes and offsets of all fields in all Primate Structs
+    }
 
     primateCFG << "REG_WIDTH=" << maxRegWidth << "\n";
 
@@ -578,19 +614,25 @@ bool
 PrimateArchGen::checkMemAlias(Value *ptr0, unsigned size0, 
                               Value *ptr1, unsigned size1) {
     if (pointerMap->find(ptr0) == pointerMap->end()) {
-        ptr0->dump();
+        LLVM_DEBUG(ptr0->dump();
         errs() << "pointer0 not initialized\n";
         ptr0->print(errs());
-        errs() << "\n";
-        exit(1);
+        errs() << "\n";);
+        return true;
+    }
+    if (!(*pointerMap)[ptr0]->known_pointer) {
+        return true;
     }
     
     if (pointerMap->find(ptr1) == pointerMap->end()) {
-        ptr1->dump();
+        LLVM_DEBUG(ptr1->dump();
         errs() << "pointer1 not initialized\n";
         ptr1->print(errs());
-        errs() << "\n";
-        exit(1);
+        errs() << "\n";);
+        return true; // if we miss in the map assume its an alias
+    }
+    if (!(*pointerMap)[ptr1]->known_pointer) {
+        return true;
     }
 
     Value* base0 = (*pointerMap)[ptr0]->base;
@@ -609,19 +651,23 @@ PrimateArchGen::checkMemAlias(Value *ptr0, unsigned size0,
 bool PrimateArchGen::isReachable(Value* src, std::set<Value*> &dst) {
     // simple DFS
     std::vector<Value*> stack;
+    std::set<Value*> visitedNodes; 
     for (auto it = (*dependencyForest)[src]->begin(); 
          it != (*dependencyForest)[src]->end(); it++) {
         stack.push_back(it->first);
     }
     while (!stack.empty()) {
         Value *inst = stack.back();
+        visitedNodes.insert(inst);
         if (dst.find(inst) != dst.end()) {
             return true;
         } else {
             stack.pop_back();
             for (auto it = (*dependencyForest)[inst]->begin(); 
                  it != (*dependencyForest)[inst]->end(); it++) {
-                stack.push_back(it->first);
+                if (visitedNodes.find(it->first) == visitedNodes.end()) {
+                    stack.push_back(it->first);
+                }
             }
         }
     }
@@ -1259,6 +1305,10 @@ void PrimateArchGen::annotatePriority(Function &F, bool optimized) {
         while (!waitlist.empty()) {
             Value* pInst = waitlist.front();
             waitlist.erase(waitlist.begin());
+            if (dag->find(pInst) == dag->end()) {
+                LLVM_DEBUG(errs() << "Instruction not found in DAG\n"; pInst->print(errs()); errs() << "\n";);
+                continue;
+            }
             for (auto dep = (*dag)[pInst]->begin(); dep != (*dag)[pInst]->end(); dep++) {
                 int newPriority;
                 Instruction *inst = dyn_cast<Instruction>(pInst);
@@ -1672,11 +1722,11 @@ void PrimateArchGen::initializeBFCMeta(Module &M) {
                 auto bfuName = cast<MDString>(metadata->getOperand(1))
                     ->getString().str();
                 if (bfu2bf.find(bfuName) != bfu2bf.end()) {
-                    errs() << "Found another BFU with name: " << bfuName << "\n";
+                    LLVM_DEBUG(errs() << "Found another BFU with name: " << bfuName << "\n";);
                     (bfu2bf[bfuName])->insert(&*MI);
                     if (numIn > bfuNumInputs[bfuName]) bfuNumInputs[bfuName] = numIn;
                 } else {
-                    errs() << "Found a new BFU with name: " << bfuName << "\n";
+                    LLVM_DEBUG(errs() << "Found a new BFU with name: " << bfuName << "\n";);
                     bfu2bf[bfuName] = new std::set<Value*>();
                     bfu2bf[bfuName]->insert(&*MI);
                     bfuNumInputs[bfuName] = numIn;
@@ -1870,6 +1920,10 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
             // errs() << ":\n";
             unsigned offset = 0;
             Value *basePtr = inst->getPointerOperand();
+            if (pointerMap->find(basePtr) == pointerMap->end()) {
+                LLVM_DEBUG(dbgs() << "Found a pointer that was not from an alloca");
+                (*pointerMap)[&*basePtr] = new ptrInfo_t(&*basePtr, 0);
+            }
             if ((*pointerMap)[basePtr]->base != basePtr) {
                 offset = (*pointerMap)[basePtr]->offset;
                 basePtr = (*pointerMap)[basePtr]->base;
@@ -1888,13 +1942,37 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
                 else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
                     curInst = gepI->getPointerOperand(); 
                 }
+                else if(Argument* curArg = dyn_cast<Argument>(curInst)) {
+                    LLVM_DEBUG(dbgs() << "This is an argument\n"; curArg->dump(););
+                    type = curArg->getType();
+                    break;
+                }
+                else if(GlobalValue* gvVal = dyn_cast<GlobalValue>(curInst)) {
+                    LLVM_DEBUG(dbgs() << "This is a globalvalue\n"; gvVal->dump(););
+                    type = gvVal->getValueType();
+                    break;
+                }                
                 else {
                     curInst->dump();
                     llvm_unreachable("can't follow a pointer...");
                 }
             }
 
+            LLVM_DEBUG(
+                dbgs() << "instr and type: ";
+                inst->dump();
+                type->dump();
+            );
+
+            if(type->isPointerTy()) {
+                LLVM_DEBUG(dbgs() << "cannot find out the type for the pointer\n");
+                // map an ambigous pointer
+                (*pointerMap)[&*ii] = new ptrInfo_t(basePtr, -1, false);
+                continue;
+            }
+
             int i = 0;
+            bool pointer_constant = true;
             for (auto idx = inst->idx_begin(); idx != inst->idx_end(); idx++) {
                 if (auto *idx_const = dyn_cast<ConstantInt>(idx)) {
                     auto idx_val = idx_const->getValue();
@@ -1931,7 +2009,12 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
                             type = elem;
                         }
                         i = 1;
-                    } else {
+                    }
+                    else if(isa<IntegerType>(*type)) {
+                        auto *itype = dyn_cast<IntegerType>(type);
+                        offset += itype->getBitWidth() * idx_u;
+                    } 
+                    else {
                         errs() << "Error: undefined type: inst: ";
                         inst->print(errs());
                         errs() << "\nidx: ";
@@ -1939,14 +2022,16 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
                         errs() << "\n";
                         exit(1);
                     }
-                } else {
-                    errs() << "Error: pointer is not constant: ";
+                } 
+                else {
+                    LLVM_DEBUG(errs() << "Error: pointer is not constant: ";
                     inst->print(errs());
-                    errs() << "\n";
-                    exit(1);
+                    errs() << "\n";);
+                    pointer_constant = false;
+                    break;
                 }
             }
-            (*pointerMap)[&*ii] = new ptrInfo_t(basePtr, offset);
+            (*pointerMap)[&*ii] = new ptrInfo_t(basePtr, offset, pointer_constant);
             // errs() << offset << "\n";
         } else if (isa<BitCastInst>(*ii)) {
             Value *srcOp = ii->getOperand(0);
@@ -2128,9 +2213,12 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     printRegfileKnobs(M, primateCFG);
     generate_header(M, primateHeader);
 
+    const int MAX_ALU_POSSIBLE = 7;
     int maxNumALU = 0;
     int maxNumInst = 0;
     unsigned maxConst = 0;
+
+    maxNumALU = maxNumALU > MAX_ALU_POSSIBLE ? MAX_ALU_POSSIBLE : maxNumALU;
 
     initializeBFCMeta(M);
     for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {

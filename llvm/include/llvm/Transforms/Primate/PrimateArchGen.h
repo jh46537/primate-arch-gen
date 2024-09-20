@@ -46,8 +46,10 @@ private:
     struct ptrInfo_t {
         Value *base;
         int offset;
+        bool known_pointer;
         ptrInfo_t(Value *base = NULL, 
-                  int offset = 0) : base(base), offset(offset) {}
+                  int offset = 0,
+                  bool kp = false) : base(base), offset(offset), known_pointer(kp) {}
     };
 
     // domain vector to store all definitions and function arguments
