@@ -82,11 +82,28 @@ void PRVEmitter::createCodeGen(raw_ostream &o) {
         StringRef Name = Rec->getValueAsString("Name");
         StringRef PType = Rec->getValueAsString("PType");
         StringRef ITName = Rec->getValueAsString("IntrinName");
+        StringRef BFUName = Rec->getValueAsString("BFUName");
 
-        o << "case Primate::BI" << Name << ":\n";
+        o << "case Primate::BI" << Name << ": {\n";
+        o << "#ifdef BuiltInTypeing\n";
         o << "ID = Intrinsic::" << ITName << ";\n";
         EmitTypesIntrin(o, PType);
         o << "break;\n";
+        o << "#endif\n";
+
+        o << "#ifdef BuiltInMetadata\n";
+        o << "llvm::LLVMContext& Ctx = F->getContext();\n";
+        o << "llvm::MDNode* metadata = llvm::MDNode::get(Ctx,\n";
+        o << "{llvm::MDString::get(Ctx, \"blue\"),\n";
+        o << "llvm::MDString::get(Ctx, \"" << BFUName << "\"),\n";
+        o << "llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(\n";
+        o << "  llvm::Type::getInt64Ty(Ctx), 1)),\n";
+        o << "llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(\n";
+        o << "  llvm::Type::getInt64Ty(Ctx), 1))});\n";
+        o << "F->setMetadata(\"primate\", metadata);\n";
+        o << "#endif\n";
+        o << "break;\n";
+        o << "}\n";
     }
 }
 

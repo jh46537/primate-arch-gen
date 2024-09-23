@@ -11,14 +11,15 @@
 // defined in llvm/include/llvm/IR/IntrinsicsPrimate.td (strip the int_ from the tablegen name)
 
 
-class PrimateBuiltin<string name, string prototype, string intrin_name> {
+class PrimateBuiltin<string name, string prototype, string intrin_name, string bfname> {
     string Name = name;
     string PType = prototype;
     string IntrinName = intrin_name;
+    string BFUName = bfname;
 }
 
 
-def input:      PrimateBuiltin<"__primate_input", "B", "primate_input">;
-def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done">;
-def output:     PrimateBuiltin<"__primate_output", "B", "primate_output">;
-def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done">;
+def input:      PrimateBuiltin<"__primate_input", "B", "primate_input", "IO">;
+def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done", "IO">;
+def output:     PrimateBuiltin<"__primate_output", "B", "primate_output", "IO">;
+def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done", "IO">;

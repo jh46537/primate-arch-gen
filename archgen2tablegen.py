@@ -3968,6 +3968,9 @@ let TargetPrefix = "primate" in {{
 }} // TargetPrefix = "primate"
 """
 
+# generate builtin frontend shit
+# /primate/primate-compiler/clang/include/clang/Basic/BuiltinsPrimate.def
+
 with open(os.path.join(gen_file_dir, "./IntrinsicsPrimate.td"), "w") as f:
     print(IntrinsicsPrimate, file=f)
 

@@ -21462,13 +21462,20 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
   }
+  #define BuiltInTypeing
   #include "clang/Basic/primate_bfu_buitin_cg.inc"
-//  // Vector builtins are handled from here.
-//#include "clang/Basic/primate_vector_builtin_cg.inc"
+  #undef BuiltInTypeing
   }
 
   assert(ID != Intrinsic::not_intrinsic);
 
   llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
+  switch(BuiltinID) {
+  #define BuiltInMetadata
+  #include "clang/Basic/primate_bfu_buitin_cg.inc"
+  #undef BuiltInMetadata
+  default:
+  break;
+  }
   return Builder.CreateCall(F, Ops, "");
 }
