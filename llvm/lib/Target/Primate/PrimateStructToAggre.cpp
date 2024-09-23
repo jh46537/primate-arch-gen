@@ -191,6 +191,7 @@ namespace llvm {
                             llvm_unreachable("Calling a blue functional unit with unsupported type. (regenerate architecture)");
                         }
                         // Primate BFU
+                        continue;
                         if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
                             if(demangledName.find("PRIMATE::input<") != std::string::npos) {
                                 bool needToExtract = false;
