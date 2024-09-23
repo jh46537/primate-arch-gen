@@ -25,6 +25,7 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 #include <llvm/Transforms/Primate/PrimateArchGen.h>
 #include <cstddef>
 #include <system_error>
+#include "llvm/Demangle/Demangle.h"
 
 using namespace llvm;
 
@@ -300,9 +301,15 @@ Type* followPointerForType(Value* start) {
         else if(GetElementPtrInst* gepI = dyn_cast<GetElementPtrInst>(curInst)) {
             curInst = gepI->getPointerOperand(); 
         }
+        else if(auto* loadI = dyn_cast<LoadInst>(curInst)) {
+            curInst = loadI->getPointerOperand();
+        }
+        else if(auto* storeI = dyn_cast<StoreInst>(curInst)) {
+            curInst = storeI->getPointerOperand();
+        }
         else {
             curInst->dump();
-            llvm_unreachable("can't follow a pointer...");
+            llvm_unreachable("can't follow a pointer..");
         }
     }
 }
@@ -663,6 +670,13 @@ bool PrimateArchGen::isReachable(Value* src, std::set<Value*> &dst) {
             return true;
         } else {
             stack.pop_back();
+            if(dependencyForest->find(inst) == dependencyForest->end()) {
+                // no dep info, idk what we use reachability for
+                // fairly sure that true is conservative
+                dbgs() << "depforest is missing an instruction\n";
+                inst->dump();
+                return true;
+            }
             for (auto it = (*dependencyForest)[inst]->begin(); 
                  it != (*dependencyForest)[inst]->end(); it++) {
                 if (visitedNodes.find(it->first) == visitedNodes.end()) {
@@ -967,6 +981,10 @@ void PrimateArchGen::mergeStoreInstructions() {
             if (mergeable) {
                 for (auto dep = storeWARDependents.begin(); 
                      dep != storeWARDependents.end(); dep++) {
+                    if(dependencyForest->find(storeSrc) == dependencyForest->end()) {
+                        dbgs() << "storeSrc not in depforest\n";
+                        storeSrc->dump();
+                    }
                     (*dependencyForest)[storeSrc]->insert({*dep, false});
                 }
                 storeMap[it->first] = storeSrc;
@@ -1430,7 +1448,13 @@ PrimateArchGen::addBFDependency(std::map<Value*,
     }
 }
 
+// this is fundamentally wrong
+// the dependency should be done via use-defs chains not this ad-hoc way
+// memory dependencies are not handled correctly
+// we should simple keep the loads and stores in order pointer alias checking is unreliable 
 void PrimateArchGen::VLIWSim(Function &F, int numALU) {
+    return;
+    errs() << F.getName() << "\n";
     annotatePriority(F, true);
     int totalInst = 0;
     int totalVLIWInst = 0;
@@ -1440,6 +1464,7 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
         }
     }
     for (Function::iterator bi = F.begin(); bi != F.end(); bi++) {
+        errs() << "New Basic Block\n";
         BasicBlock *bb = &*bi;
         std::vector<std::pair<int, Value*>> nonFrontier;
         std::vector<Value*> blueCalls;
@@ -1568,21 +1593,32 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
             // VLIW instruction scheduled
             addBFDependency(bfcConflict, bfcSet);
             numVLIWInst++;
+            errs() << "From greedy packetize\n";
             errs() << "VLIW Inst " << n << ":\n";
-            for (auto inst = toScheduleInst.begin(); 
-                 inst != toScheduleInst.end(); inst++) {
-                scheduledInst.insert(*inst);
-                (*inst)->print(errs());
-                errs() << "\n";
+            if(toScheduleInst.size() == 0) {
+                errs() << "No instruction to schedule!!!!\n";
+                for(auto& inst: nonFrontier) {
+                    inst.second->print(errs());
+                    errs() << "\n";
+                }
+            } else {
+                for (auto inst = toScheduleInst.begin(); 
+                    inst != toScheduleInst.end(); inst++) {
+                    scheduledInst.insert(*inst);
+                    (*inst)->print(errs());
+                    errs() << "\n";
+                }
             }
             n++;
         }
         // Schedule frontier instructions
         if (frontier_size > aluLeft) {
+            errs() << "frontier size: " << frontier_size << "\n";
             errs() << "VLIW Inst " << n << ":\n";
             numVLIWInst++;
         } else if (frontier_size != 0) {
             if (numVLIWInst == 0) {
+                errs() << "first VLIW Inst\n";
                 errs() << "VLIW Inst " << n << ":\n";
                 numVLIWInst = 1;
             }
@@ -1603,6 +1639,7 @@ void PrimateArchGen::VLIWSim(Function &F, int numALU) {
                 }
             }
             if (newInst) {
+                errs() << "new isnt due to RAW dependency\n";
                 errs() << "VLIW Inst " << n << ":\n";
                 numVLIWInst++;
             }
@@ -1921,7 +1958,7 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
             unsigned offset = 0;
             Value *basePtr = inst->getPointerOperand();
             if (pointerMap->find(basePtr) == pointerMap->end()) {
-                LLVM_DEBUG(dbgs() << "Found a pointer that was not from an alloca");
+                LLVM_DEBUG(dbgs() << "Found a pointer that was not from an alloca\n");
                 (*pointerMap)[&*basePtr] = new ptrInfo_t(&*basePtr, 0);
             }
             if ((*pointerMap)[basePtr]->base != basePtr) {
@@ -1951,7 +1988,13 @@ void PrimateArchGen::InitializePointerMap(Function &F) {
                     LLVM_DEBUG(dbgs() << "This is a globalvalue\n"; gvVal->dump(););
                     type = gvVal->getValueType();
                     break;
-                }                
+                }     
+                else if(auto* loadI = dyn_cast<LoadInst>(curInst)) {
+                    curInst = loadI->getPointerOperand();
+                }
+                else if(auto* storeI = dyn_cast<StoreInst>(curInst)) {
+                    curInst = storeI->getPointerOperand();
+                }           
                 else {
                     curInst->dump();
                     llvm_unreachable("can't follow a pointer...");
