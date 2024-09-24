@@ -89,7 +89,7 @@ let TargetPrefix = "primate" in {
 
   // primate ops
   def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
-                  [llvm_i32_ty], // Params: imm12
+                  [llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
   def int_primate_input_done :  Intrinsic<[], // return val
@@ -97,7 +97,7 @@ let TargetPrefix = "primate" in {
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
     
   def int_primate_output :  Intrinsic<[], // return val
-                  [llvm_any_ty, llvm_i32_ty], // Params: imm12
+                  [llvm_any_ty, llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
   def int_primate_output_done :  Intrinsic<[], // return val

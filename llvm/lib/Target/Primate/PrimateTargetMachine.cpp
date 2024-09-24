@@ -19,6 +19,7 @@
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
+#include "PrimateIntrinsicPromotion.h"
 #include "PrimateScheduleStrategy.h"
 #include "PrimateMachineFunctionInfo.h"
 #include "TargetInfo/PrimateTargetInfo.h"
@@ -229,6 +230,7 @@ void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB, b
   // need to run primateStructToAggre before SROA otherwise we won't promote any allocas...
   PB.registerCGSCCOptimizerLateEPCallback([this](llvm::CGSCCPassManager& MPM, OptimizationLevel opt) {
     FunctionPassManager FPM;
+    FPM.addPass(llvm::PrimateIntrinsicPromotion(*this));
     FPM.addPass(llvm::PrimateStructToAggre(*this));
 
     MPM.addPass(createCGSCCToFunctionPassAdaptor(std::move(FPM)));
