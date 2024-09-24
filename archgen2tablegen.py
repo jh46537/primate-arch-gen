@@ -1981,7 +1981,7 @@ def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:
 def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
 
 def : Pat<(int_primate_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
-def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ (XLenVT GPR:$rs1), 0)>;
+def : Pat<(int_primate_input (XLenVT GPR:$rs1)), (INPUT_READ (XLenVT GPR:$rs1), (XLenVT 0))>;
 def : Pat<(int_primate_input_done), (INPUT_DONE)>;
 
 {BFUInstPattern}
@@ -2771,7 +2771,7 @@ let TargetPrefix = "primate" in {{
 
   // primate ops
   def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
-                  [llvm_i32_ty], // Params: imm12
+                  [llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
   def int_primate_input_done :  Intrinsic<[], // return val
@@ -2779,7 +2779,7 @@ let TargetPrefix = "primate" in {{
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
     
   def int_primate_output :  Intrinsic<[], // return val
-                  [llvm_any_ty, llvm_i32_ty], // Params: imm12
+                  [llvm_any_ty, llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
   def int_primate_output_done :  Intrinsic<[], // return val

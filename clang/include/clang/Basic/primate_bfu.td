@@ -19,7 +19,7 @@ class PrimateBuiltin<string name, string prototype, string intrin_name, string b
 }
 
 
-def input:      PrimateBuiltin<"__primate_input", "B", "primate_input", "IO">;
+def input:      PrimateBuiltin<"__primate_input", "Bi", "primate_input", "IO">;
 def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done", "IO">;
-def output:     PrimateBuiltin<"__primate_output", "B", "primate_output", "IO">;
+def output:     PrimateBuiltin<"__primate_output", "Bi", "primate_output", "IO">;
 def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done", "IO">;
