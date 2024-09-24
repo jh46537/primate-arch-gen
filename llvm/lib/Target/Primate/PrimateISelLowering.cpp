@@ -885,12 +885,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   dbgs() << "reading in register indexing parameters\n";
   std::ifstream archgenParams ("primate.cfg");
   if(!archgenParams.good()) {
-    // primate.cfg doesn't exist
-    // create scalar 1 wide machine
-    allPoses.push_back(0);
-    allSizes.push_back(32);
-    alucount = 1;
-    bfucount = 2; // IO and mem unit
+    assert(false && "primate.cfg not found! any default we try will be bad. (Run arch-gen?)");
   }
   else {
     while(archgenParams.good()) {
@@ -980,21 +975,60 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   slotToFUIndex[slotIdx] = functionalUnitIdx;
 }
 
-bool PrimateTargetLowering::supportedAggregate(StructType &STy) const {
-  int bitPos = 0;
+bool PrimateTargetLowering::supportedArray(ArrayType &ATy, int bitpos) const {
+  uint64_t ele = ATy.getNumElements();
+  auto eTy = ATy.getElementType();
+  if(!(eTy->isSized())) {
+    llvm_unreachable("struct contains elements that are unsized types");
+  }
+  // array types need to access individual elements
+  if(auto aty = dyn_cast<ArrayType>(eTy)) {
+    if(!supportedArray(*aty, bitpos))
+      return false;
+  }
+  else if(auto sty = dyn_cast<StructType>(eTy)) {
+    if(!supportedAggregate(*sty, bitpos))
+      return false;
+  }
+  else {
+    if(find(allSizes.begin(), allSizes.end(), eTy->getScalarSizeInBits()) == allSizes.end()) {
+      LLVM_DEBUG(dbgs() << "array failed to match regs due to element size unsupported\n";);
+      return false;
+    }
+    if(find(allPoses.begin(), allPoses.end(), bitpos) == allPoses.end()) {
+      LLVM_DEBUG(dbgs() << "array failed to match regs due to element offset unsupported\n";);
+      return false;
+    }
+  }
+  bitpos += eTy->getScalarSizeInBits() * ele;
+  return true;
+}
+
+bool PrimateTargetLowering::supportedAggregate(StructType &STy, int bitpos) const {
   for(Type* eTy: STy.elements()) {
     if(!(eTy->isSized())) {
       llvm_unreachable("struct contains elements that are unsized types");
     }
-    if(find(allSizes.begin(), allSizes.end(), eTy->getScalarSizeInBits()) == allSizes.end()) {
-      dbgs() << "struct failed to match regs due to element size unsupported\n";
-      return false;
+    // array types need to access individual elements
+    if(auto aty = dyn_cast<ArrayType>(eTy)) {
+      if(!supportedArray(*aty, bitpos))
+        return false;
     }
-    if(find(allPoses.begin(), allPoses.end(), bitPos) == allPoses.end()) {
-      dbgs() << "struct failed to match regs due to element offset unsupported\n";
-      return false;
+    else if(auto sty = dyn_cast<StructType>(eTy)) {
+      if(!supportedAggregate(*sty, bitpos))
+        return false;
     }
-    bitPos += eTy->getScalarSizeInBits();
+    else {
+      if(find(allSizes.begin(), allSizes.end(), eTy->getScalarSizeInBits()) == allSizes.end()) {
+        LLVM_DEBUG(dbgs() << "struct failed to match regs due to element size unsupported\n";);
+        return false;
+      }
+      if(find(allPoses.begin(), allPoses.end(), bitpos) == allPoses.end()) {
+        LLVM_DEBUG(dbgs() << "struct failed to match regs due to element offset unsupported\n";);
+        return false;
+      }
+    }
+    bitpos += eTy->getScalarSizeInBits();
   }
   return true;
 }
