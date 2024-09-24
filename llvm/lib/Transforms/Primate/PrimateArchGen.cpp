@@ -362,6 +362,19 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
                 LLVM_DEBUG(dbgs() << regWidth << "\n";);
                 argIdx++;
             }
+            LLVM_DEBUG(dbgs() << "return type: "; F.getReturnType()->dump(););
+            Type* retType = F.getReturnType();
+            if(retType->isPointerTy()) {
+                LLVM_DEBUG(dbgs() << "**WARNING** Function returns a pointer\n";);
+            }
+            else if(!retType->isVoidTy()) {
+                unsigned regWidth = getTypeBitWidth(retType, true);
+                if (regWidth > maxRegWidth) {
+                    maxRegWidth = regWidth;
+                }
+                LLVM_DEBUG(dbgs() << "reg width of type : "; retType->dump(););
+                LLVM_DEBUG(dbgs() << regWidth << "\n";);
+            }
         }
     }
     // fieldIndex contains the sizes and offsets of all fields in all Primate Structs
