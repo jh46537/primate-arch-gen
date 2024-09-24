@@ -1282,7 +1282,7 @@ def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:
 def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
 
 def : Pat<(int_primate_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
-def : Pat<(int_primate_input GPR:$rs1), (INPUT_READ (XLenVT GPR:$rs1), 0)>;
+def : Pat<(int_primate_input (XLenVT GPR:$rs1)), (INPUT_READ (XLenVT GPR:$rs1), (XLenVT 0))>;
 def : Pat<(int_primate_input_done), (INPUT_DONE)>;
 
 def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;

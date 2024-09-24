@@ -21371,14 +21371,9 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
   case Primate::BI__builtin_primate_crc32c_b:
   case Primate::BI__builtin_primate_crc32c_h:
   case Primate::BI__builtin_primate_crc32c_w:
-  case Primate::BI__primate_input:
-  case Primate::BI__builtin_primate_crc32c_d: {
+  case Primate::BI__builtin_primate_crc32c_d:{
     switch (BuiltinID) {
     default: llvm_unreachable("unexpected builtin ID");
-
-    case Primate::BI__primate_input:
-      ID = Intrinsic::primate_input;
-      break;
 
     // Zbb
     case Primate::BI__builtin_primate_orc_b_32:
@@ -21467,12 +21462,20 @@ Value *CodeGenFunction::EmitPrimateBuiltinExpr(unsigned BuiltinID,
     IntrinsicTypes = {ResultType};
     break;
   }
-//  // Vector builtins are handled from here.
-//#include "clang/Basic/primate_vector_builtin_cg.inc"
+  #define BuiltInTypeing
+  #include "clang/Basic/primate_bfu_buitin_cg.inc"
+  #undef BuiltInTypeing
   }
 
   assert(ID != Intrinsic::not_intrinsic);
 
   llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
+  switch(BuiltinID) {
+  #define BuiltInMetadata
+  #include "clang/Basic/primate_bfu_buitin_cg.inc"
+  #undef BuiltInMetadata
+  default:
+  break;
+  }
   return Builder.CreateCall(F, Ops, "");
 }

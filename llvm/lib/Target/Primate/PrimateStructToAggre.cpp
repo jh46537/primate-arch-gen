@@ -3,21 +3,18 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/iterator_range.h"
+#include "llvm/IR/User.h" 
+#include "llvm/IR/IntrinsicInst.h"
 
 #include <fstream>
 #include <algorithm> 
 #include <cctype>
 #include <locale>
 
-// TODO: EVIL EVIL EVIL. MOVE TO CLANG!!!!!!
-#include "llvm/Demangle/Demangle.h"
-// TODO: DONT USE FUNC NAME FOR GENERATING INTRINSICS!!!!
-
-
 #define DEBUG_TYPE "PrimateStructToAggre"
 
-
-
+using namespace llvm;
 
 // trim from start (in place)
 inline void ltrim(std::string &s) {
@@ -52,254 +49,65 @@ namespace llvm {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Function& F, FunctionAnalysisManager& PA) {
-        std::ifstream bfuMapping("./bfu_list.txt");
-        int bfu_schedule_slot = 0;
-        bool inscope = false;
-        for (std::string line; std::getline(bfuMapping, line); ) {
-            if(line == "{") {
-                assert(!inscope);
-                inscope = true;
-            }
-            else if(line == "}") {
-                assert(inscope);
-                inscope = false;
-            }
-            else if(inscope) {
-                continue;
-            }
-            else {
-                // assume we got a name
-                rtrim(line);
-                ltrim(line);
-                dbgs() << "Found a BFU Named: " << line << "\n";
-                nameToIntrins[line] = (llvm::Intrinsic::PRIMATEIntrinsics)(llvm::Intrinsic::primate_BFU_0 + (bfu_schedule_slot++));
-                for (const auto& nameIntrinPair : nameToIntrins)
-                    dbgs() << nameIntrinPair.first << "\n";
-                }
-        }
-
         BFUTypes = PA.getResult<PrimateBFUTypeFinding>(F);
         dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";
         for(Type* type: BFUTypes) {
             type->dump();
         }
-	{
-            TLI = TM.getSubtarget<PrimateSubtarget>(F).getTargetLowering();
-            // first normalize all the function calls to the same form 
-            // 1. revert all vectorized aggregates to structs
-            LLVM_DEBUG(dbgs() << "looking for struct allocas in func: " << F.getName() << "\n");
-            SmallVector<AllocaInst*> workList;
-            SmallVector<CallInst*> callWorklist;
-            for(auto& bb: F) {
-                // find allocas
-                for(auto& inst: bb) {
-                    if (AllocaInst* ai = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
-                        workList.push_back(ai);
-                    }
-                }
 
-                // do work on allocas
-                for(auto* ai: workList) {
-                    // normal allocas can be left
-                    if(!isBFUType(ai->getAllocatedType())) {
-                        continue;
-                    }
-                    LLVM_DEBUG(ai->dump());
-                    LLVM_DEBUG(dbgs() << "users: ");
-                    for(auto uIter: ai->users()) {
-                        User& u = *uIter;
-                        LLVM_DEBUG(dbgs() << "looking at instr: ");
-                        LLVM_DEBUG(u.dump());
-                        if(auto* ci = dyn_cast<CallInst>(&u)) {
-                            LLVM_DEBUG(dbgs() << "call {\n");
-                            convertCall(ci, ai);
-                        }
-                        else if(auto* gepi = dyn_cast<GetElementPtrInst>(&u)) {
-                            LLVM_DEBUG(dbgs() << "GEP{\n");
-                            convertAndTrimGEP(gepi);
-                        }
-                        else {
-                            LLVM_DEBUG(dbgs() << "other{\n");
-                        }
-                        LLVM_DEBUG(dbgs() << "}\n");
-                    }
-                    LLVM_DEBUG(dbgs() << "---\n");
+        TLI = TM.getSubtarget<PrimateSubtarget>(F).getTargetLowering();
+        // first normalize all the function calls to the same form 
+        // 1. revert all vectorized aggregates to structs
+        LLVM_DEBUG(dbgs() << "looking for struct allocas in func: " << F.getName() << "\n");
+        SmallVector<AllocaInst*> workList;
+        SmallVector<CallInst*> callWorklist;
+        for(auto& bb: F) {
+            // find allocas
+            for(auto& inst: bb) {
+                if (AllocaInst* ai = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
+                    workList.push_back(ai);
                 }
-
-                workList.clear();
-                for(auto* inst: instructionsToRemove) {
-                    LLVM_DEBUG(dbgs() << "Removing instr: ");
-                    LLVM_DEBUG(inst->dump());
-                    inst->eraseFromParent();
-                }
-                instructionsToRemove.clear();
-
-                // do the call conversion and cleaning on the remaining instructions
-                for(auto& inst: bb) {
-                    if(CallInst* ci = dyn_cast<llvm::CallInst>(&inst)) {
-                        if(!ci->getCalledFunction()->isIntrinsic())
-                            callWorklist.push_back(ci);
-                    }
-                }
-                for(auto* ci: callWorklist) {
-                    convertCall(ci, nullptr);
-                }
-                for(auto* inst: instructionsToRemove) {
-                    LLVM_DEBUG(dbgs() << "Removing instr: ");
-                    LLVM_DEBUG(inst->dump());
-                    inst->eraseFromParent();
-                }
-                instructionsToRemove.clear();
-
-                for(auto& inst: bb) {
-                    if (CallInst* ci = dyn_cast<CallInst>(&inst)) {
-                        LLVM_DEBUG(
-                        dbgs() << "found a call to " << 
-                                  ci->getName() << " or " << 
-                                  ci->getCalledFunction()->getName() << 
-                                  "\n"
-                        );
-                    }
-                }
-
             }
 
-            //removeAllocas(F);
-        }
-
-        // TODO: MOVE TO CLANG
-        // TODO: if you see this in the future and hate the if else tree just know me too. its a hack. 
-        {
-            LLVM_DEBUG(dbgs() << "looking for intrinics in func: " << F.getName() << "\n");
-            SmallVector<CallInst*> workList;
-            for(auto& bb: F) {
-                workList.clear();
-                for(auto& inst: bb) {
-                    if(!inst.isDebugOrPseudoInst()) {
-                        if(CallInst *ci = dyn_cast<CallInst>(&inst)) {
-                            workList.push_back(ci);
+            // do work on allocas
+            for(auto* ai: workList) {
+                // normal allocas can be left
+                if(!isBFUType(ai->getAllocatedType())) {
+                    continue;
+                }
+                LLVM_DEBUG(ai->dump());
+                LLVM_DEBUG(dbgs() << "users: ");
+                for(auto uIter: ai->users()) {
+                    User& u = *uIter;
+                    LLVM_DEBUG(u.dump());
+                    if(auto* intrinInst = dyn_cast<IntrinsicInst>(&u)) {
+                        MDNode* priTop = intrinInst->getCalledFunction()->getMetadata("primate");
+                        if(!(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue")) {
+                            continue;
+                        }
+                        LLVM_DEBUG(dbgs() << "primate intrinsic {\n");
+                        //find the users
+                        for (auto* users: intrinInst->users()) {
+                            LLVM_DEBUG(dbgs() << "user: ");
                         }
                     }
-                }
-                for(auto* inst: workList) {
-                    // replace input inst with call intr
-                    std::string demangledName = demangle(inst->getCalledFunction()->getName().str());
-                    dbgs() << "demangled name: " << demangledName << "\n";
-                    MDNode* priTop = inst->getCalledFunction()->getMetadata("primate");
-                    if(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue") {
-                        if (!isBFUType(inst->getType())) {
-                            llvm_unreachable("Calling a blue functional unit with unsupported type. (regenerate architecture)");
-                        }
-                        // Primate BFU
-                        if(dyn_cast<MDString>(priTop->getOperand(1))->getString() == "IO") {
-                            if(demangledName.find("PRIMATE::input<") != std::string::npos) {
-                                bool needToExtract = false;
-                                dbgs() << "generating intrinsic for\n";
-                                inst->dump();
-                                Type* resultType = inst->getType();
-                                if(!resultType->isAggregateType()) {
-                                    // generate an aggregate of the scalar type
-                                    std::vector<Type *> structTypes = {
-                                        resultType
-                                    };
-                                    resultType = llvm::StructType::get(F.getContext(), structTypes, true);
-                                    needToExtract = true;
-                                }
-                                IRBuilder<> builder(inst);
-                                std::vector<Type *> insArgType = {
-                                    resultType
-                                };
-                                std::vector<Value*> insArg = {
-                                    inst->getOperand(0)
-                                };
-                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input, insArgType);
-                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                                Value* newInstr = newCi;
-                                if (needToExtract) {
-                                    dbgs() << "creating struct for: ";
-                                    resultType->dump();
-                                    newInstr = builder.CreateExtractValue(newCi, 0);
-                                }
-                                inst->replaceAllUsesWith(newInstr);
-                                instructionsToRemove.push_back(inst);
-                            }
-                            else if(demangledName.find("PRIMATE::input_done()") != std::string::npos) {
-                                dbgs() << "generating intrinsic for\n";
-                                inst->dump();
-                                IRBuilder<> builder(inst);
-                                std::vector<Type *> insArgType = {
-                                };
-                                std::vector<Value*> insArg = {
-                                };
-                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_input_done, insArgType);
-                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                                inst->replaceAllUsesWith(newCi);
-                                instructionsToRemove.push_back(inst);
-                            }
-                            else if(demangledName.find("PRIMATE::output<") != std::string::npos) {
-                                IRBuilder<> builder(inst);
-                                bool needToInsert = false;
-                                Type* inputType = inst->getOperand(0)->getType();
-                                Value* op0 = inst->getOperand(0);
-                                if(!inputType->isAggregateType()) {
-                                    // generate an aggregate of the scalar type
-                                    std::vector<Type *> structTypes = {
-                                        inputType
-                                    };
-                                    inputType = llvm::StructType::get(F.getContext(), structTypes, true);
-                                    needToInsert = true;
-                                    op0 = builder.CreateInsertValue(UndefValue::get(inputType), op0, 0); 
-                                }
-
-                                std::vector<Type *> insArgType = {
-                                    inputType
-                                };
-                                std::vector<Value*> insArg = {
-                                    op0,
-                                    inst->getOperand(1)
-                                };
-                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output, insArgType);
-                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                                inst->replaceAllUsesWith(newCi);
-                                instructionsToRemove.push_back(inst);
-                            }
-                            else if(demangledName.find("PRIMATE::output_done(") != std::string::npos) {
-                                IRBuilder<> builder(inst);
-                                std::vector<Type *> insArgType = {};
-                                std::vector<Value*> insArg = {};
-                                Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), llvm::Intrinsic::primate_output_done, insArgType);
-                                CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                                inst->replaceAllUsesWith(newCi);
-                                instructionsToRemove.push_back(inst);
-                            }
-                            else {
-                                llvm_unreachable("UNSUPPORTED IO BFU OPERATION (Options are input, output)");
-                            }
-                        }
-                        else {
-                            std::string BFUName = dyn_cast<MDString>(priTop->getOperand(1))->getString().str();
-                            rtrim(BFUName);
-                            ltrim(BFUName);
-                            IRBuilder<> builder(inst);
-                            std::vector<Type *> insArgType = {
-                                inst->getType(),
-                                inst->getOperand(0)->getType()
-                            };
-                            std::vector<Value*> insArg = {
-                                inst->getOperand(0)
-                            };
-                            if(nameToIntrins.find(BFUName) == nameToIntrins.end()) {
-                                dbgs() << BFUName << "\n";
-                            }
-                            assert(nameToIntrins.find(BFUName) != nameToIntrins.end() && "unknown BFU name >:(");
-                            Function* insFunc = llvm::Intrinsic::getDeclaration(F.getParent(), nameToIntrins.at(BFUName), insArgType);
-                            CallInst* newCi = builder.CreateCall(insFunc, insArg);
-                            inst->replaceAllUsesWith(newCi);
-                            instructionsToRemove.push_back(inst);
-                        }
+                    else if(auto* ci = dyn_cast<CallInst>(&u)) {
+                        LLVM_DEBUG(dbgs() << "call {\n");
+                        convertCall(ci, ai);
                     }
+                    else if(auto* gepi = dyn_cast<GetElementPtrInst>(&u)) {
+                        LLVM_DEBUG(dbgs() << "GEP{\n");
+                        convertAndTrimGEP(gepi);
+                    }
+                    else {
+                        LLVM_DEBUG(dbgs() << "other{\n");
+                    }
+                    LLVM_DEBUG(dbgs() << "}\n");
                 }
+                LLVM_DEBUG(dbgs() << "---\n");
             }
+
+            workList.clear();
         }
 
         for(auto bleh: instructionsToRemove) {
@@ -473,35 +281,89 @@ namespace llvm {
             ci->replaceAllUsesWith(newCall);
         }
 
-
         instructionsToRemove.push_back(ci);
     }
 
+    Type* PrimateStructToAggre::getGEPTargetType(User::op_iterator ind_begin, User::op_iterator ind_end, Type* ptr_type) {
+        if(auto* vty = dyn_cast<VectorType>(ptr_type)) {
+            return vty->getElementType();
+        }
+        else if(auto* aty = dyn_cast<ArrayType>(ptr_type)) {
+            return aty->getElementType();
+        }
+        else if(auto* sty = dyn_cast<StructType>(ptr_type)) {
+            unsigned int const_idx = 0;
+            if (ConstantInt* CI = dyn_cast<ConstantInt>(ind_begin->get())) {
+                if (CI->getBitWidth() <= 32) {
+                    const_idx = CI->getSExtValue();
+                }
+            }
+            else {
+                LLVM_DEBUG(dbgs() << "failed to find the type due to non-const ptr\n";);
+                return nullptr;
+            }
+            if (std::next(ind_begin) == ind_end) {
+                return sty->getTypeAtIndex(const_idx);
+            }
+            else {
+                return getGEPTargetType(std::next(ind_begin), ind_end, sty->getTypeAtIndex(const_idx));
+            }
+        }
+        else if(auto* ity = dyn_cast<IntegerType>(ptr_type)) {
+            return ptr_type;
+        }
+        else {
+            LLVM_DEBUG(dbgs() << "GEP is not targetting a vec, arr, or struct. weird.\n"; );
+            return nullptr;
+        }
+    }
+
+    // given some gep using an alloca, attempt to change all the load and stores using this
+    // GEP into load, store, insert, extract instructions
     void PrimateStructToAggre::convertAndTrimGEP(GetElementPtrInst* gepI) {
+        if(gepI->idx_begin() == gepI->idx_end()) { // is this possible?
+            return;
+        }
+
         IRBuilder<> builder(gepI->getParent());
         builder.SetInsertPoint(gepI);
         Value* srcPtr = gepI->getPointerOperand();
-        Type* srcType = gepI->getSourceElementType();
+        Type* srcType = followPointerForType(srcPtr); // GEP type might not match the thing pointed to. Grab the alloca
+        if(srcType != gepI->getSourceElementType()) {
+            LLVM_DEBUG(dbgs() << "Gep type and pointer type are not the same. Can't generate insert/extracts so we bail.\n";);
+            return;
+        }
+
+        auto b = std::next(gepI->idx_begin());
+        auto e = gepI->idx_end();
+        Type* finalType = getGEPTargetType(b, e, gepI->getSourceElementType()); // type of the final thing the GEP is calculating an address for. Sometimes the GEP will toss a 0 index.
         SmallVector<Use*> gepInds;
+        unsigned int lastIndex;
+        if(finalType == nullptr) {
+            return;
+        }
         for(auto& ind : gepI->indices()) {
             gepInds.push_back(&ind);
         }
-        unsigned int lastIndex;
         if (ConstantInt* CI = dyn_cast<ConstantInt>((gepInds.back()--))) {
-            if (CI->getBitWidth() <= 32) {
+            if(CI->getBitWidth() <= 32) {
                 lastIndex = CI->getSExtValue();
             }
         }
         else {
-            llvm_unreachable("no support for variable last index GEPs");
+            return;
         }
 
 
         for(auto uIter: gepI->users()) {
             if(auto* li = dyn_cast<LoadInst>(uIter)) {
+                // bail if the loaded value type is not the same as the final type
+                if (li->getType() != finalType) {
+                    return;
+                }
                 builder.SetInsertPoint(li);
                 LoadInst* newLoad = builder.CreateLoad(srcType, srcPtr);
-                Value* extLoad = builder.CreateExtractValue(newLoad, lastIndex, li->getName());
+                Value* extLoad    = builder.CreateExtractValue(newLoad, lastIndex, li->getName());
                 LLVM_DEBUG(dbgs() << "replaced: "; li->dump(); 
                 dbgs() << " with: "; extLoad->dump());
                 li->replaceAllUsesWith(extLoad);
@@ -511,20 +373,28 @@ namespace llvm {
                 instructionsToRemove.push_back(li);
             }
             else if(auto* si = dyn_cast<StoreInst>(uIter)) {
+                // bail if the stored value type is not the same as the final type
+                if (si->getValueOperand()->getType() != finalType) {
+                    return;
+                }
+
                 // TODO: HACK SHOULD BE OPT
                 // load insert and store....
+                LLVM_DEBUG(dbgs() << "Hit a store instr on the GEP users\n";);
                 builder.SetInsertPoint(si);
-                LoadInst *newLoad = builder.CreateLoad(srcType, srcPtr);
-                Value *insLoad = builder.CreateInsertValue(newLoad, si->getValueOperand(), lastIndex);
+                LoadInst *newLoad   = builder.CreateLoad(srcType, srcPtr);
+                LLVM_DEBUG(newLoad->dump(););
+                Value *insLoad      = builder.CreateInsertValue(newLoad, si->getValueOperand(), lastIndex);
+                LLVM_DEBUG(insLoad->dump(););
                 StoreInst *newStore = builder.CreateStore(insLoad, srcPtr);
-                LLVM_DEBUG(dbgs() << "Created Ops: ";
-                newLoad->dump();
-                insLoad->dump();
-                newStore->dump(););
+                LLVM_DEBUG(newStore->dump(););
                 instructionsToRemove.push_back(si);
             }
             else {
-                llvm_unreachable("gep used by not a load/store D:");
+                LLVM_DEBUG(dbgs() << "Missed optimization due to gep being used by non load/store: "; uIter->dump();
+                           dbgs() << "leaving the ops cleaned so far and bailing.\n";
+                );
+                return;
             }
         }
         instructionsToRemove.push_back(gepI);

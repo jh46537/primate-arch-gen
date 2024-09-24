@@ -150,6 +150,7 @@ class PRInstCommon<dag outs, dag ins, string opcodestr, string argstr,
   dag InOperandList = ins;
   let AsmString = opcodestr # !if(!empty(argstr), "", "\t" # argstr);
   let Pattern = pattern;
+  let Itinerary = ItinGreen;
 
   let TSFlags{4-0} = format.Value;
 

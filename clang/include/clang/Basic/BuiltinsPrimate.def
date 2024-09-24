@@ -18,8 +18,11 @@
 //#include "clang/Basic/primate_vector_builtins.inc"
 
 // Primate BFUs
-TARGET_BUILTIN(__primate_input, "v*ci", "nt", "")
-TARGET_BUILTIN(__primate_output, "vv*ci", "nt", "")
+TARGET_BUILTIN(__primate_input, "v*Ci", "nt", "")
+TARGET_BUILTIN(__primate_input_done, "v", "nt", "")
+TARGET_BUILTIN(__primate_output, "vv*Ci", "nt", "")
+TARGET_BUILTIN(__primate_output_done, "v", "nt", "")
+
 
 // Zbb extension
 TARGET_BUILTIN(__builtin_primate_orc_b_32, "ZiZi", "nc", "experimental-zbb")

@@ -1,14 +1,18 @@
-//===-- PrimatePasses.h - Primate Middle End Passes --------------*- C++ -*-=//
+//===-- PrimateIntrinsicPromotion.h - Primate Intrinsic Promotion Pass --------------*- C++ -*-=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// 
+// This pass will take primate BFU intrinsics and move them from pointer to ssa values
+// All we need to do is replace pointer with ssa, and then store it in wherever the pointer was copied
+// ideally we are early enough to not have to worry about the pointer being the alias
 //
 /// \file
 //===----------------------------------------------------------------------===//
 
-#ifndef PRIMATE_STRUCT_TO_AGGRE_H
-#define PRIMATE_STRUCT_TO_AGGRE_H
+#ifndef PRIMATE_INTRINSIC_PROMOTION_H
+#define PRIMATE_INTRINSIC_PROMOTION_H
 #include <algorithm>
 #include <set>
 
@@ -23,7 +27,7 @@
 #include "llvm/IR/IntrinsicsPrimate.h"
 
 namespace llvm {
-  struct PrimateStructToAggre : public PassInfoMixin<PrimateStructToAggre> {
+  struct PrimateIntrinsicPromotion : public PassInfoMixin<PrimateIntrinsicPromotion> {
     std::unordered_map<Function*, Function*> replacedFunctions;
     std::unordered_map<AllocaInst*, Value*> latestAllocaValue;
     std::set<Value*> fixedCalls;
@@ -32,19 +36,13 @@ namespace llvm {
     std::map<std::string, llvm::Intrinsic::PRIMATEIntrinsics> nameToIntrins;
     const TargetLowering* TLI;
     TargetMachine& TM; 
-    PrimateStructToAggre(TargetMachine& TM) : TM(TM){}
+    PrimateIntrinsicPromotion(TargetMachine& TM) : TM(TM){}
 
     PreservedAnalyses run(Function&, FunctionAnalysisManager&);
-
-    Type* getGEPTargetType(User::op_iterator, User::op_iterator, Type*);
-    Type* followPointerForType(Value*);
-    void normalizeFuncs(Function& F);
-    void removeAllocas(Function& F);
-    void convertCall(CallInst *ci, AllocaInst *ai);
-    void convertAndTrimGEP(GetElementPtrInst* gepI);
-    void findBFUTypes(Module& M);
-    bool isBFUType(Type* ty);
     static bool isRequired() { return true; }
+    void promoteReturnType(std::vector<CallInst*>& worklist);
+    void promoteArgs(std::vector<CallInst*>& worklist);
+
   };
 }
 
