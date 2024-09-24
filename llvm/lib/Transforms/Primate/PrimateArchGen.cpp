@@ -2265,6 +2265,10 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
 
     initializeBFCMeta(M);
     for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+        if (demangle(MI->getName()).find("primate_main") == std::string::npos) {
+            LLVM_DEBUG(dbgs() << "non primate main. skipping eval\n");
+            continue; 
+        }
         int numALU = 0, numInst = 0;
         unsigned constVal;
         evalFunc(*MI, numALU, numInst, constVal);
