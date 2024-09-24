@@ -30,8 +30,11 @@ typedef std::list<BasicBlock*> Worklist;
 template <typename FlowValueType> // FlowValueType indicates the type of flow value. Eg: BitVector
 class DataFlow {
     bool forward; // flow direction; true for forward
-
+    
 public:
+    //mapping from basicblock to lattice
+    typedef ValueMap<const BasicBlock*, FlowValueType*> BlockInOutMap;    
+
     enum SetType {
         IN,
         OUT
@@ -46,20 +49,18 @@ public:
     }
     virtual ~DataFlow(){}
 
-    void cleanDataFlow(){
+    void cleanDataFlow() {
         delete in;
         delete out;
         delete neighbourSpecificValues;
         delete visited;
-     }
+    }
     
-    //mapping from basicblock to lattice
-    typedef ValueMap<const BasicBlock*, FlowValueType*> BlockInOutMap;    
     //IN and OUT sets for a basic block
-    BlockInOutMap *in;
-    BlockInOutMap *out;
-    BlockInOutMap *neighbourSpecificValues;
-    ValueMap<BasicBlock*, bool> *visited;
+    BlockInOutMap *in = nullptr;
+    BlockInOutMap *out = nullptr;
+    BlockInOutMap *neighbourSpecificValues = nullptr;
+    ValueMap<BasicBlock*, bool> *visited = nullptr;
 
     //forward and backward analysis functions
     void performForwardAnalysis(Worklist &w) {
