@@ -885,7 +885,8 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   dbgs() << "reading in register indexing parameters\n";
   std::ifstream archgenParams ("primate.cfg");
   if(!archgenParams.good()) {
-    assert(false && "primate.cfg not found! any default we try will be bad. (Run arch-gen?)");
+    errs() << "primate.cfg not found! any default we try will be bad. (Run arch-gen?)\n";
+    errs() << "This better not run the backend!\n";
   }
   else {
     while(archgenParams.good()) {
