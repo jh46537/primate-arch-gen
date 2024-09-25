@@ -8,29 +8,23 @@
 
 def ExtractUnit0a      : FuncUnit;
 def ExtractUnit0b      : FuncUnit;
-def GreenBlueUnit0      : FuncUnit;
+def GreenLSUUnit      : FuncUnit;
 def InsertUnit0      : FuncUnit;
 
 def ExtractUnit1a      : FuncUnit;
 def ExtractUnit1b      : FuncUnit;
-def GreenLSUUnit      : FuncUnit;
-def InsertUnit1      : FuncUnit;
-
-def ExtractUnit2a      : FuncUnit;
-def ExtractUnit2b      : FuncUnit;
 def GreenIOUnit      : FuncUnit;
-def InsertUnit2      : FuncUnit;
+def InsertUnit1      : FuncUnit;
 
 
 def BranchUnit : FuncUnit;
 
 def PrimateItinList {
   list<InstrItinData> ItinList = [
-    InstrItinData<ItinExtract,       [InstrStage<1, [ExtractUnit0a,ExtractUnit0b,ExtractUnit1a,ExtractUnit1b,ExtractUnit2a,ExtractUnit2b]>]>,
-    InstrItinData<ItinInsert,        [InstrStage<1, [InsertUnit0,InsertUnit1,InsertUnit2]>]>,
-    InstrItinData<ItinGreen,         [InstrStage<1, [GreenBlueUnit0,GreenLSUUnit,GreenIOUnit]>]>,
-    InstrItinData<ItinBlue0,         [InstrStage<1, [GreenBlueUnit0]>]>,
-
+    InstrItinData<ItinExtract,       [InstrStage<1, [ExtractUnit0a,ExtractUnit0b,ExtractUnit1a,ExtractUnit1b]>]>,
+    InstrItinData<ItinInsert,        [InstrStage<1, [InsertUnit0,InsertUnit1]>]>,
+    InstrItinData<ItinGreen,         [InstrStage<1, [GreenLSUUnit,GreenIOUnit]>]>,
+    
     InstrItinData<ItinIO,            [InstrStage<1, [GreenIOUnit]>]>,
     InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>,
     InstrItinData<ItinMem,           [InstrStage<1, [GreenLSUUnit]>]>
@@ -39,7 +33,7 @@ def PrimateItinList {
 
 def PrimateItineraries :
     ProcessorItineraries<[  
-        ExtractUnit0a,ExtractUnit0b,GreenBlueUnit0,InsertUnit0,ExtractUnit1a,ExtractUnit1b,GreenLSUUnit,InsertUnit1,ExtractUnit2a,ExtractUnit2b,GreenIOUnit,InsertUnit2,
+        ExtractUnit0a,ExtractUnit0b,GreenLSUUnit,InsertUnit0,ExtractUnit1a,ExtractUnit1b,GreenIOUnit,InsertUnit1,
         BranchUnit
     ],
     [],
@@ -73,26 +67,22 @@ let SchedModel = PrimateModel in {
 let BufferSize = 0 in {
 def ExtractUnit0aPipe         : ProcResource<1>;
 def ExtractUnit0bPipe         : ProcResource<1>;
-def GreenBlueUnit0Pipe         : ProcResource<1>;
+def GreenLSUUnitPipe         : ProcResource<1>;
 def InsertUnit0Pipe         : ProcResource<1>;
 def ExtractUnit1aPipe         : ProcResource<1>;
 def ExtractUnit1bPipe         : ProcResource<1>;
-def GreenLSUUnitPipe         : ProcResource<1>;
-def InsertUnit1Pipe         : ProcResource<1>;
-def ExtractUnit2aPipe         : ProcResource<1>;
-def ExtractUnit2bPipe         : ProcResource<1>;
 def GreenIOUnitPipe         : ProcResource<1>;
-def InsertUnit2Pipe         : ProcResource<1>;
+def InsertUnit1Pipe         : ProcResource<1>;
 
 def BranchPipe         : ProcResource<1>;
 }
 
 def PrimatePipes : ProcResGroup<[
-  ExtractUnit0aPipe,ExtractUnit0bPipe,GreenBlueUnit0Pipe,InsertUnit0Pipe,ExtractUnit1aPipe,ExtractUnit1bPipe,GreenLSUUnitPipe,InsertUnit1Pipe,ExtractUnit2aPipe,ExtractUnit2bPipe,GreenIOUnitPipe,InsertUnit2Pipe,
+  ExtractUnit0aPipe,ExtractUnit0bPipe,GreenLSUUnitPipe,InsertUnit0Pipe,ExtractUnit1aPipe,ExtractUnit1bPipe,GreenIOUnitPipe,InsertUnit1Pipe,
   BranchPipe
 ]>;
-def GreenPipes : ProcResGroup<[GreenBlueUnit0Pipe,GreenLSUUnitPipe,GreenIOUnitPipe]>;
-def BluePipes : ProcResGroup<[GreenBlueUnit0Pipe]>;
+def GreenPipes : ProcResGroup<[GreenLSUUnitPipe,GreenIOUnitPipe]>;
+def BluePipes : ProcResGroup<[]>;
 
 
 // Branching

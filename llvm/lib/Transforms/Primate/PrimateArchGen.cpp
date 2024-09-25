@@ -214,10 +214,12 @@ unsigned PrimateArchGen::getArrayWidthArcGen(ArrayType &a, unsigned start) {
         } else if (isa<llvm::ArrayType>(*elem)) {
             auto *selem = dyn_cast<llvm::ArrayType>(elem);
             unsigned elemWidth = getArrayWidthArcGen((*selem), width);
+            // (*fieldIndex)[width]->insert(elemWidth);
             width = elemWidth;
         } else if (isa<llvm::StructType>(*elem)) {
             auto *selem = dyn_cast<llvm::StructType>(elem);
             unsigned elemWidth = getStructWidth((*selem), width, true);
+            // (*fieldIndex)[width]->insert(elemWidth);
             width = elemWidth;
         }
     }
@@ -247,14 +249,22 @@ PrimateArchGen::getStructWidth(StructType &s, unsigned start, const bool arcGen)
             }
             width += elemWidth;
         } else if (isa<llvm::ArrayType>(**elem)) {
+                       
             auto *selem = dyn_cast<llvm::ArrayType>(*elem);
             unsigned elemWidth;
-            if (arcGen) elemWidth = getArrayWidthArcGen((*selem), width);
+            if (arcGen)  {
+                elemWidth = getArrayWidthArcGen((*selem), width);
+                // neeed to acess this element since its a struct member
+                (*fieldIndex)[width]->insert(getArrayWidth((*selem), 0));
+            }
             else elemWidth = getArrayWidth((*selem), width);
             width = elemWidth;
         } else if (isa<llvm::StructType>(**elem)) {
             auto *selem = dyn_cast<llvm::StructType>(*elem);
             unsigned elemWidth = getStructWidth((*selem), width, arcGen);
+            if (arcGen)  {
+                (*fieldIndex)[width]->insert(getStructWidth((*selem), 0, false));
+            }
             width = elemWidth;
         }
     }

@@ -20,6 +20,8 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include <optional>
 
+#define DEBUG_TYPE "primate-isel-lowering"
+
 namespace llvm {
 class PrimateSubtarget;
 struct PrimateRegisterInfo;
@@ -257,7 +259,7 @@ public:
     int posBits = 32 - __builtin_clz(allPoses.size());
     int sizeBits = 32 - __builtin_clz(allSizes.size());
     if(find(allSizes.begin(), allSizes.end(), 32) == allSizes.end()) {
-      llvm_unreachable("unsupported struct element size");
+      llvm_unreachable("Can't find 32 bit size. Regs improperly configured");
     }
     int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), 32));
 
@@ -317,6 +319,26 @@ public:
     }
     return allSlotInfo[slotIdx] == SlotTypes::INSERT;
   }
+
+  virtual unsigned int getElementSizeInBits(Type* ty) const {
+    unsigned width = 0;
+    if(ty->isPointerTy()) {
+      width = 32;
+    } else if(ty->isIntegerTy()) {
+      width = ty->getIntegerBitWidth();
+    } else if(ty->isStructTy()) {
+      StructType* sty = dyn_cast<StructType>(ty);
+      for(unsigned i = 0; i < sty->getNumElements(); i++) {
+        width += getElementSizeInBits(sty->getElementType(i));
+      }
+    } else if(ty->isArrayTy()) {
+      ArrayType* aty = dyn_cast<ArrayType>(ty);
+      width = getElementSizeInBits(aty->getElementType()) * aty->getNumElements();
+    } else {
+      llvm_unreachable("unsupported type");
+    }
+    return width;
+  }
   
   virtual unsigned int linearToAggregateIndex(StructType &STy, unsigned int linearIndex) const override {
     // first find a field that fits this width, then attempt to put it at the bottom of that field.
@@ -332,7 +354,11 @@ public:
       llvm_unreachable("unsupported struct position");
     }
     int posIdx = std::distance(allPoses.begin(), find(allPoses.begin(), allPoses.end(), bitPos));
-    if(find(allSizes.begin(), allSizes.end(), STy.getElementType(linearIndex)->getScalarSizeInBits()) == allSizes.end()) {
+    unsigned elementSize = getElementSizeInBits(STy.getElementType(linearIndex));
+    // insert can leave off zeros at the end, so we need to find the next field that fits
+    if(find(allSizes.begin(), allSizes.end(), elementSize) == allSizes.end()) {
+      LLVM_DEBUG(dbgs() << "unsupported struct element size: " << elementSize << "\n"; 
+                 dbgs() << "type: "; STy.getElementType(linearIndex)->dump(););
       llvm_unreachable("unsupported struct element size");
     }
     int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), STy.getElementType(linearIndex)->getScalarSizeInBits()));
@@ -661,5 +687,7 @@ using namespace Primate;
 } // end namespace PrimateVIntrinsicsTable
 
 } // end namespace llvm
+
+#undef DEBUG_TYPE // Lol kayvan
 
 #endif
