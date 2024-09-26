@@ -250,10 +250,6 @@ void PrimatePassConfig::addPreSched2() {}
 
 void PrimatePassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
-
-  // two passes that form a pseudo super pass
-  addPass(createPrimatePacketizer());
-  addPass(createPrimatePacketLegalizerPass());
 }
 
 void PrimatePassConfig::addPreEmitPass2() {
@@ -262,6 +258,11 @@ void PrimatePassConfig::addPreEmitPass2() {
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
   addPass(createPrimateExpandAtomicPseudoPass());
+
+  // two passes that form a pseudo super pass
+  // need to expand all ops before packetizing
+  addPass(createPrimatePacketizer());
+  addPass(createPrimatePacketLegalizerPass());
 }
 
 void PrimatePassConfig::addPreRegAlloc() {
