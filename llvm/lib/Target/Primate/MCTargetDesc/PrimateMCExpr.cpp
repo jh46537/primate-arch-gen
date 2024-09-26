@@ -49,26 +49,44 @@ void PrimateMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
 
 const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
   MCValue AUIPCLoc;
-  if (!getSubExpr()->evaluateAsRelocatable(AUIPCLoc, nullptr, nullptr))
+  if (!getSubExpr()->evaluateAsRelocatable(AUIPCLoc, nullptr, nullptr)) {
+    LLVM_DEBUG(dbgs() << "PCRelHiFixup failed relocation eval failing\n");
     return nullptr;
+  }
 
   const MCSymbolRefExpr *AUIPCSRE = AUIPCLoc.getSymA();
-  if (!AUIPCSRE)
+  if (!AUIPCSRE) {
+    LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to missing symbol\n");
     return nullptr;
+  }
 
   const MCSymbol *AUIPCSymbol = &AUIPCSRE->getSymbol();
   const auto *DF = dyn_cast_or_null<MCDataFragment>(AUIPCSymbol->getFragment());
 
-  if (!DF)
+  if (!DF) {
+    LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to missing datafragment\n");
     return nullptr;
+  }
 
   uint64_t Offset = AUIPCSymbol->getOffset();
   if (DF->getContents().size() == Offset) {
+    LLVM_DEBUG(dbgs() << "Current fixup offset points to next DF.\n");
     DF = dyn_cast_or_null<MCDataFragment>(DF->getNextNode());
-    if (!DF)
+    if (!DF) {
+      LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to offset in a non-existant data fragment\n");
       return nullptr;
+    }
     Offset = 0;
+  } 
+  else {
+    LLVM_DEBUG(dbgs() << "Current fixup offset points to same DF.\n");
   }
+
+  LLVM_DEBUG(dbgs() << "Fixup offset before finding DF: " << AUIPCSymbol->getOffset() << "\n";);
+  LLVM_DEBUG(dbgs() << "DataFragment order: " << DF->getLayoutOrder() << "\n";);
+  LLVM_DEBUG(dbgs() << "DataFragment addr: " << (const void*)DF << "\n";);
+  LLVM_DEBUG(dbgs() << "DataFragment of fixup addr: " << (const void*)(*DFOut) << "\n";);
+  LLVM_DEBUG(this->dump(););
 
   for (const MCFixup &F : DF->getFixups()) {
     if (F.getOffset() != Offset)
@@ -76,6 +94,7 @@ const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
 
     switch ((unsigned)F.getKind()) {
     default:
+      LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to fixup kind: \n"; F.dump(););
       continue;
     case Primate::fixup_primate_got_hi20:
     case Primate::fixup_primate_tls_got_hi20:
@@ -87,6 +106,7 @@ const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
     }
   }
 
+  LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to fixup following fail\n");
   return nullptr;
 }
 
