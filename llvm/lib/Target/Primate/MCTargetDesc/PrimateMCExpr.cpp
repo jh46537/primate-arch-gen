@@ -94,7 +94,6 @@ const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
 
     switch ((unsigned)F.getKind()) {
     default:
-      LLVM_DEBUG(dbgs() << "PCRelHiFixup failed due to fixup kind: \n"; F.dump(););
       continue;
     case Primate::fixup_primate_got_hi20:
     case Primate::fixup_primate_tls_got_hi20:

@@ -10,8 +10,6 @@
 def ItinExtract : InstrItinClass;
 def ItinInsert  : InstrItinClass;
 def ItinGreen   : InstrItinClass;
-def ItinBlue0   : InstrItinClass;
-
 def ItinMem     : InstrItinClass;
 def ItinIO      : InstrItinClass;
 def ItinBranch  : InstrItinClass;
@@ -256,4 +254,4 @@ def : ReadAdvance<ReadFSqrt16, 0>;
 // Include the scheduler resources for other instruction extensions.
 include "PrimateScheduleB.td"
 include "PrimateScheduleV.td"
-
+include "PrimateScheduleBFU.td"

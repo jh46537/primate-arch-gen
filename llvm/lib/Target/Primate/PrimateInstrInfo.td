@@ -1114,18 +1114,6 @@ def INSERT_hang :
 }
 def : Pat<(insert_value WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2), (INSERT_hang WIDEREG:$rs0, GPR128:$rs1, simm12:$rs2)>;
 
-let Itinerary = ItinBlue0 in
-let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
-def BFU0 :
-    PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-        "bfu0", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]> {
-          let IsBFUInstruction = 1;
-          let imm12 = 0;
-        }
-
-
-def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
-
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns
@@ -1284,9 +1272,6 @@ def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
 def : Pat<(int_primate_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
 def : Pat<(int_primate_input (XLenVT GPR:$rs1)), (INPUT_READ (XLenVT GPR:$rs1), (XLenVT 0))>;
 def : Pat<(int_primate_input_done), (INPUT_DONE)>;
-
-def : Pat<(int_primate_BFU_0 WIDEREG:$rs1), (BFU0 WIDEREG:$rs1)>;
-
 
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty, ValueType vt = XLenVT>
@@ -1963,6 +1948,7 @@ def : Pat<(shl (zext GPR:$rs), uimm5:$shamt),
 // Standard extensions
 //===----------------------------------------------------------------------===//
 
+include "PrimateInstrInfoBFU.td"
 include "PrimateInstrInfoM.td"
 include "PrimateInstrInfoA.td"
 include "PrimateInstrInfoF.td"
