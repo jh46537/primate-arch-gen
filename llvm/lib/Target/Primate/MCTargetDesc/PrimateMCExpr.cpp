@@ -61,6 +61,7 @@ const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
   }
 
   const MCSymbol *AUIPCSymbol = &AUIPCSRE->getSymbol();
+  LLVM_DEBUG(AUIPCSymbol->dump(););
   const auto *DF = dyn_cast_or_null<MCDataFragment>(AUIPCSymbol->getFragment());
 
   if (!DF) {
@@ -88,6 +89,7 @@ const MCFixup *PrimateMCExpr::getPCRelHiFixup(const MCFragment **DFOut) const {
   LLVM_DEBUG(dbgs() << "DataFragment of fixup addr: " << (const void*)(*DFOut) << "\n";);
   LLVM_DEBUG(this->dump(););
 
+  // find the closest fixup that is a PCRelHiFixup
   for (const MCFixup &F : DF->getFixups()) {
     if (F.getOffset() != Offset)
       continue;

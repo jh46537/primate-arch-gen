@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/MC/MCContext.h"
 
 using namespace llvm;
 
@@ -127,39 +128,28 @@ bool PrimateExpandPseudo::expandAuipcInstPair(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
     MachineBasicBlock::iterator &NextMBBI, unsigned FlagsHi,
     unsigned SecondOpcode) {
-  MachineFunction *MF = MBB.getParent();
+    MachineFunction *MF = MBB.getParent();
   MachineInstr &MI = *MBBI;
   DebugLoc DL = MI.getDebugLoc();
 
   Register DestReg = MI.getOperand(0).getReg();
-  const MachineOperand &Symbol = MI.getOperand(1);
 
-  MachineBasicBlock *NewMBB = MF->CreateMachineBasicBlock(MBB.getBasicBlock());
+  MachineOperand &Symbol = MI.getOperand(1);
+  Symbol.setTargetFlags(FlagsHi);
+  MCSymbol *AUIPCSymbol = MF->getContext().createNamedTempSymbol("pcrel_hi");
 
-  // Tell AsmPrinter that we unconditionally want the symbol of this label to be
-  // emitted.
-  NewMBB->setLabelMustBeEmitted();
+  MachineInstr *MIAUIPC =
+      BuildMI(MBB, MBBI, DL, TII->get(Primate::AUIPC), DestReg).add(Symbol);
+  MIAUIPC->setPreInstrSymbol(*MF, AUIPCSymbol);
 
-  MF->insert(++MBB.getIterator(), NewMBB);
+  MachineInstr *SecondMI =
+      BuildMI(MBB, MBBI, DL, TII->get(SecondOpcode), DestReg)
+          .addReg(DestReg)
+          .addSym(AUIPCSymbol, PrimateII::MO_PCREL_LO);
 
-  BuildMI(NewMBB, DL, TII->get(Primate::AUIPC), DestReg)
-      .addDisp(Symbol, 0, FlagsHi);
-  BuildMI(NewMBB, DL, TII->get(SecondOpcode), DestReg)
-      .addReg(DestReg)
-      .addMBB(NewMBB, PrimateII::MO_PCREL_LO);
+  if (MI.hasOneMemOperand())
+    SecondMI->addMemOperand(*MF, *MI.memoperands_begin());
 
-  // Move all the rest of the instructions to NewMBB.
-  NewMBB->splice(NewMBB->end(), &MBB, std::next(MBBI), MBB.end());
-  // Update machine-CFG edges.
-  NewMBB->transferSuccessorsAndUpdatePHIs(&MBB);
-  // Make the original basic block fall-through to the new.
-  MBB.addSuccessor(NewMBB);
-
-  // Make sure live-ins are correctly attached to this new basic block.
-  LivePhysRegs LiveRegs;
-  computeAndAddLiveIns(LiveRegs, *NewMBB);
-
-  NextMBBI = MBB.end();
   MI.eraseFromParent();
   return true;
 }

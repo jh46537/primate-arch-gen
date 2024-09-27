@@ -461,6 +461,12 @@ void PrimateAsmPrinter::emitInstruction(const MachineInstr *MI) {
           customLower = true;
         }
 
+        // check for pre instr labels and print those if we have them, this is required 
+        // for pcrel_lo/hi pairs
+        if(auto* preInstSym = MII->getPreInstrSymbol()) {
+          OutStreamer->emitLabel(preInstSym);
+        }
+
         // normal instruction lowering
         MCInst TmpInst;
         if (!lowerPrimateMachineInstrToMCInst(&*MII, TmpInst, *this) && !customLower)

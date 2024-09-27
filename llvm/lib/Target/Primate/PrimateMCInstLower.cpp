@@ -26,6 +26,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "primate-mcinst-lower"
+
 static MCOperand lowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym,
                                     const AsmPrinter &AP) {
   MCContext &Ctx = AP.OutContext;
@@ -128,6 +130,10 @@ bool llvm::LowerPrimateMachineOperandToMCOperand(const MachineOperand &MO,
   case MachineOperand::MO_CFIIndex:
     // Primate: ignore
     break;
+  case MachineOperand::MO_MCSymbol:
+    LLVM_DEBUG(dbgs() << "Lowering MO_MCSymbol\n" << MO.getMCSymbol()->getName() << "\n";);
+    MCOp = lowerSymbolOperand(MO, MO.getMCSymbol(), AP);
+    break;
   }
   return true;
 }
@@ -146,6 +152,7 @@ bool llvm::lowerPrimateMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutM
 
   for (const MachineOperand &MO : MI->operands()) {
     MCOperand MCOp;
+    LLVM_DEBUG(MO.dump(););
     if (LowerPrimateMachineOperandToMCOperand(MO, MCOp, AP))
       OutMI.addOperand(MCOp);
   }
