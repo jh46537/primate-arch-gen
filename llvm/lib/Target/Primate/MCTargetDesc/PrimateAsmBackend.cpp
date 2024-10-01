@@ -383,6 +383,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   unsigned const numSlots = lastResourceGroup.NumUnits;
   int64_t signedValue = (static_cast<int64_t>(Value) +((numSlots-1) * 4)) / (numSlots * 4); 
 
+
   // insert into the instr
   switch (Fixup.getTargetKind()) {
   default:
@@ -423,19 +424,19 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Add 1 if bit 11 is 1, to compensate for low 12 bits being negative.
     return ((signedValue + 0x800) >> 12) & 0xfffff;
   case Primate::fixup_primate_jal: {
-    if (!isInt<20>(signedValue)) {
+    if (!isInt<20>(Value)) {
       dbgs() << "Failed to fit a jal.\n";
       dbgs() << "Slot Num: " << numSlots << "\n";
-      dbgs() << "signedValue: " << signedValue << "\n";
+      dbgs() << "Value: " << Value << "\n";
       dbgs() << "instr bytes: " << numSlots*4 << "\n";
 	
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range for JAL");
     }
-    // Need to produce imm[19|10:1|11|19:12] from the 21-bit signedValue.
-    unsigned Sbit = (signedValue >> 19) & 0x1;
-    unsigned Hi8 = (signedValue >> 11) & 0xff;
-    unsigned Mid1 = (signedValue >> 10) & 0x1;
-    unsigned Lo10 = (signedValue >> 0) & 0x3ff;
+    // Need to produce imm[19|10:1|11|19:12] from the 21-bit Value.
+    unsigned Sbit = (Value >> 19) & 0x1;
+    unsigned Hi8 = (Value >> 11) & 0xff;
+    unsigned Mid1 = (Value >> 10) & 0x1;
+    unsigned Lo10 = (Value >> 0) & 0x3ff;
     // Inst{31} = Sbit;
     // Inst{30-21} = Lo10;
     // Inst{20} = Mid1;
@@ -444,15 +445,15 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     return signedValue;
   }
   case Primate::fixup_primate_branch: {
-    dbgs() << "fixups value: " << signedValue << "\n";
-    if (!isInt<12>(signedValue))
+
+    if (!isInt<12>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range for Branch");
     // Need to extract imm[12], imm[10:5], imm[4:1], imm[11] from the 13-bit
-    // signedValue.
-    unsigned Sbit = (signedValue >> 11) & 0x1;
-    unsigned Hi1 = (signedValue >> 10) & 0x1;
-    unsigned Mid6 = (signedValue >> 4) & 0x3f;
-    unsigned Lo4 = (signedValue >> 0) & 0xf;
+    // Value.
+    unsigned Sbit = (Value >> 11) & 0x1;
+    unsigned Hi1 = (Value >> 10) & 0x1;
+    unsigned Mid6 = (Value >> 4) & 0x3f;
+    unsigned Lo4 = (Value >> 0) & 0xf;
     // Inst{31} = Sbit;
     // Inst{30-25} = Mid6;
     // Inst{11-8} = Lo4;
@@ -472,28 +473,28 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   }
   case Primate::fixup_primate_prc_jump: {
     // changed to support jump by 1
-    // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit signedValue.
-    unsigned Bit11  = (signedValue >> 10) & 0x1;
-    unsigned Bit4   = (signedValue >> 3) & 0x1;
-    unsigned Bit9_8 = (signedValue >> 7) & 0x3;
-    unsigned Bit10  = (signedValue >> 9) & 0x1;
-    unsigned Bit6   = (signedValue >> 5) & 0x1;
-    unsigned Bit7   = (signedValue >> 6) & 0x1;
-    unsigned Bit3_1 = (signedValue >> 0) & 0x7;
-    unsigned Bit5   = (signedValue >> 4) & 0x1;
-    signedValue = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
+    // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit Value.
+    unsigned Bit11  = (Value >> 10) & 0x1;
+    unsigned Bit4   = (Value >> 3) & 0x1;
+    unsigned Bit9_8 = (Value >> 7) & 0x3;
+    unsigned Bit10  = (Value >> 9) & 0x1;
+    unsigned Bit6   = (Value >> 5) & 0x1;
+    unsigned Bit7   = (Value >> 6) & 0x1;
+    unsigned Bit3_1 = (Value >> 0) & 0x7;
+    unsigned Bit5   = (Value >> 4) & 0x1;
+    Value = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
             (Bit6 << 5) | (Bit7 << 4) | (Bit3_1 << 1) | Bit5;
     return signedValue;
   }
   case Primate::fixup_primate_prc_branch: {
     // changed to support jump by 1
     // Need to produce offset[8|4:3], [reg 3 bit], offset[7:6|2:1|5]
-    unsigned Bit8   = (signedValue >> 7) & 0x1;
-    unsigned Bit7_6 = (signedValue >> 5) & 0x3;
-    unsigned Bit5   = (signedValue >> 4) & 0x1;
-    unsigned Bit4_3 = (signedValue >> 2) & 0x3;
-    unsigned Bit2_1 = (signedValue >> 0) & 0x3;
-    signedValue = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
+    unsigned Bit8   = (Value >> 7) & 0x1;
+    unsigned Bit7_6 = (Value >> 5) & 0x3;
+    unsigned Bit5   = (Value >> 4) & 0x1;
+    unsigned Bit4_3 = (Value >> 2) & 0x3;
+    unsigned Bit2_1 = (Value >> 0) & 0x3;
+    Value = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
             (Bit5 << 2);
     return signedValue;
   }
