@@ -374,7 +374,15 @@ bool PrimateAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count, const MCSu
 }
 
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
-                                 MCContext &Ctx) {
+                                 MCContext &Ctx, const MCSubtargetInfo *STI) {
+
+  // byte offset to VLIW instr offset. 
+  unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;
+  auto const& lastResourceGroup = STI->getSchedModel().ProcResourceTable[numResourceGroups-1];
+  unsigned const numSlots = lastResourceGroup.NumUnits;
+  Value = ((int64_t)Value) / (numSlots * 4); 
+
+  // insert into the instr
   switch (Fixup.getTargetKind()) {
   default:
     llvm_unreachable("Unknown fixup kind!");
@@ -414,15 +422,19 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Add 1 if bit 11 is 1, to compensate for low 12 bits being negative.
     return ((Value + 0x800) >> 12) & 0xfffff;
   case Primate::fixup_primate_jal: {
-    if (!isInt<21>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
-    if (Value & 0x1)
-      Ctx.reportError(Fixup.getLoc(), "fixup value must be 2-byte aligned");
+    if (!isInt<20>(Value)) {
+      dbgs() << "Failed to fit a jal.\n";
+      dbgs() << "Slot Num: " << numSlots << "\n";
+      dbgs() << "Value: " << Value << "\n";
+      dbgs() << "instr bytes: " << numSlots*4 << "\n";
+	
+      Ctx.reportError(Fixup.getLoc(), "fixup value out of range for JAL");
+    }
     // Need to produce imm[19|10:1|11|19:12] from the 21-bit Value.
-    unsigned Sbit = (Value >> 20) & 0x1;
-    unsigned Hi8 = (Value >> 12) & 0xff;
-    unsigned Mid1 = (Value >> 11) & 0x1;
-    unsigned Lo10 = (Value >> 1) & 0x3ff;
+    unsigned Sbit = (Value >> 19) & 0x1;
+    unsigned Hi8 = (Value >> 11) & 0xff;
+    unsigned Mid1 = (Value >> 10) & 0x1;
+    unsigned Lo10 = (Value >> 0) & 0x3ff;
     // Inst{31} = Sbit;
     // Inst{30-21} = Lo10;
     // Inst{20} = Mid1;
@@ -431,16 +443,14 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     return Value;
   }
   case Primate::fixup_primate_branch: {
-    if (!isInt<13>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
-    if (Value & 0x1)
-      Ctx.reportError(Fixup.getLoc(), "fixup value must be 2-byte aligned");
+    if (!isInt<12>(Value))
+      Ctx.reportError(Fixup.getLoc(), "fixup value out of range for Branch");
     // Need to extract imm[12], imm[10:5], imm[4:1], imm[11] from the 13-bit
     // Value.
-    unsigned Sbit = (Value >> 12) & 0x1;
-    unsigned Hi1 = (Value >> 11) & 0x1;
-    unsigned Mid6 = (Value >> 5) & 0x3f;
-    unsigned Lo4 = (Value >> 1) & 0xf;
+    unsigned Sbit = (Value >> 11) & 0x1;
+    unsigned Hi1 = (Value >> 10) & 0x1;
+    unsigned Mid6 = (Value >> 4) & 0x3f;
+    unsigned Lo4 = (Value >> 0) & 0xf;
     // Inst{31} = Sbit;
     // Inst{30-25} = Mid6;
     // Inst{11-8} = Lo4;
@@ -458,26 +468,28 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     return UpperImm | ((LowerImm << 20) << 32);
   }
   case Primate::fixup_primate_prc_jump: {
+    // changed to support jump by 1
     // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit Value.
-    unsigned Bit11  = (Value >> 11) & 0x1;
-    unsigned Bit4   = (Value >> 4) & 0x1;
-    unsigned Bit9_8 = (Value >> 8) & 0x3;
-    unsigned Bit10  = (Value >> 10) & 0x1;
-    unsigned Bit6   = (Value >> 6) & 0x1;
-    unsigned Bit7   = (Value >> 7) & 0x1;
-    unsigned Bit3_1 = (Value >> 1) & 0x7;
-    unsigned Bit5   = (Value >> 5) & 0x1;
+    unsigned Bit11  = (Value >> 10) & 0x1;
+    unsigned Bit4   = (Value >> 3) & 0x1;
+    unsigned Bit9_8 = (Value >> 7) & 0x3;
+    unsigned Bit10  = (Value >> 9) & 0x1;
+    unsigned Bit6   = (Value >> 5) & 0x1;
+    unsigned Bit7   = (Value >> 6) & 0x1;
+    unsigned Bit3_1 = (Value >> 0) & 0x7;
+    unsigned Bit5   = (Value >> 4) & 0x1;
     Value = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
             (Bit6 << 5) | (Bit7 << 4) | (Bit3_1 << 1) | Bit5;
     return Value;
   }
   case Primate::fixup_primate_prc_branch: {
+    // changed to support jump by 1
     // Need to produce offset[8|4:3], [reg 3 bit], offset[7:6|2:1|5]
-    unsigned Bit8   = (Value >> 8) & 0x1;
-    unsigned Bit7_6 = (Value >> 6) & 0x3;
-    unsigned Bit5   = (Value >> 5) & 0x1;
-    unsigned Bit4_3 = (Value >> 3) & 0x3;
-    unsigned Bit2_1 = (Value >> 1) & 0x3;
+    unsigned Bit8   = (Value >> 7) & 0x1;
+    unsigned Bit7_6 = (Value >> 5) & 0x3;
+    unsigned Bit5   = (Value >> 4) & 0x1;
+    unsigned Bit4_3 = (Value >> 2) & 0x3;
+    unsigned Bit2_1 = (Value >> 0) & 0x3;
     Value = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
             (Bit5 << 2);
     return Value;
@@ -563,7 +575,7 @@ void PrimateAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
   if (!Value)
     return; // Doesn't change encoding.
   // Apply any target-specific value adjustments.
-  Value = adjustFixupValue(Fixup, Value, Ctx);
+  Value = adjustFixupValue(Fixup, Value, Ctx, STI);
 
   // Shift the value into position.
   Value <<= Info.TargetOffset;
@@ -636,6 +648,7 @@ bool PrimateAsmBackend::shouldInsertFixupForCodeAlign(MCAssembler &Asm,
 
 std::unique_ptr<MCObjectTargetWriter>
 PrimateAsmBackend::createObjectTargetWriter() const {
+  // return createPrimateHarvardObjectWriter(OSABI, Is64Bit);
   return createPrimateELFObjectWriter(OSABI, Is64Bit);
 }
 
