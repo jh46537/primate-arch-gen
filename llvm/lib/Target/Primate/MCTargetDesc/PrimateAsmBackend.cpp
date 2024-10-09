@@ -376,11 +376,12 @@ bool PrimateAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count, const MCSu
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext &Ctx, const MCSubtargetInfo *STI) {
 
-  // byte offset to VLIW instr offset. 
+  // byte offset to VLIW instr offset.
+  dbgs() << "Value pre: " << Value << "\n";
   unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;
   auto const& lastResourceGroup = STI->getSchedModel().ProcResourceTable[numResourceGroups-1];
   unsigned const numSlots = lastResourceGroup.NumUnits;
-  Value = ((int64_t)Value) / (numSlots * 4); 
+  int64_t signedValue = (static_cast<int64_t>(Value) +((numSlots-1) * 4)) / (numSlots * 4); 
 
   // insert into the instr
   switch (Fixup.getTargetKind()) {
@@ -405,22 +406,22 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case FK_Data_2:
   case FK_Data_4:
   case FK_Data_8:
-    return Value;
+    return signedValue;
   case Primate::fixup_primate_set_6b:
-    return Value & 0x03;
+    return signedValue & 0x03;
   case Primate::fixup_primate_lo12_i:
   case Primate::fixup_primate_pcrel_lo12_i:
   case Primate::fixup_primate_tprel_lo12_i:
-    return Value & 0xfff;
+    return signedValue & 0xfff;
   case Primate::fixup_primate_lo12_s:
   case Primate::fixup_primate_pcrel_lo12_s:
   case Primate::fixup_primate_tprel_lo12_s:
-    return (((Value >> 5) & 0x7f) << 25) | ((Value & 0x1f) << 7);
+    return (((signedValue >> 5) & 0x7f) << 25) | ((signedValue & 0x1f) << 7);
   case Primate::fixup_primate_hi20:
   case Primate::fixup_primate_pcrel_hi20:
   case Primate::fixup_primate_tprel_hi20:
     // Add 1 if bit 11 is 1, to compensate for low 12 bits being negative.
-    return ((Value + 0x800) >> 12) & 0xfffff;
+    return ((signedValue + 0x800) >> 12) & 0xfffff;
   case Primate::fixup_primate_jal: {
     if (!isInt<20>(Value)) {
       dbgs() << "Failed to fit a jal.\n";
@@ -439,8 +440,8 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Inst{30-21} = Lo10;
     // Inst{20} = Mid1;
     // Inst{19-12} = Hi8;
-    Value = (Sbit << 19) | (Lo10 << 9) | (Mid1 << 8) | Hi8;
-    return Value;
+    signedValue = (Sbit << 19) | (Lo10 << 9) | (Mid1 << 8) | Hi8;
+    return signedValue;
   }
   case Primate::fixup_primate_branch: {
     if (!isInt<12>(Value))
@@ -455,16 +456,17 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Inst{30-25} = Mid6;
     // Inst{11-8} = Lo4;
     // Inst{7} = Hi1;
-    Value = (Sbit << 31) | (Mid6 << 25) | (Lo4 << 8) | (Hi1 << 7);
-    return Value;
+    signedValue = (Sbit << 31) | (Mid6 << 25) | (Lo4 << 8) | (Hi1 << 7);
+    dbgs() << "fixups value post mangle: " << signedValue << "\n";
+    return signedValue;
   }
   case Primate::fixup_primate_call:
   case Primate::fixup_primate_call_plt: {
     // Jalr will add UpperImm with the sign-extended 12-bit LowerImm,
     // we need to add 0x800ULL before extract upper bits to reflect the
     // effect of the sign extension.
-    uint64_t UpperImm = (Value + 0x800ULL) & 0xfffff000ULL;
-    uint64_t LowerImm = Value & 0xfffULL;
+    uint64_t UpperImm = (signedValue + 0x800ULL) & 0xfffff000ULL;
+    uint64_t LowerImm = signedValue & 0xfffULL;
     return UpperImm | ((LowerImm << 20) << 32);
   }
   case Primate::fixup_primate_prc_jump: {
@@ -480,7 +482,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     unsigned Bit5   = (Value >> 4) & 0x1;
     Value = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
             (Bit6 << 5) | (Bit7 << 4) | (Bit3_1 << 1) | Bit5;
-    return Value;
+    return signedValue;
   }
   case Primate::fixup_primate_prc_branch: {
     // changed to support jump by 1
@@ -492,7 +494,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     unsigned Bit2_1 = (Value >> 0) & 0x3;
     Value = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
             (Bit5 << 2);
-    return Value;
+    return signedValue;
   }
 
   }

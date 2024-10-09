@@ -25,6 +25,7 @@ Boundary Conditions: empty set for flow value. identified by no successors.
 #include <llvm/Transforms/Primate/PrimateArchGen.h>
 #include <cstddef>
 #include <system_error>
+#include <algorithm>
 #include "llvm/Demangle/Demangle.h"
 
 using namespace llvm;
@@ -253,7 +254,8 @@ PrimateArchGen::getStructWidth(StructType &s, unsigned start, const bool arcGen)
             auto *selem = dyn_cast<llvm::ArrayType>(*elem);
             unsigned elemWidth;
             if (arcGen)  {
-                elemWidth = getArrayWidthArcGen((*selem), width);
+	        elemWidth = getArrayWidth((*selem), width);
+		getArrayWidthArcGen((*selem), 0);
                 // neeed to acess this element since its a struct member
                 (*fieldIndex)[width]->insert(getArrayWidth((*selem), 0));
             }
@@ -261,7 +263,8 @@ PrimateArchGen::getStructWidth(StructType &s, unsigned start, const bool arcGen)
             width = elemWidth;
         } else if (isa<llvm::StructType>(**elem)) {
             auto *selem = dyn_cast<llvm::StructType>(*elem);
-            unsigned elemWidth = getStructWidth((*selem), width, arcGen);
+	    // nested types should be kept in a struct and extracted all at once
+            unsigned elemWidth = getStructWidth((*selem), width, false);
             if (arcGen)  {
                 (*fieldIndex)[width]->insert(getStructWidth((*selem), 0, false));
             }
@@ -431,7 +434,7 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
     }
     primateCFG << "\n";
 
-    primateCFG << "NUM_REGBLOCKS=" << fieldIndex->size() - 1 << "\n";
+    primateCFG << "NUM_REGBLOCKS=" << fieldIndex->size() << "\n";
     primateCFG << "SRC_POS=";
     std::set<unsigned> allOffsets;
     auto it = fieldIndex->begin();
@@ -2319,14 +2322,17 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     assemblerHeader << "#define NUM_REGS " << int(pow(2, ceil(log2(numRegs)))) << "\n";
     assemblerHeader << "#define NUM_REGS_LG int(ceil(log2(NUM_REGS)))\n";
 
-    if (bfu2bf.size() > maxNumALU)
-        primateCFG << "NUM_ALUS=" << bfu2bf.size() << "\n";
+    // hack to prevent double counting the IO unit
+    int num_bfu_clean = std::count_if(bfu2bf.begin(), bfu2bf.end(), [](auto& bfu_pair){return bfu_pair.first != "IO";});
+
+    if (num_bfu_clean > maxNumALU)
+        primateCFG << "NUM_ALUS=" << num_bfu_clean << "\n";
     else
         primateCFG << "NUM_ALUS=" << maxNumALU << "\n";
-    
-    primateCFG << "NUM_BFUS=" << bfu2bf.size()<< "\n";
+
+    primateCFG << "NUM_BFUS=" << num_bfu_clean << "\n";
     assemblerHeader << "#define NUM_ALUS " << maxNumALU << "\n";
-    assemblerHeader << "#define NUM_FUS " << maxNumALU + bfu2bf.size() - 1 << "\n";
+    assemblerHeader << "#define NUM_FUS " << maxNumALU + num_bfu_clean << "\n";
     assemblerHeader << "#define NUM_FUS_LG int(ceil(log2(NUM_FUS)))\n";
 
     primateCFG << "IP_WIDTH=" << 32 << "\n"; // int(ceil(log2(maxNumInst))) << "\n";

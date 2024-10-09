@@ -52,7 +52,7 @@ static bool ArchRegNames;
 // this way.
 bool PrimateInstPrinter::applyTargetSpecificCLOption(StringRef Opt) {
   if (Opt == "no-aliases") {
-    PrintAliases = false;
+    PrintAliases = true;
     return true;
   }
   if (Opt == "numeric") {

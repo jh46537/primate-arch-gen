@@ -15,7 +15,7 @@ with open(config_name) as f:
         if toks[0] == "NUM_ALUS":
             numALUs = int(toks[1])
         if toks[0] == "NUM_BFUS":
-            numBFUs = int(toks[1]) + 1 # memory unit is implicit
+            numBFUs = int(toks[1]) + 2 # IO and memory unit is implicit
 
 numSlots = max(numBFUs, numALUs)
 
@@ -63,7 +63,7 @@ symTable = {}
 def write_packet(packet):
     instr_byte_str = "".join(currentPacket[-1].split()[0:4][::-1])
     if not (instr_byte_str == NOP_STR or instr_byte_str == RET_STR):
-        print("REAL branch found")
+        # print("REAL branch found")
         fix_last_branch(packet)
         
     for instr in currentPacket[::-1]:
@@ -71,11 +71,12 @@ def write_packet(packet):
         instr_val = ""
         for i in iToks[0:4][::-1]:
             instr_val += i.strip()
-        print(instr_val)
+        # print(instr_val)
         outFile.write(instr_val)
     outFile.write("\n")
 
 def fix_last_branch(packet):
+    return
     iToks = packet[-1].split()
     instr_val = 0
     for i in iToks[0:4][::-1]:
@@ -97,7 +98,7 @@ def fix_last_branch(packet):
         offset += ((instr_val & (0x001 << 31)) >> 31) << 12
     
     offset = int(offset / PACKET_SIZE_IN_BYTES)
-    print(f"normal {instr_val}")
+    #print(f"normal {instr_val}")
     
     # zero offset 
     if(iToks[4].startswith("j")):
@@ -110,7 +111,7 @@ def fix_last_branch(packet):
         instr_val = (instr_val & ~(0x00F <<  8))
         instr_val = (instr_val & ~(0x001 <<  7))
         instr_val = (instr_val & ~(0x001 << 31))
-    print(f"zerod {hex(instr_val)}")
+    #print(f"zerod {hex(instr_val)}")
     
     # patch in the offset
     if(iToks[4].startswith("j")):
@@ -126,8 +127,8 @@ def fix_last_branch(packet):
     
     # Primate compiler now handles relocs
     instr_val += added_val
-    print("instr    ", hex(instr_val))
-    print("added_val", hex(added_val))
+    #print("instr    ", hex(instr_val))
+    #print("added_val", hex(added_val))
     
     newInstr = packet[-1].split()
     for i in range(4):
@@ -136,28 +137,36 @@ def fix_last_branch(packet):
     newInstr[-1] = "<" + " this is blah blah " + ">"
     packet[-1] = ' '.join(newInstr)
         
-with open(symname) as f:
-    for i in range(4):
-        next(f)
-    print("generating symbol table")
-    for line in f:
-        toks = line.strip().split()
-        if int(toks[0], 16) % PACKET_SIZE_IN_BYTES != 0:
-            print("BAD SYM: offset doesn't match packet_size")
-            print(line)
-            print("offset:", int(toks[0], 16) % PACKET_SIZE_IN_BYTES)
-            print("Packet size:", PACKET_SIZE_IN_BYTES)
-            exit(-1)
-        addr = int(int(toks[0], 16) / PACKET_SIZE_IN_BYTES)
-        print(f"sym {toks[-1]} at 0x{hex(addr)}")
-        sym = toks[-1]
-        symTable[sym] = addr
+# with open(symname) as f:
+#     for i in range(4):
+#         next(f)
+#     print("generating symbol table")
+#     for line in f:
+#         toks = line.strip().split()
+#         if int(toks[0], 16) % PACKET_SIZE_IN_BYTES != 0:
+#             print("BAD SYM: offset doesn't match packet_size")
+#             print(line)
+#             print("offset:", int(toks[0], 16) % PACKET_SIZE_IN_BYTES)
+#             print("Packet size:", PACKET_SIZE_IN_BYTES)
+#             exit(-1)
+#         addr = int(int(toks[0], 16) / PACKET_SIZE_IN_BYTES)
+#         print(f"sym {toks[-1]} at 0x{hex(addr)}")
+#         sym = toks[-1]
+#         symTable[sym] = addr
 
+print("starting with backend config:")
+print(f"hasGFU: {hasGFU}")
+print(f"hasBFU: {hasBFU}")
+found_main = False
 with open(fname) as f:
     for i in range(4):
         next(f)
     currentPacket = []
     for line in f:
+        if "primate_main" in line:
+            found_main = True
+        if not found_main:
+            continue
         if(line.startswith(ANOTATION_STR)):
             line = line.strip()
             line_address, rest = line.split(":")

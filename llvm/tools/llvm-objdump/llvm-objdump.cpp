@@ -851,6 +851,7 @@ public:
     auto const& lastResourceGroup = STI.getSchedModel().ProcResourceTable[numResourceGroups-1];
     unsigned const numSlots = lastResourceGroup.NumUnits;
     if((printed_instrs % numSlots) == 0) {
+      OS << printed_instrs / numSlots << " ";
       OS << "--------\n";
     }
     printed_instrs++;
@@ -897,6 +898,7 @@ PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
     return PrettyPrinterInst;
   case Triple::primate32:
   case Triple::primate64:
+    dbgs() << "Got a primate pretty printer :D";
     return PrimatePrettyPrinterInst;
   case Triple::hexagon:
     return HexagonPrettyPrinterInst;
