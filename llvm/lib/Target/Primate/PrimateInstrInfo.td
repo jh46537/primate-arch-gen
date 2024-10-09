@@ -1098,7 +1098,7 @@ def : Pat<(extract_value WIDEREG:$rs1, simm12:$rs2), (EXTRACT_hang WIDEREG:$rs1,
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT :
     PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12),
-        "insert", "$rd, $rs1, $rs2, $imm12">, Sched<[WriteIALU, ReadIALU]> 
+        "insert", "$rd, $rs1, $rs2">, Sched<[WriteIALU, ReadIALU]> 
         {
           let Constraints = "$rd = $rs1";
           let Itinerary = ItinGreen;

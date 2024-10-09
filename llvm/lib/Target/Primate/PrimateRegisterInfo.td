@@ -11,26 +11,26 @@
 //===----------------------------------------------------------------------===//
 
 let Namespace = "Primate" in {
-class PrimateReg<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
-  let HWEncoding{4-0} = Enc;
+class PrimateReg<bits<10> Enc, string n, list<string> alt = []> : Register<n> {
+  let HWEncoding{9-0} = Enc;
   let AltNames = alt;
 }
 
-class PrimateRegWithSubRegs<bits<5> Enc, string n, list<Register> subregs,
+class PrimateRegWithSubRegs<bits<10> Enc, string n, list<Register> subregs,
                           list<string> alt = []>
       : RegisterWithSubRegs<n, subregs> {
-  let HWEncoding{4-0} = Enc;
+  let HWEncoding{9-0} = Enc;
   let AltNames = alt;
 }
 
-class PrimateReg16<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
-  let HWEncoding{4-0} = Enc;
+class PrimateReg16<bits<10> Enc, string n, list<string> alt = []> : Register<n> {
+  let HWEncoding{9-0} = Enc;
   let AltNames = alt;
 }
 
 def sub_16 : SubRegIndex<16>;
 class PrimateReg32<PrimateReg16 subreg>
-  : PrimateRegWithSubRegs<subreg.HWEncoding{4-0}, subreg.AsmName, [subreg],
+  : PrimateRegWithSubRegs<subreg.HWEncoding{9-0}, subreg.AsmName, [subreg],
                         subreg.AltNames> {
   let SubRegIndices = [sub_16];
 }
@@ -40,7 +40,7 @@ class PrimateReg32<PrimateReg16 subreg>
 // from a PrimateReg16/PrimateReg32 to the equivalent PrimateReg64 when appropriate.
 def sub_32 : SubRegIndex<32>;
 class PrimateReg64<PrimateReg32 subreg>
-  : PrimateRegWithSubRegs<subreg.HWEncoding{4-0}, subreg.AsmName, [subreg],
+  : PrimateRegWithSubRegs<subreg.HWEncoding{9-0}, subreg.AsmName, [subreg],
                         subreg.AltNames> {
   let SubRegIndices = [sub_32];
 }

@@ -25,6 +25,8 @@
 #define GET_REGINFO_TARGET_DESC
 #include "PrimateGenRegisterInfo.inc"
 
+#define DEBUG_TYPE "primate-reg-info"
+
 using namespace llvm;
 
 static_assert(Primate::X1 == Primate::X0 + 1, "Register list not consecutive");
@@ -167,8 +169,10 @@ bool PrimateRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   StackOffset Offset =
       getFrameLowering(MF)->getFrameIndexReference(MF, FrameIndex, FrameReg);
   bool IsPRVSpill = TII->isPRVSpill(MI, /*CheckFIs*/ false);
-  if (!IsPRVSpill)
+  if (!IsPRVSpill) {
+    LLVM_DEBUG(dbgs() << "error getting a stack offset for frame index "; MI.dump(););
     Offset += StackOffset::getFixed(MI.getOperand(FIOperandNum + 1).getImm());
+  }
 
   if (!isInt<32>(Offset.getFixed())) {
     report_fatal_error(

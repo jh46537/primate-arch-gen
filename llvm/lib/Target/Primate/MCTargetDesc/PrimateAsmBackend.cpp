@@ -376,11 +376,12 @@ bool PrimateAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count, const MCSu
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext &Ctx, const MCSubtargetInfo *STI) {
 
-  // byte offset to VLIW instr offset. 
+  // byte offset to VLIW instr offset.
+  dbgs() << "Value pre: " << Value << "\n";
   unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;
   auto const& lastResourceGroup = STI->getSchedModel().ProcResourceTable[numResourceGroups-1];
   unsigned const numSlots = lastResourceGroup.NumUnits;
-  Value = ((int64_t)Value) / (numSlots * 4); 
+  int64_t signedValue = (static_cast<int64_t>(Value) +((numSlots-1) * 4)) / (numSlots * 4); 
 
   // insert into the instr
   switch (Fixup.getTargetKind()) {
@@ -405,94 +406,96 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case FK_Data_2:
   case FK_Data_4:
   case FK_Data_8:
-    return Value;
+    return signedValue;
   case Primate::fixup_primate_set_6b:
-    return Value & 0x03;
+    return signedValue & 0x03;
   case Primate::fixup_primate_lo12_i:
   case Primate::fixup_primate_pcrel_lo12_i:
   case Primate::fixup_primate_tprel_lo12_i:
-    return Value & 0xfff;
+    return signedValue & 0xfff;
   case Primate::fixup_primate_lo12_s:
   case Primate::fixup_primate_pcrel_lo12_s:
   case Primate::fixup_primate_tprel_lo12_s:
-    return (((Value >> 5) & 0x7f) << 25) | ((Value & 0x1f) << 7);
+    return (((signedValue >> 5) & 0x7f) << 25) | ((signedValue & 0x1f) << 7);
   case Primate::fixup_primate_hi20:
   case Primate::fixup_primate_pcrel_hi20:
   case Primate::fixup_primate_tprel_hi20:
     // Add 1 if bit 11 is 1, to compensate for low 12 bits being negative.
-    return ((Value + 0x800) >> 12) & 0xfffff;
+    return ((signedValue + 0x800) >> 12) & 0xfffff;
   case Primate::fixup_primate_jal: {
-    if (!isInt<20>(Value)) {
+    if (!isInt<20>(signedValue)) {
       dbgs() << "Failed to fit a jal.\n";
       dbgs() << "Slot Num: " << numSlots << "\n";
-      dbgs() << "Value: " << Value << "\n";
+      dbgs() << "signedValue: " << signedValue << "\n";
       dbgs() << "instr bytes: " << numSlots*4 << "\n";
 	
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range for JAL");
     }
-    // Need to produce imm[19|10:1|11|19:12] from the 21-bit Value.
-    unsigned Sbit = (Value >> 19) & 0x1;
-    unsigned Hi8 = (Value >> 11) & 0xff;
-    unsigned Mid1 = (Value >> 10) & 0x1;
-    unsigned Lo10 = (Value >> 0) & 0x3ff;
+    // Need to produce imm[19|10:1|11|19:12] from the 21-bit signedValue.
+    unsigned Sbit = (signedValue >> 19) & 0x1;
+    unsigned Hi8 = (signedValue >> 11) & 0xff;
+    unsigned Mid1 = (signedValue >> 10) & 0x1;
+    unsigned Lo10 = (signedValue >> 0) & 0x3ff;
     // Inst{31} = Sbit;
     // Inst{30-21} = Lo10;
     // Inst{20} = Mid1;
     // Inst{19-12} = Hi8;
-    Value = (Sbit << 19) | (Lo10 << 9) | (Mid1 << 8) | Hi8;
-    return Value;
+    signedValue = (Sbit << 19) | (Lo10 << 9) | (Mid1 << 8) | Hi8;
+    return signedValue;
   }
   case Primate::fixup_primate_branch: {
-    if (!isInt<12>(Value))
+    dbgs() << "fixups value: " << signedValue << "\n";
+    if (!isInt<12>(signedValue))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range for Branch");
     // Need to extract imm[12], imm[10:5], imm[4:1], imm[11] from the 13-bit
-    // Value.
-    unsigned Sbit = (Value >> 11) & 0x1;
-    unsigned Hi1 = (Value >> 10) & 0x1;
-    unsigned Mid6 = (Value >> 4) & 0x3f;
-    unsigned Lo4 = (Value >> 0) & 0xf;
+    // signedValue.
+    unsigned Sbit = (signedValue >> 11) & 0x1;
+    unsigned Hi1 = (signedValue >> 10) & 0x1;
+    unsigned Mid6 = (signedValue >> 4) & 0x3f;
+    unsigned Lo4 = (signedValue >> 0) & 0xf;
     // Inst{31} = Sbit;
     // Inst{30-25} = Mid6;
     // Inst{11-8} = Lo4;
     // Inst{7} = Hi1;
-    Value = (Sbit << 31) | (Mid6 << 25) | (Lo4 << 8) | (Hi1 << 7);
-    return Value;
+    signedValue = (Sbit << 31) | (Mid6 << 25) | (Lo4 << 8) | (Hi1 << 7);
+    dbgs() << "fixups value post mangle: " << signedValue << "\n";
+    return signedValue;
   }
   case Primate::fixup_primate_call:
   case Primate::fixup_primate_call_plt: {
     // Jalr will add UpperImm with the sign-extended 12-bit LowerImm,
     // we need to add 0x800ULL before extract upper bits to reflect the
     // effect of the sign extension.
-    uint64_t UpperImm = (Value + 0x800ULL) & 0xfffff000ULL;
-    uint64_t LowerImm = Value & 0xfffULL;
+    uint64_t UpperImm = (signedValue + 0x800ULL) & 0xfffff000ULL;
+    uint64_t LowerImm = signedValue & 0xfffULL;
     return UpperImm | ((LowerImm << 20) << 32);
   }
   case Primate::fixup_primate_prc_jump: {
     // changed to support jump by 1
-    // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit Value.
-    unsigned Bit11  = (Value >> 10) & 0x1;
-    unsigned Bit4   = (Value >> 3) & 0x1;
-    unsigned Bit9_8 = (Value >> 7) & 0x3;
-    unsigned Bit10  = (Value >> 9) & 0x1;
-    unsigned Bit6   = (Value >> 5) & 0x1;
-    unsigned Bit7   = (Value >> 6) & 0x1;
-    unsigned Bit3_1 = (Value >> 0) & 0x7;
-    unsigned Bit5   = (Value >> 4) & 0x1;
-    Value = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
+    // Need to produce offset[11|4|9:8|10|6|7|3:1|5] from the 11-bit signedValue.
+    unsigned Bit11  = (signedValue >> 10) & 0x1;
+    unsigned Bit4   = (signedValue >> 3) & 0x1;
+    unsigned Bit9_8 = (signedValue >> 7) & 0x3;
+    unsigned Bit10  = (signedValue >> 9) & 0x1;
+    unsigned Bit6   = (signedValue >> 5) & 0x1;
+    unsigned Bit7   = (signedValue >> 6) & 0x1;
+    unsigned Bit3_1 = (signedValue >> 0) & 0x7;
+    unsigned Bit5   = (signedValue >> 4) & 0x1;
+    signedValue = (Bit11 << 10) | (Bit4 << 9) | (Bit9_8 << 7) | (Bit10 << 6) |
             (Bit6 << 5) | (Bit7 << 4) | (Bit3_1 << 1) | Bit5;
-    return Value;
+    return signedValue;
   }
   case Primate::fixup_primate_prc_branch: {
     // changed to support jump by 1
     // Need to produce offset[8|4:3], [reg 3 bit], offset[7:6|2:1|5]
-    unsigned Bit8   = (Value >> 7) & 0x1;
-    unsigned Bit7_6 = (Value >> 5) & 0x3;
-    unsigned Bit5   = (Value >> 4) & 0x1;
-    unsigned Bit4_3 = (Value >> 2) & 0x3;
-    unsigned Bit2_1 = (Value >> 0) & 0x3;
-    Value = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
+    unsigned Bit8   = (signedValue >> 7) & 0x1;
+    unsigned Bit7_6 = (signedValue >> 5) & 0x3;
+    unsigned Bit5   = (signedValue >> 4) & 0x1;
+    unsigned Bit4_3 = (signedValue >> 2) & 0x3;
+    unsigned Bit2_1 = (signedValue >> 0) & 0x3;
+    signedValue = (Bit8 << 12) | (Bit4_3 << 10) | (Bit7_6 << 5) | (Bit2_1 << 3) |
             (Bit5 << 2);
-    return Value;
+    return signedValue;
   }
 
   }

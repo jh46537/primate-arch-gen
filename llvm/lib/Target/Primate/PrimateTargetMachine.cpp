@@ -189,6 +189,7 @@ TargetPassConfig *PrimateTargetMachine::createPassConfig(PassManagerBase &PM) {
 void PrimatePassConfig::addMachineSSAOptimization() {
   // Convert structs to registers before any other reg alloc
   // addPass(createPrimateRegisterNormalizePass());
+  TargetPassConfig::addMachineSSAOptimization();
   addPass(createPrimateExtMergePass());
   addPass(createPrimateOPMergePass());
 }
