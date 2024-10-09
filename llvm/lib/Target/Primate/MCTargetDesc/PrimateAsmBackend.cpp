@@ -383,7 +383,6 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   unsigned const numSlots = lastResourceGroup.NumUnits;
   int64_t signedValue = (static_cast<int64_t>(Value) +((numSlots-1) * 4)) / (numSlots * 4); 
 
-
   // insert into the instr
   switch (Fixup.getTargetKind()) {
   default:
@@ -445,7 +444,6 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     return signedValue;
   }
   case Primate::fixup_primate_branch: {
-
     if (!isInt<12>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range for Branch");
     // Need to extract imm[12], imm[10:5], imm[4:1], imm[11] from the 13-bit
