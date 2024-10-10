@@ -22,6 +22,8 @@ class PrimateELFTargetObjectFile : public TargetLoweringObjectFileELF {
 public:
   void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
 
+  unsigned getTextSectionAlignment() const override;
+
   /// Return true if this global address should be placed into small data/bss
   /// section.
   bool isGlobalInSmallSection(const GlobalObject *GO,

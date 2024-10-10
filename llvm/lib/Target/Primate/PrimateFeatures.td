@@ -289,7 +289,7 @@ def NoStdExtZhinx : Predicate<"!Subtarget->hasStdExtZhinx()">;
 // Compressed Extensions
 
 def FeatureStdExtC
-    : SubtargetFeature<"c", "HasStdExtC", "true",
+    : SubtargetFeature<"c", "HasStdExtC", "false",
                        "'C' (Compressed Instructions)">;
 def HasStdExtC : Predicate<"Subtarget->hasStdExtC()">,
                  AssemblerPredicate<(all_of FeatureStdExtC),
@@ -1013,8 +1013,10 @@ def FeaturePRE
 def IsPRE : Predicate<"Subtarget->isPRE()">,
             AssemblerPredicate<(all_of FeaturePRE)>;
 
+// linktime optimizations
+// def: https://www.sifive.com/blog/all-aboard-part-3-linker-relaxation-in-riscv-toolchain
 def FeatureRelax
-    : SubtargetFeature<"relax", "EnableLinkerRelax", "true",
+    : SubtargetFeature<"relax", "EnableLinkerRelax", "false",
                        "Enable Linker relaxation.">;
 
 foreach i = {1-31} in

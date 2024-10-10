@@ -372,11 +372,7 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
 }
 
 void PrimateAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
-  MCInst CInst;
-  bool Res = compressInst(CInst, Inst, *STI);
-  if (Res)
-    ++PrimateNumInstrsCompressed;
-  AsmPrinter::EmitToStreamer(*OutStreamer, Res ? CInst : Inst);
+  AsmPrinter::EmitToStreamer(*OutStreamer, Inst);
 }
 
 // Simple pseudo-instructions have their lowering (with expansion to real
@@ -584,6 +580,7 @@ void PrimateAsmPrinter::emitEndOfAsmFile(Module &M) {
 }
 
 void PrimateAsmPrinter::emitAttributes() {
+  return;
   PrimateTargetStreamer &RTS =
       static_cast<PrimateTargetStreamer &>(*OutStreamer->getTargetStreamer());
   RTS.emitTargetAttributes(*STI);

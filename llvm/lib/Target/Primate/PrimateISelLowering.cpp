@@ -853,8 +853,8 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
     }
   }
 
-  // Function alignments.
-  const Align FunctionAlignment(Subtarget.hasStdExtC() ? 2 : 4);
+  // Function alignment set to 1 since we do not care about alignment.
+  const Align FunctionAlignment(1);
   setMinFunctionAlignment(FunctionAlignment);
   setPrefFunctionAlignment(FunctionAlignment);
 

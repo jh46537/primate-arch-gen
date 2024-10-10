@@ -216,13 +216,13 @@ class PRInstCommon<dag outs, dag ins, string opcodestr, string argstr,
 class PRInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>
     : PRInstCommon<outs, ins, opcodestr, argstr, pattern, format> {
-  field bits<32> Inst;
+  field bits<48> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
   // instructions to not match without killing the whole decode process. It is
   // mainly used for ARM, but Tablegen expects this field to exist or it fails
   // to build the decode table.
-  field bits<32> SoftFail = 0;
-  let Size = 4;
+  field bits<48> SoftFail = 0;
+  let Size = 6;
 
   bits<7> Opcode = 0;
 

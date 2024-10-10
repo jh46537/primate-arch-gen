@@ -33,6 +33,12 @@ bool PrimateELFTargetObjectFile::isInSmallSection(uint64_t Size) const {
   return Size > 0 && Size <= SSThreshold;
 }
 
+// alignment of program text.
+// Primate has no need for alignment 
+unsigned PrimateELFTargetObjectFile::getTextSectionAlignment() const {
+  return 1;
+}
+
 // Return true if this global address should be placed into small data/bss
 // section.
 bool PrimateELFTargetObjectFile::isGlobalInSmallSection(

@@ -209,23 +209,31 @@ void PrimateMCCodeEmitter::encodeInstruction(const MCInst &MI, SmallVectorImpl<c
     return;
   }
 
-  switch (Size) {
-  default:
-    llvm_unreachable("Unhandled encodeInstruction length!");
-  case 2: {
-    uint16_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-    support::endian::write<uint16_t>(CB, Bits, llvm::endianness::little);
-    break;
+  // write byte by byte since we don't know the size apriori 
+  int mask = 0xff;
+  uint64_t inst_bits = getBinaryCodeForInstr(MI, Fixups, STI);
+  for(unsigned int i = 0; i < Size; i++) {
+    support::endian::write<uint8_t>(CB, inst_bits & mask, llvm::endianness::little);
+    inst_bits >>= 8;
   }
-  case 4: {
-    uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-    support::endian::write(CB, Bits, llvm::endianness::little);
-    break;
-  }
-  case 0:
-    // Primate: ignore
-    break;
-  }
+
+  // switch (Size) {
+  // default:
+  //   llvm_unreachable("Unhandled encodeInstruction length!");
+  // case 2: {
+  //   uint16_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
+  //   support::endian::write<uint16_t>(CB, Bits, llvm::endianness::little);
+  //   break;
+  // }
+  // case 4: {
+  //   uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
+  //   support::endian::write(CB, Bits, llvm::endianness::little);
+  //   break;
+  // }
+  // case 0:
+  //   // Primate: ignore
+  //   break;
+  // }
 
   ++MCNumEmitted; // Keep track of the # of mi's emitted.
 }

@@ -494,7 +494,7 @@ DecodeStatus PrimateDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
     Insn = support::endian::read32le(Bytes.data());
     LLVM_DEBUG(dbgs() << "Trying Primate32 table :\n");
-    Result = decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI);
+    Result = decodeInstruction(DecoderTable48, MI, Insn, Address, this, STI);
     Size = 4;
   } else {
     if (Bytes.size() < 2) {

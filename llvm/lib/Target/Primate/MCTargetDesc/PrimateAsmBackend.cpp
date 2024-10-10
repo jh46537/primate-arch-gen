@@ -603,11 +603,12 @@ void PrimateAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
 bool PrimateAsmBackend::shouldInsertExtraNopBytesForCodeAlign(
     const MCAlignFragment &AF, unsigned &Size) {
   // Calculate Nops Size only when linker relaxation enabled.
-  if (!STI.getFeatureBits()[Primate::FeatureRelax])
+  if (!STI.getFeatureBits()[Primate::FeatureRelax]) {
+    dbgs() << "shouldInsertExtraNopBytesForCodeAlign: FeatureRelax is not enabled\n";
     return false;
+  }
 
-  bool HasStdExtC = STI.getFeatureBits()[Primate::FeatureStdExtC];
-  unsigned MinNopLen = HasStdExtC ? 2 : 4;
+  unsigned MinNopLen = 6;
 
   if (AF.getAlignment() <= MinNopLen) {
     return false;
@@ -626,8 +627,10 @@ bool PrimateAsmBackend::shouldInsertFixupForCodeAlign(MCAssembler &Asm,
                                                     const MCAsmLayout &Layout,
                                                     MCAlignFragment &AF) {
   // Insert the fixup only when linker relaxation enabled.
-  if (!STI.getFeatureBits()[Primate::FeatureRelax])
+  if (!STI.getFeatureBits()[Primate::FeatureRelax]) {
+    dbgs() << "shouldInsertFixupForCodeAlign: FeatureRelax is not enabled\n";
     return false;
+  }
 
   // Calculate total Nops we need to insert. If there are none to insert
   // then simply return.
