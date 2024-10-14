@@ -483,42 +483,25 @@ DecodeStatus PrimateDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                                                raw_ostream &CS) const {
   // TODO: This will need modification when supporting instruction set
   // extensions with instructions > 32-bits (up to 176 bits wide).
-  uint32_t Insn;
+  uint64_t Insn = 0;
   DecodeStatus Result;
+  #include "PrimateDisasseblerGen.inc"
 
   // It's a 32 bit instruction if bit 0 and 1 are 1.
   if ((Bytes[0] & 0x3) == 0x3) {
-    if (Bytes.size() < 4) {
+    if (Bytes.size() < InstructionSize) {
       Size = 0;
       return MCDisassembler::Fail;
     }
-    Insn = support::endian::read32le(Bytes.data());
+    // le byte read
+    for(int i = 0; i < InstructionSize; i++) {
+      Insn |= (Bytes[i] << (i * 8));
+    }
     LLVM_DEBUG(dbgs() << "Trying Primate32 table :\n");
-    Result = decodeInstruction(DecoderTable48, MI, Insn, Address, this, STI);
-    Size = 4;
+    Result = decodeInstruction(DecTable, MI, Insn, Address, this, STI);
+    Size = InstructionSize;
   } else {
-    if (Bytes.size() < 2) {
-      Size = 0;
-      return MCDisassembler::Fail;
-    }
-    Insn = support::endian::read16le(Bytes.data());
-
-    if (!STI.getFeatureBits()[Primate::Feature64Bit]) {
-      LLVM_DEBUG(
-          dbgs() << "Trying Primate32Only_16 table (16-bit Instruction):\n");
-      // Calling the auto-generated decoder function.
-      Result = decodeInstruction(DecoderTablePrimate32Only_16, MI, Insn, Address,
-                                 this, STI);
-      if (Result != MCDisassembler::Fail) {
-        Size = 2;
-        return Result;
-      }
-    }
-
-    LLVM_DEBUG(dbgs() << "Trying Primate_C table (16-bit Instruction):\n");
-    // Calling the auto-generated decoder function.
-    Result = decodeInstruction(DecoderTable16, MI, Insn, Address, this, STI);
-    Size = 2;
+    llvm_unreachable("ran into a compressed instruction which is unsupported");
   }
 
   return Result;

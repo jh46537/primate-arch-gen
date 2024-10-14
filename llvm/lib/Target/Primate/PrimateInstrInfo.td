@@ -772,26 +772,26 @@ let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def URET : Priv<"uret", 0b0000000>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
-  let rs2 = 0b00010;
+  let rs2 = 2;
 }
 
 def SRET : Priv<"sret", 0b0001000>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
-  let rs2 = 0b00010;
+  let rs2 = 2;
 }
 
 def MRET : Priv<"mret", 0b0011000>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
-  let rs2 = 0b00010;
+  let rs2 = 2;
 }
 } // isBarrier = 1, isReturn = 1, isTerminator = 1
 
 def WFI : Priv<"wfi", 0b0001000>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
-  let rs2 = 0b00101;
+  let rs2 = 5;
 }
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
@@ -811,7 +811,7 @@ let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def DRET : Priv<"dret", 0b0111101>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
-  let rs2 = 0b10010;
+  let rs2 = 18;
 }
 } // isBarrier = 1, isReturn = 1, isTerminator = 1
 

@@ -97,7 +97,7 @@ foreach Ext = DExts in {
   let SchedRW = [WriteFDiv64, ReadFDiv64, ReadFDiv64] in
   defm FDIV_D : FPALU_rr_frm_m<0b0001101, "fdiv.d", Ext>;
 
-  defm FSQRT_D : FPUnaryOp_r_frm_m<0b0101101, 0b00000, Ext, Ext.PrimaryTy,
+  defm FSQRT_D : FPUnaryOp_r_frm_m<0b0101101, 0, Ext, Ext.PrimaryTy,
                                    Ext.PrimaryTy, "fsqrt.d">,
                  Sched<[WriteFSqrt64, ReadFSqrt64]>;
 
@@ -113,11 +113,11 @@ foreach Ext = DExts in {
     defm FMAX_D   : FPALU_rr_m<0b0010101, 0b001, "fmax.d", Ext, Commutable=1>;
   }
 
-  defm FCVT_S_D : FPUnaryOp_r_frm_m<0b0100000, 0b00001, Ext, Ext.F32Ty,
+  defm FCVT_S_D : FPUnaryOp_r_frm_m<0b0100000, 1, Ext, Ext.F32Ty,
                                     Ext.PrimaryTy, "fcvt.s.d">,
                   Sched<[WriteFCvtF64ToF32, ReadFCvtF64ToF32]>;
 
-  defm FCVT_D_S : FPUnaryOp_r_frmlegacy_m<0b0100001, 0b00000, Ext, Ext.PrimaryTy,
+  defm FCVT_D_S : FPUnaryOp_r_frmlegacy_m<0b0100001, 0, Ext, Ext.PrimaryTy,
                                           Ext.F32Ty, "fcvt.d.s">,
                   Sched<[WriteFCvtF32ToF64, ReadFCvtF32ToF64]>;
 
@@ -128,53 +128,53 @@ foreach Ext = DExts in {
   }
 
   let mayRaiseFPException = 0 in
-  defm FCLASS_D : FPUnaryOp_r_m<0b1110001, 0b00000, 0b001, Ext, GPR, Ext.PrimaryTy,
+  defm FCLASS_D : FPUnaryOp_r_m<0b1110001, 0, 0b001, Ext, GPR, Ext.PrimaryTy,
                                 "fclass.d">,
                   Sched<[WriteFClass64, ReadFClass64]>;
 
   let IsSignExtendingOpW = 1 in
-  defm FCVT_W_D : FPUnaryOp_r_frm_m<0b1100001, 0b00000, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_W_D : FPUnaryOp_r_frm_m<0b1100001, 0, Ext, GPR, Ext.PrimaryTy,
                                     "fcvt.w.d">,
                  Sched<[WriteFCvtF64ToI32, ReadFCvtF64ToI32]>;
 
   let IsSignExtendingOpW = 1 in
-  defm FCVT_WU_D : FPUnaryOp_r_frm_m<0b1100001, 0b00001, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_WU_D : FPUnaryOp_r_frm_m<0b1100001, 1, Ext, GPR, Ext.PrimaryTy,
                                      "fcvt.wu.d">,
                    Sched<[WriteFCvtF64ToI32, ReadFCvtF64ToI32]>;
 
-  defm FCVT_D_W : FPUnaryOp_r_frmlegacy_m<0b1101001, 0b00000, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_D_W : FPUnaryOp_r_frmlegacy_m<0b1101001, 0, Ext, Ext.PrimaryTy, GPR,
                                           "fcvt.d.w">,
                   Sched<[WriteFCvtI32ToF64, ReadFCvtI32ToF64]>;
 
-  defm FCVT_D_WU : FPUnaryOp_r_frmlegacy_m<0b1101001, 0b00001, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_D_WU : FPUnaryOp_r_frmlegacy_m<0b1101001, 1, Ext, Ext.PrimaryTy, GPR,
                                            "fcvt.d.wu">,
                    Sched<[WriteFCvtI32ToF64, ReadFCvtI32ToF64]>;
 } // foreach Ext = DExts
 
 foreach Ext = DExtsPR64 in {
-  defm FCVT_L_D : FPUnaryOp_r_frm_m<0b1100001, 0b00010, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_L_D : FPUnaryOp_r_frm_m<0b1100001, 2, Ext, GPR, Ext.PrimaryTy,
                                     "fcvt.l.d", [IsPR64]>,
                   Sched<[WriteFCvtF64ToI64, ReadFCvtF64ToI64]>;
 
-  defm FCVT_LU_D : FPUnaryOp_r_frm_m<0b1100001, 0b00011, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_LU_D : FPUnaryOp_r_frm_m<0b1100001, 3, Ext, GPR, Ext.PrimaryTy,
                                      "fcvt.lu.d", [IsPR64]>,
                    Sched<[WriteFCvtF64ToI64, ReadFCvtF64ToI64]>;
 
-  defm FCVT_D_L : FPUnaryOp_r_frm_m<0b1101001, 0b00010, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_D_L : FPUnaryOp_r_frm_m<0b1101001, 2, Ext, Ext.PrimaryTy, GPR,
                                     "fcvt.d.l", [IsPR64]>,
                   Sched<[WriteFCvtI64ToF64, ReadFCvtI64ToF64]>;
 
-  defm FCVT_D_LU : FPUnaryOp_r_frm_m<0b1101001, 0b00011, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_D_LU : FPUnaryOp_r_frm_m<0b1101001, 3, Ext, Ext.PrimaryTy, GPR,
                                      "fcvt.d.lu", [IsPR64]>,
                    Sched<[WriteFCvtI64ToF64, ReadFCvtI64ToF64]>;
 } // foreach Ext = DExts64
 
 let Predicates = [HasStdExtD, IsPR64], mayRaiseFPException = 0 in
-def FMV_X_D : FPUnaryOp_r<0b1110001, 0b00000, 0b000, GPR, FPR64, "fmv.x.d">,
+def FMV_X_D : FPUnaryOp_r<0b1110001, 0, 0b000, GPR, FPR64, "fmv.x.d">,
               Sched<[WriteFMovF64ToI64, ReadFMovF64ToI64]>;
 
 let Predicates = [HasStdExtD, IsPR64], mayRaiseFPException = 0 in
-def FMV_D_X : FPUnaryOp_r<0b1111001, 0b00000, 0b000, FPR64, GPR, "fmv.d.x">,
+def FMV_D_X : FPUnaryOp_r<0b1111001, 0, 0b000, FPR64, GPR, "fmv.d.x">,
               Sched<[WriteFMovI64ToF64, ReadFMovI64ToF64]>;
 
 //===----------------------------------------------------------------------===//

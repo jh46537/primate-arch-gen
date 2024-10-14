@@ -882,8 +882,9 @@ public:
       uint64_t Addr =
           Address.Address + (STI.getTargetTriple().isX86() ? Bytes.size() : 0);
       IP.printInst(MI, Addr, "", STI, OS);
-    } else
+    } else {
       OS << "\t<unknown>";
+    }
   }
 
   virtual void startNewSection() override {

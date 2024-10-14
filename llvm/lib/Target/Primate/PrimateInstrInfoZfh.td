@@ -102,7 +102,7 @@ foreach Ext = ZfhExts in {
   let SchedRW = [WriteFDiv16, ReadFDiv16, ReadFDiv16] in
   defm FDIV_H : FPALU_rr_frm_m<0b0001110, "fdiv.h", Ext>;
 
-  defm FSQRT_H : FPUnaryOp_r_frm_m<0b0101110, 0b00000, Ext, Ext.PrimaryTy,
+  defm FSQRT_H : FPUnaryOp_r_frm_m<0b0101110, 0, Ext, Ext.PrimaryTy,
                                    Ext.PrimaryTy, "fsqrt.h">,
                  Sched<[WriteFSqrt16, ReadFSqrt16]>;
 
@@ -119,41 +119,41 @@ foreach Ext = ZfhExts in {
   }
 
   let IsSignExtendingOpW = 1 in
-  defm FCVT_W_H : FPUnaryOp_r_frm_m<0b1100010, 0b00000, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_W_H : FPUnaryOp_r_frm_m<0b1100010, 0, Ext, GPR, Ext.PrimaryTy,
                                     "fcvt.w.h">,
                   Sched<[WriteFCvtF16ToI32, ReadFCvtF16ToI32]>;
 
   let IsSignExtendingOpW = 1 in
-  defm FCVT_WU_H : FPUnaryOp_r_frm_m<0b1100010, 0b00001, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_WU_H : FPUnaryOp_r_frm_m<0b1100010, 1, Ext, GPR, Ext.PrimaryTy,
                                      "fcvt.wu.h">,
                    Sched<[WriteFCvtF16ToI32, ReadFCvtF16ToI32]>;
 
-  defm FCVT_H_W : FPUnaryOp_r_frm_m<0b1101010, 0b00000, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_H_W : FPUnaryOp_r_frm_m<0b1101010, 0, Ext, Ext.PrimaryTy, GPR,
                                     "fcvt.h.w">,
                   Sched<[WriteFCvtI32ToF16, ReadFCvtI32ToF16]>;
 
-  defm FCVT_H_WU : FPUnaryOp_r_frm_m<0b1101010, 0b00001, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_H_WU : FPUnaryOp_r_frm_m<0b1101010, 1, Ext, Ext.PrimaryTy, GPR,
                                      "fcvt.h.wu">,
                    Sched<[WriteFCvtI32ToF16, ReadFCvtI32ToF16]>;
 } // foreach Ext = ZfhExts
 
 foreach Ext = ZfhminExts in {
-  defm FCVT_H_S : FPUnaryOp_r_frm_m<0b0100010, 0b00000, Ext, Ext.PrimaryTy,
+  defm FCVT_H_S : FPUnaryOp_r_frm_m<0b0100010, 0, Ext, Ext.PrimaryTy,
                                     Ext.F32Ty, "fcvt.h.s">,
                   Sched<[WriteFCvtF32ToF16, ReadFCvtF32ToF16]>;
 
-  defm FCVT_S_H : FPUnaryOp_r_frmlegacy_m<0b0100000, 0b00010,Ext, Ext.F32Ty,
+  defm FCVT_S_H : FPUnaryOp_r_frmlegacy_m<0b0100000, 2,Ext, Ext.F32Ty,
                                           Ext.PrimaryTy, "fcvt.s.h">,
                  Sched<[WriteFCvtF16ToF32, ReadFCvtF16ToF32]>;
 } // foreach Ext = ZfhminExts
 
 let Predicates = [HasHalfFPLoadStoreMove] in {
 let mayRaiseFPException = 0, IsSignExtendingOpW = 1 in
-def FMV_X_H : FPUnaryOp_r<0b1110010, 0b00000, 0b000, GPR, FPR16, "fmv.x.h">,
+def FMV_X_H : FPUnaryOp_r<0b1110010, 0, 0b000, GPR, FPR16, "fmv.x.h">,
               Sched<[WriteFMovF16ToI16, ReadFMovF16ToI16]>;
 
 let mayRaiseFPException = 0 in
-def FMV_H_X : FPUnaryOp_r<0b1111010, 0b00000, 0b000, FPR16, GPR, "fmv.h.x">,
+def FMV_H_X : FPUnaryOp_r<0b1111010, 0, 0b000, FPR16, GPR, "fmv.h.x">,
               Sched<[WriteFMovI16ToF16, ReadFMovI16ToF16]>;
 } // Predicates = [HasHalfFPLoadStoreMove]
 
@@ -165,33 +165,33 @@ foreach Ext = ZfhExts in {
   }
 
   let mayRaiseFPException = 0 in
-  defm FCLASS_H : FPUnaryOp_r_m<0b1110010, 0b00000, 0b001, Ext, GPR, Ext.PrimaryTy,
+  defm FCLASS_H : FPUnaryOp_r_m<0b1110010, 0, 0b001, Ext, GPR, Ext.PrimaryTy,
                                 "fclass.h">,
                   Sched<[WriteFClass16, ReadFClass16]>;
 
-  defm FCVT_L_H  : FPUnaryOp_r_frm_m<0b1100010, 0b00010, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_L_H  : FPUnaryOp_r_frm_m<0b1100010, 2, Ext, GPR, Ext.PrimaryTy,
                                      "fcvt.l.h", [IsPR64]>,
                    Sched<[WriteFCvtF16ToI64, ReadFCvtF16ToI64]>;
 
-  defm FCVT_LU_H  : FPUnaryOp_r_frm_m<0b1100010, 0b00011, Ext, GPR, Ext.PrimaryTy,
+  defm FCVT_LU_H  : FPUnaryOp_r_frm_m<0b1100010, 3, Ext, GPR, Ext.PrimaryTy,
                                       "fcvt.lu.h", [IsPR64]>,
                     Sched<[WriteFCvtF16ToI64, ReadFCvtF16ToI64]>;
 
-  defm FCVT_H_L : FPUnaryOp_r_frm_m<0b1101010, 0b00010, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_H_L : FPUnaryOp_r_frm_m<0b1101010, 2, Ext, Ext.PrimaryTy, GPR,
                                     "fcvt.h.l", [IsPR64]>,
                   Sched<[WriteFCvtI64ToF16, ReadFCvtI64ToF16]>;
 
-  defm FCVT_H_LU : FPUnaryOp_r_frm_m<0b1101010, 0b00011, Ext, Ext.PrimaryTy, GPR,
+  defm FCVT_H_LU : FPUnaryOp_r_frm_m<0b1101010, 3, Ext, Ext.PrimaryTy, GPR,
                                      "fcvt.h.lu", [IsPR64]>,
                    Sched<[WriteFCvtI64ToF16, ReadFCvtI64ToF16]>;
 } // foreach Ext = ZfhExts
 
 foreach Ext = ZfhminDExts in {
-  defm FCVT_H_D : FPUnaryOp_r_frm_m<0b0100010, 0b00001, Ext, Ext.F16Ty,
+  defm FCVT_H_D : FPUnaryOp_r_frm_m<0b0100010, 1, Ext, Ext.F16Ty,
                                    Ext.F64Ty, "fcvt.h.d">,
                   Sched<[WriteFCvtF64ToF16, ReadFCvtF64ToF16]>;
 
-  defm FCVT_D_H : FPUnaryOp_r_frmlegacy_m<0b0100001, 0b00010, Ext, Ext.F64Ty,
+  defm FCVT_D_H : FPUnaryOp_r_frmlegacy_m<0b0100001, 2, Ext, Ext.F64Ty,
                                           Ext.F16Ty, "fcvt.d.h">,
                   Sched<[WriteFCvtF16ToF64, ReadFCvtF16ToF64]>;
 } // foreach Ext = ZfhminDExts

@@ -28,6 +28,7 @@ class PrimateAsmBackend : public MCAsmBackend {
   bool ForceRelocs = false;
   const MCTargetOptions &TargetOptions;
   PrimateABI::ABI TargetABI = PrimateABI::ABI_Unknown;
+  const MCInstrInfo* TII;
 
 public:
   PrimateAsmBackend(const MCSubtargetInfo &STI, uint8_t OSABI, bool Is64Bit,

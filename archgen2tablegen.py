@@ -4,6 +4,7 @@ import re
 import os
 import sys
 import argparse
+from math import log2, ceil
 
 parser = argparse.ArgumentParser(
                     prog='archgen2tablegen',
@@ -41,7 +42,423 @@ def parse_arch_config(file_path):
         numALUs = int(toks[1])
       if toks[0] == "NUM_BFUS":
         numBFUs = int(toks[1]) + 2 # IO and LSU are hidden
-  return numALUs, numBFUs
+      if toks[0] == "NUM_REGS":
+        numRegs = int(toks[1])
+  return numALUs, numBFUs, numRegs
+
+def write_instr_format(num_regs: int):
+  # size of instr
+  reg_bits = ceil(log2(num_regs))
+  other_bits_min = 32 - 5*4
+  total_bits = reg_bits * 4 + other_bits_min
+  total_bytes = ceil(total_bits/8)
+
+  f = open(f"{gen_file_dir}/PrimateDisasseblerGen.inc", "w") 
+  print(f"""
+  unsigned InstructionSize = {total_bytes};
+  auto DecTable = DecoderTable{total_bytes*8};
+  """, file=f)
+
+  f = open(f"{gen_file_dir}/PrimateInstructionSize.inc", "w")
+  print(f"""const unsigned instrSize = {total_bytes};
+  const unsigned regFieldBitWidth = {reg_bits};""", file=f)
+
+  f = open(f"{gen_file_dir}/PrimateInstrReconfigFormats.td", "w")
+
+  print(f"""
+  class PRInst<dag outs, dag ins, string opcodestr, string argstr,
+             list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>
+    : PRInstCommon<outs, ins, opcodestr, argstr, pattern, format> {{
+    field bits<{total_bytes*8}> Inst;
+    field bits<{total_bytes*8}> SoftFail = 0;
+    let Size = {total_bytes};
+
+    bits<7> Opcode = 0;
+
+    let Inst{{6-0}} = Opcode;
+    let Itinerary = itin;
+  }}
+  """, file=f)
+
+  # tuples for the ranges of the fields in the instruction.
+  # each tuple feeds the next.
+  # registers cause all other fields to be shifted
+  rd_range     = (7+reg_bits-1, 7)
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  funct7       = (rs2_range[0]+7, rs2_range[0]+1)
+  print(f"""
+  class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
+              dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+    : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
+  bits<{reg_bits}> rs2;
+  bits<{reg_bits}> rs1;
+  bits<{reg_bits}> rd;
+
+  let Inst{{{funct7[1]}-{funct7[0]}}} = funct7;
+  let Inst{{{rs2_range[1]}-{rs2_range[0]}}} = rs2;
+  let Inst{{{rs1_range[1]}-{rs1_range[0]}}} = rs1;
+  let Inst{{{funct3_range[1]}-{funct3_range[0]}}} = funct3;
+  let Inst{{{rd_range[1]}-{rd_range[0]}}}= rd;
+  let Opcode = opcode.Value;
+  }}
+  """, file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  funct2_range = (rs2_range[0]+2, rs2_range[0]+1)
+  rs3_range    = (funct2_range[0]+reg_bits, funct2_range[0]+1)
+  print(f"""
+  class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
+                dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {{
+    bits<{reg_bits}> rs3;
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {rs3_range[0]}-{rs3_range[1]} }} = rs3;
+    let Inst{{ {funct2_range[0]}-{funct2_range[1]} }} = funct2;
+    let Inst{{ {rs2_range[0]}-{rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}
+  """, file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  frm_range    = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (frm_range[0]+reg_bits, frm_range[0]+1)
+  rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  funct2_range = (rs2_range[0]+2, rs2_range[0]+1)
+  rs3_range    = (funct2_range[0]+reg_bits, funct2_range[0]+1)
+  print(f"""class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
+                    string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {{
+    bits<{reg_bits}> rs3;
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+    bits<3> frm;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {rs3_range[0]}-{rs3_range[1]} }} = rs3;
+    let Inst{{ {funct2_range[0]}-{funct2_range[1]} }} = funct2;
+    let Inst{{ {rs2_range[0]}-{rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {frm_range[0]}-{frm_range[1]} }} = frm;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  rl_range     = (rs2_range[0]+1, rs2_range[0]+1)
+  aq_range     = (rl_range[0]+1, rl_range[0]+1)
+  funct5_range = (aq_range[0]+5, aq_range[0]+1)
+  print(f"""class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
+                      PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
+                      string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {funct5_range[0]} - {funct5_range[1]} }} = funct5;
+    let Inst{{ {aq_range[0]} }} = aq;
+    let Inst{{ {rl_range[0]} }} = rl;
+    let Inst{{ {rs2_range[0]} - {rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]} - {rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]} - {funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]} - {rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  frm_range    = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (frm_range[0]+reg_bits, frm_range[0]+1)
+  rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  funct7_range = (rs2_range[0]+7, rs2_range[0]+1)
+  print(f"""class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
+                  string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+    bits<3> frm;
+
+    let Inst{{ {funct7_range[0]} - {funct7_range[1]} }} = funct7;
+    let Inst{{ {rs2_range[0]} - {rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]} - {rs1_range[1]} }} = rs1;
+    let Inst{{ {frm_range[0]} - {frm_range[1]} }} = frm;
+    let Inst{{ {rd_range[0]} - {rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7) 
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  print(f"""class PRInstIBase<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+                    string opcodestr, string argstr>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {{
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Inst{{ {6}-{0} }} = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  imm12_range  = (rs1_range[0]+12, rs1_range[0]+1)
+  print(f"""class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+                string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
+    bits<12> imm12;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {imm12_range[0]}-{imm12_range[1]} }} = imm12;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range      = (7+reg_bits-1, 7)
+  funct3_range  = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range     = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  shamt_range   = (rs1_range[0]+6, rs1_range[0]+1)
+  zero_range    = (shamt_range[0]+1, shamt_range[0]+1)
+  imm11_7_range = (zero_range[0]+5, zero_range[0]+1)
+  print(f"""class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
+                    dag outs, dag ins, string opcodestr, string argstr,
+                    InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
+    bits<6> shamt;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {zero_range[0]} }} = 0;
+    let Inst{{ {imm11_7_range[0]}-{imm11_7_range[1]} }} = imm11_7;
+    let Inst{{ {shamt_range[0]}-{shamt_range[1]} }} = shamt;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  funct3_range = (rd_range[0]+3, rd_range[0]+1)
+  rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  shamt_range  = (rs1_range[0]+5, rs1_range[0]+1)
+  imm11_5_range= (shamt_range[0]+7, shamt_range[0]+1)
+  print(f"""class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
+                      dag outs, dag ins, string opcodestr, string argstr,
+                      InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
+    bits<5> shamt;
+    bits<{reg_bits}> rs1;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {imm11_5_range[0]}-{imm11_5_range[1]} }} = imm11_5;
+    let Inst{{ {shamt_range[0]}-{shamt_range[1]} }} = shamt;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  imm12_5_range = (11, 7)
+  funct3_range  = (imm12_5_range[0]+3, imm12_5_range[0]+1)
+  rs1_range     = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range     = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  imm12_7_range = (rs2_range[0]+7, rs2_range[0]+1)
+  print(f"""class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+                string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, itin> {{
+    bits<12> imm12;
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+
+    let Inst{{ {imm12_7_range[0]}-{imm12_7_range[1]} }} = imm12{{11-5}};
+    let Inst{{ {rs2_range[0]}-{rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {imm12_5_range[0]}-{imm12_5_range[1]} }} = imm12{{4-0}};
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  imm_12_10_range = (7, 7)
+  imm_12_4_range  = (imm_12_10_range[0]+4, imm_12_10_range[0]+1)
+  funct3_range    = (imm_12_4_range[0]+3, imm_12_4_range[0]+1)
+  rs1_range       = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range       = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  imm12_6_range   = (rs2_range[0]+6, rs2_range[0]+1)
+  imm12_1_range   = (imm12_6_range[0]+1, imm12_6_range[0]+1)
+  print(f"""class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+                string opcodestr, string argstr, InstrItinClass itin = ItinBranch>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB, itin> {{
+    bits<12> imm12;
+    bits<{reg_bits}> rs2;
+    bits<{reg_bits}> rs1;
+
+    let Inst{{ {imm12_1_range[0]}-{imm12_1_range[1]} }} = imm12{{11}};
+    let Inst{{ {imm12_6_range[0]}-{imm12_6_range[1]} }} = imm12{{9-4}};
+    let Inst{{ {rs2_range[0]}-{rs2_range[1]} }} = rs2;
+    let Inst{{ {rs1_range[0]}-{rs1_range[1]} }} = rs1;
+    let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
+    let Inst{{ {imm_12_4_range[0]}-{imm_12_4_range[1]} }} = imm12{{3-0}};
+    let Inst{{ {imm_12_10_range[0]}-{imm_12_10_range[1]} }} = imm12{{10}};
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range     = (7+reg_bits-1, 7)
+  imm20_range  = (rd_range[0]+20, rd_range[0]+1)
+  print(f"""class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
+                string argstr, InstrItinClass itin = ItinGreen>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU, itin> {{
+    bits<20> imm20;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {imm20_range[0]}-{imm20_range[1]} }} = imm20;
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  rd_range       = (7+reg_bits-1, 7)
+  imm20_9_range  = (rd_range[0]+8, rd_range[0]+1)
+  imm20_20_range = (imm20_9_range[0]+1, imm20_9_range[0]+1)
+  imm20_10_range = (imm20_20_range[0]+10, imm20_20_range[0]+1)
+  imm20_19_range = (imm20_10_range[0]+1, imm20_10_range[0]+1)
+  print(f"""class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
+                string argstr, InstrItinClass itin = ItinBranch>
+      : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ, itin> {{
+    bits<20> imm20;
+    bits<{reg_bits}> rd;
+
+    let Inst{{ {imm20_19_range[0]} }} = imm20{{19}};
+    let Inst{{ {imm20_10_range[0]}-{imm20_10_range[1]} }} = imm20{{9-0}};
+    let Inst{{ {imm20_20_range[0]} }} = imm20{{10}};
+    let Inst{{ {imm20_9_range[0]}-{imm20_9_range[1]} }} = imm20{{18-11}};
+    let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
+    let Opcode = opcode.Value;
+  }}""", file=f)
+
+  f.close()
+
+  f = open(f"{gen_file_dir}/PrimateInstrReconfigF.td", "w")
+  print(f"""
+  let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1 in
+  class FPUnaryOp_r<bits<7> funct7, bits<{reg_bits}> rs2val, bits<3> funct3,
+                    DAGOperand rdty, DAGOperand rs1ty, string opcodestr>
+      : PRInstR<funct7, funct3, OPC_OP_FP, (outs rdty:$rd), (ins rs1ty:$rs1),
+                opcodestr, "$rd, $rs1"> {{
+    let rs2 = rs2val;
+  }}
+  multiclass FPUnaryOp_r_m<bits<7> funct7, bits<{reg_bits}> rs2val, bits<3> funct3,
+                          ExtInfo Ext, DAGOperand rdty, DAGOperand rs1ty,
+                          string opcodestr> {{
+    let Predicates = Ext.Predicates, DecoderNamespace = Ext.Space in
+    def Ext.Suffix : FPUnaryOp_r<funct7, rs2val, funct3, rdty, rs1ty, opcodestr>;
+  }}
+
+  let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1,
+      UseNamedOperandTable = 1, hasPostISelHook = 1 in
+  class FPUnaryOp_r_frm<bits<7> funct7, bits<{reg_bits}> rs2val, DAGOperand rdty,
+                        DAGOperand rs1ty, string opcodestr>
+      : PRInstRFrm<funct7, OPC_OP_FP, (outs rdty:$rd),
+                  (ins rs1ty:$rs1, frmarg:$frm), opcodestr,
+                    "$rd, $rs1$frm"> {{
+    let rs2 = rs2val;
+  }}
+  multiclass FPUnaryOp_r_frm_m<bits<7> funct7, bits<{reg_bits}> rs2val,
+                              ExtInfo Ext, DAGOperand rdty, DAGOperand rs1ty,
+                              string opcodestr, list<Predicate> ExtraPreds = []> {{
+    let Predicates = !listconcat(Ext.Predicates, ExtraPreds),
+        DecoderNamespace = Ext.Space in
+    def Ext.Suffix : FPUnaryOp_r_frm<funct7, rs2val, rdty, rs1ty,
+                                    opcodestr>;
+  }}
+
+  let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1,
+      UseNamedOperandTable = 1, hasPostISelHook = 1 in
+  class FPUnaryOp_r_frmlegacy<bits<7> funct7, bits<{reg_bits}> rs2val, DAGOperand rdty,
+                              DAGOperand rs1ty, string opcodestr>
+      : PRInstRFrm<funct7, OPC_OP_FP, (outs rdty:$rd),
+                  (ins rs1ty:$rs1, frmarglegacy:$frm), opcodestr,
+                    "$rd, $rs1$frm"> {{
+    let rs2 = rs2val;
+  }}
+  multiclass FPUnaryOp_r_frmlegacy_m<bits<7> funct7, bits<{reg_bits}> rs2val,
+                                    ExtInfo Ext, DAGOperand rdty, DAGOperand rs1ty,
+                                    string opcodestr, list<Predicate> ExtraPreds = []> {{
+    let Predicates = !listconcat(Ext.Predicates, ExtraPreds),
+        DecoderNamespace = Ext.Space in
+    def Ext.Suffix : FPUnaryOp_r_frmlegacy<funct7, rs2val, rdty, rs1ty,
+                                          opcodestr>;
+  }}
+  """, file=f)
+  f.close()
+
+def write_regfile(num_regs: int):
+  f1 = open(f"{gen_file_dir}/PrimateRegisterDefs.td", "w")
+  f2 = open(f"{gen_file_dir}/PrimateRegisterOrdering.td", "w")
+
+  print(f"""
+  // Integer registers
+  // CostPerUse is set higher for registers that may not be compressible as they
+  // are not part of GPRC, the most restrictive register class used by the
+  // compressed instruction set. This will influence the greedy register
+  // allocator to reduce the use of registers that can't be encoded in 16 bit
+  // instructions.
+  foreach Index = 1-{num_regs-1} in {{
+    // Pseudo regs
+    let RegAltNameIndices = [ABIRegAltName] in {{
+      def X#Index  : PrimateReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;
+      def H#Index  : PrimateReg<Index, "h"#Index, ["h"#Index]>, DwarfRegNum<[Index]>{{
+        let SubRegIndices = [gpr_idx];
+        let SubRegs = [!cast<Register>("X"#Index)];
+      }}
+      def P#Index : PrimateReg<Index, "p"#Index, ["p"#Index]>, DwarfRegNum<[Index]> {{
+        let SubRegIndices = [Pri_hanger];
+        let SubRegs = [!cast<Register>("H"#Index)];
+        //let CoveredBySubRegs = true;
+      }}
+    }}
+  }}
+  """, file=f1)
+
+  print(f"""// The order of registers represents the preferred allocation sequence.
+  // Registers are listed in the order caller-save, callee-save, specials.
+  def GPR : GPRRegisterClass<(add (sequence "X%u", 0, {num_regs-1}))>;
+
+  // The order of registers represents the preferred allocation sequence.
+  // Registers are listed in the order caller-save, callee-save, specials.
+  def GPR128 : RegisterClass<"Primate", [HoldingRegVT], 32, (add
+      (sequence "H%u", 0, {num_regs-1})
+    )> {{
+    let RegInfos = HoldingRegRI;
+  }}
+
+  def WIDEREG : RegisterClass<"Primate", [PrimateAGGVT], 32, (add 
+      (sequence "P%u", 0, {num_regs-1})
+    )> {{
+      let RegInfos = PrimateAGGRI;
+    }}
+  """, file=f2)
+
+  f1.close()
+  f2.close()
+
 
 # write the schedule itself in VLIW slot order
 # num_bfus is number of instanced BFUs
@@ -698,8 +1115,10 @@ def main():
   write_sched_resources_def(num_unique_bfus)
 
   if not args.FrontendOnly:
-    numALUs, numBFUs = parse_arch_config(args.primate_cfg)
-    write_schedule(numBFUs, numALUs)
+    num_ALUs, num_BFUs, num_regs = parse_arch_config(args.primate_cfg)
+    write_schedule(num_BFUs, num_ALUs)
+    write_regfile(num_regs)
+    write_instr_format(num_regs)
 
 if __name__ == "__main__":
   main()

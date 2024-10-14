@@ -72,27 +72,7 @@ def sub_gpr_even : SubRegIndex<-1>;
 def sub_gpr_odd  : SubRegIndex<-1, -1>;
 } // Namespace = "Primate"
 
-// Integer registers
-// CostPerUse is set higher for registers that may not be compressible as they
-// are not part of GPRC, the most restrictive register class used by the
-// compressed instruction set. This will influence the greedy register
-// allocator to reduce the use of registers that can't be encoded in 16 bit
-// instructions.
-foreach Index = 1-31 in {
-  // Pseudo regs
-  let RegAltNameIndices = [ABIRegAltName] in {
-    def X#Index  : PrimateReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;
-    def H#Index  : PrimateReg<Index, "h"#Index, ["h"#Index]>, DwarfRegNum<[Index]>{
-      let SubRegIndices = [gpr_idx];
-      let SubRegs = [!cast<Register>("X"#Index)];
-    }
-    def P#Index : PrimateReg<Index, "p"#Index, ["p"#Index]>, DwarfRegNum<[Index]> {
-      let SubRegIndices = [Pri_hanger];
-      let SubRegs = [!cast<Register>("H"#Index)];
-      //let CoveredBySubRegs = true;
-    }
-  }
-}
+include "PrimateRegisterDefs.td"
 
 let isConstant = true in {
   def X0  : PrimateReg<0, "x0", ["x0"]>, DwarfRegNum<[0]>;
@@ -138,28 +118,7 @@ class GPRRegisterClass<dag regList>
   let RegInfos = XLenRI;
 }
 
-// The order of registers represents the preferred allocation sequence.
-// Registers are listed in the order caller-save, callee-save, specials.
-def GPR : GPRRegisterClass<(add (sequence "X%u", 10, 17),
-                                (sequence "X%u", 5, 7),
-                                (sequence "X%u", 28, 31),
-                                (sequence "X%u", 8, 9),
-                                (sequence "X%u", 18, 27),
-                                (sequence "X%u", 0, 4))>;
-
-// The order of registers represents the preferred allocation sequence.
-// Registers are listed in the order caller-save, callee-save, specials.
-def GPR128 : RegisterClass<"Primate", [HoldingRegVT], 32, (add
-    (sequence "H%u", 0, 31)
-  )> {
-  let RegInfos = HoldingRegRI;
-}
-
-def WIDEREG : RegisterClass<"Primate", [PrimateAGGVT], 32, (add 
-    (sequence "P%u", 0, 31)
-  )> {
-    let RegInfos = PrimateAGGRI;
-  }
+include "PrimateRegisterOrdering.td"
 
 def GPRX0 : GPRRegisterClass<(add X0)>;
 def GPRX1 : GPRRegisterClass<(add X1)>;
