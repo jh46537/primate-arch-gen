@@ -464,7 +464,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     // Inst{30-25} = Mid6;
     // Inst{11-8} = Lo4;
     // Inst{7} = Hi1;
-    signedValue = (Sbit << (31 + regFieldBitWidth - 5)) | (Mid6 << (25 + regFieldBitWidth - 5)) | (Lo4 << 8) | (Hi1 << 7);
+    signedValue = (Sbit << (31 + (3*(regFieldBitWidth - 5)))) | (Mid6 << (25 + (3*(regFieldBitWidth - 5)))) | (Lo4 << 8) | (Hi1 << 7);
     dbgs() << "fixups value post mangle: " << signedValue << "\n";
     return signedValue;
   }

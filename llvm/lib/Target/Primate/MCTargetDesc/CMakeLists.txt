@@ -10,6 +10,7 @@ add_llvm_component_library(LLVMPrimateDesc
   PrimateMatInt.cpp
   PrimateTargetStreamer.cpp
   PrimateELFStreamer.cpp
+  PrimateHarvardObjectWriter.cpp
 
   LINK_COMPONENTS
   MC

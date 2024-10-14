@@ -157,10 +157,10 @@ class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
     bits<7> rs2;
     bits<7> rs1;
 
-    let Inst{ 35-29 } = imm12{11-5};
-    let Inst{ 28-22 } = rs2;
-    let Inst{ 21-15 } = rs1;
-    let Inst{ 14-12 } = funct3;
+    let Inst{ 37-31 } = imm12{11-5};
+    let Inst{ 30-24 } = rs2;
+    let Inst{ 23-17 } = rs1;
+    let Inst{ 16-14 } = funct3;
     let Inst{ 11-7 } = imm12{4-0};
     let Opcode = opcode.Value;
   }
@@ -171,11 +171,11 @@ class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
     bits<7> rs2;
     bits<7> rs1;
 
-    let Inst{ 35-35 } = imm12{11};
-    let Inst{ 34-29 } = imm12{9-4};
-    let Inst{ 28-22 } = rs2;
-    let Inst{ 21-15 } = rs1;
-    let Inst{ 14-12 } = funct3;
+    let Inst{ 37-37 } = imm12{11};
+    let Inst{ 36-31 } = imm12{9-4};
+    let Inst{ 30-24 } = rs2;
+    let Inst{ 23-17 } = rs1;
+    let Inst{ 16-14 } = funct3;
     let Inst{ 11-8 } = imm12{3-0};
     let Inst{ 7-7 } = imm12{10};
     let Opcode = opcode.Value;
