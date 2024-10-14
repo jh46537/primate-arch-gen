@@ -277,11 +277,12 @@ def write_instr_format(num_regs: int):
     let Opcode = opcode.Value;
   }}""", file=f)
 
-  imm12_5_range = (11, 7)
-  funct3_range  = (imm12_5_range[0]+3, imm12_5_range[0]+1)
-  rs1_range     = (funct3_range[0]+reg_bits, funct3_range[0]+1)
-  rs2_range     = (rs1_range[0]+reg_bits, rs1_range[0]+1)
-  imm12_7_range = (rs2_range[0]+7, rs2_range[0]+1)
+  imm12_5_range  = (11, 7)
+  pad_zero_range = (imm12_5_range[0]+(reg_bits-5), imm12_5_range[0]+1)
+  funct3_range   = (pad_zero_range[0]+3, pad_zero_range[0]+1)
+  rs1_range      = (funct3_range[0]+reg_bits, funct3_range[0]+1)
+  rs2_range      = (rs1_range[0]+reg_bits, rs1_range[0]+1)
+  imm12_7_range  = (rs2_range[0]+7, rs2_range[0]+1)
   print(f"""class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
                 string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, itin> {{
@@ -299,7 +300,8 @@ def write_instr_format(num_regs: int):
 
   imm_12_10_range = (7, 7)
   imm_12_4_range  = (imm_12_10_range[0]+4, imm_12_10_range[0]+1)
-  funct3_range    = (imm_12_4_range[0]+3, imm_12_4_range[0]+1)
+  pad_zero_range  = (imm_12_4_range[0]+(reg_bits-5), imm_12_4_range[0]+1)
+  funct3_range    = (pad_zero_range[0]+3, pad_zero_range[0]+1)
   rs1_range       = (funct3_range[0]+reg_bits, funct3_range[0]+1)
   rs2_range       = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   imm12_6_range   = (rs2_range[0]+6, rs2_range[0]+1)

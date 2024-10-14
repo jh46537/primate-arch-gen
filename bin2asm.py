@@ -57,7 +57,9 @@ print ("opening " + oname + " to write")
 
 outFile = open(oname, "w+")
 
-symPat = re.compile(r"[0-9a-f]{8} <..*:")
+
+symPat = re.compile(r"[0-9a-f]{8} <.*:")
+pktBrk = re.compile(r"[0-9]+ --------$")
 symTable = {}
 
 def write_packet(packet):
@@ -136,23 +138,6 @@ def fix_last_branch(packet):
         instr_val = instr_val >> 8
     newInstr[-1] = "<" + " this is blah blah " + ">"
     packet[-1] = ' '.join(newInstr)
-        
-# with open(symname) as f:
-#     for i in range(4):
-#         next(f)
-#     print("generating symbol table")
-#     for line in f:
-#         toks = line.strip().split()
-#         if int(toks[0], 16) % PACKET_SIZE_IN_BYTES != 0:
-#             print("BAD SYM: offset doesn't match packet_size")
-#             print(line)
-#             print("offset:", int(toks[0], 16) % PACKET_SIZE_IN_BYTES)
-#             print("Packet size:", PACKET_SIZE_IN_BYTES)
-#             exit(-1)
-#         addr = int(int(toks[0], 16) / PACKET_SIZE_IN_BYTES)
-#         print(f"sym {toks[-1]} at 0x{hex(addr)}")
-#         sym = toks[-1]
-#         symTable[sym] = addr
 
 print("starting with backend config:")
 print(f"hasGFU: {hasGFU}")
@@ -163,7 +148,8 @@ with open(fname) as f:
         next(f)
     currentPacket = []
     for line in f:
-        if "primate_main" in line:
+        if "primate_main" in line and not found_main:
+            print(f"found main: {line}")
             found_main = True
         if not found_main:
             continue
@@ -178,6 +164,8 @@ with open(fname) as f:
         if len(line) == 0:
             continue
         if symPat.match(line):
+            pass
+        elif pktBrk.match(line):
             pass
         else:
             try:
