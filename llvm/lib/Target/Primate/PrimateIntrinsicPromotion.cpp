@@ -111,38 +111,67 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
 
     for (CallInst* ci: worklist) {
         LLVM_DEBUG(dbgs() << "Promoting call result: "; ci->dump(););
-
         // only promote calls that are memcpy'd
         // these should have only one use (the memcpy....)
-        if(!ci->hasOneUse()) {
+        if(!ci->hasOneUser()) {
             LLVM_DEBUG(dbgs() << "Call result is reused bailing on promotion... : "; ci->dump(););
             continue;
         }
 
         // get dest alloca 
         Value* destAlloca = nullptr;
+	    Value* loadInstr  = nullptr;
+        // find memcpy to find an alloca  for the return value
         for(auto* user: ci->users()) {
-            destAlloca = dyn_cast<Value>(user);
-            // follow pointer though stores and memcpys
-            if(auto* memcpy = dyn_cast<MemCpyInst>(destAlloca)) {
+            if(destAlloca || loadInstr) {
+                LLVM_DEBUG(dbgs() << "multiple users. Fail to promote\n";);
+                destAlloca = nullptr;
+                loadInstr = nullptr;
+            }
+            else if(auto* memcpy = dyn_cast<MemCpyInst>(user)) {
                 instructionsToRemove.push_back(memcpy);
-                instructionsToRemove.push_back(ci);
                 destAlloca = memcpy->getDest();
                 destAlloca = dyn_cast<AllocaInst>(destAlloca);
+                LLVM_DEBUG(dbgs() << "found a memcpy. Probably an alloca.\n";);
+            }
+            else if(auto* load = dyn_cast<LoadInst>(user)) {
+                loadInstr = load;
+                LLVM_DEBUG(dbgs() << "found a load.\n";);
+
+                // this is checking for a fake memcpy due to small return type (primitives are load/store not memcpy)
+                if(load->hasOneUser()) {
+                    if(auto* store = dyn_cast<StoreInst>(load->user_back())) {
+                        LLVM_DEBUG(dbgs() << "found a store.\n";);
+                        Value* temp = store->getPointerOperand();
+                        if(auto* ai = dyn_cast<AllocaInst>(temp)) {
+                            LLVM_DEBUG(dbgs() << "found an alloca.\n";);
+                            destAlloca = ai;
+                        }
+                        instructionsToRemove.push_back(store);
+                    }
+                }
+                instructionsToRemove.push_back(load);
             }
             else {
                 destAlloca = nullptr;
+		        loadInstr  = nullptr;
                 break;
             }
         }
 
-        if(destAlloca == nullptr) {
-            LLVM_DEBUG(dbgs() << "Call returns a pointer that is not memcpy'd. bailing on promotion: "; ci->dump(););
+        if(destAlloca == nullptr && loadInstr == nullptr) {
+            LLVM_DEBUG(dbgs() << "Call returns a pointer that is reused. bailing on promotion: "; ci->dump(););
             continue;
         }
 
         // create the new function which returns SSA
-        Type* retType = dyn_cast<AllocaInst>(destAlloca)->getAllocatedType();
+        Type* retType = nullptr;
+        if (destAlloca) {
+            retType = dyn_cast<AllocaInst>(destAlloca)->getAllocatedType();
+        }
+        else if (loadInstr) {
+            retType = dyn_cast<LoadInst>(loadInstr)->getType();
+        }
         SmallVector<Type*, 3> argTypes = {retType};
         SmallVector<Value*, 3> args;
         for(auto& arg: ci->args()) {
@@ -157,11 +186,23 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
         auto* newCall = builder.CreateCall(newFunc, args);
 
         // store the result in the dest alloca
-        builder.CreateStore(newCall, destAlloca);
+        if (destAlloca) {
+            builder.CreateStore(newCall, destAlloca);
+        } else if(loadInstr) {
+            loadInstr->replaceAllUsesWith(newCall);
+        }
+        instructionsToRemove.push_back(ci);
     }
+    LLVM_DEBUG(dbgs() << "Removing instructions\n";);
     for(auto* instr: instructionsToRemove) {
+        LLVM_DEBUG(instr->dump(););
+        if(!dyn_cast<Instruction>(instr)) {
+            LLVM_DEBUG(dbgs() << "non-instruction????\n";);
+            LLVM_DEBUG(instr->dump(););
+        }
         dyn_cast<Instruction>(instr)->eraseFromParent();
     }
+    instructionsToRemove.clear();
 }
 
 }

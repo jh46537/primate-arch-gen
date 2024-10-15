@@ -86,8 +86,8 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   // Set up the register classes.
   addRegisterClass(XLenVT, &Primate::GPRRegClass);
 
-  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Any, LegalizeAction::Custom);
-  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Any, LegalizeAction::Custom);
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, LegalizeAction::Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i64, LegalizeAction::Custom);
   addRegisterClass(MVT::Primate_aggregate, &Primate::WIDEREGRegClass);
   addRegisterClass(MVT::i128, &Primate::GPR128RegClass);
   // addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
@@ -5419,6 +5419,25 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     // Results.push_back(DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i64, EltLo, EltHi));
     // break;
   }
+  case ISD::INTRINSIC_W_CHAIN: {
+    dbgs() << "replaceNodeResults for intrinsic w chain\n";
+        unsigned IntNo = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+    switch (IntNo) {
+    default:
+      llvm_unreachable(
+          "Don't know how to custom type legalize this intrinsic!");
+    case Intrinsic::primate_input: {
+      SmallVector<SDValue> ops = {N->getOperand(0), N->getOperand(1), N->getOperand(2)};
+      SmallVector<EVT> retTypes = {MVT::Primate_aggregate, MVT::Other};
+
+      SDValue Res = DAG.getNode(N->getOpcode(), DL, retTypes, ops); // simply replace with an i32
+      Results.push_back(Res.getValue(0));
+      Results.push_back(Res.getValue(1));
+      break;
+    }
+    }
+    break;
+  }
   case ISD::INTRINSIC_WO_CHAIN: {
     dbgs() << "replaceNodeResults for intrinsic wo chain\n";
     unsigned IntNo = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
@@ -5426,6 +5445,14 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
+    case Intrinsic::primate_input: {
+      SDValue op1 = N->getOperand(0);
+      SDValue op2 = N->getOperand(1);
+
+      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::Primate_aggregate, op1, op2); // simply replace with an i32
+      Results.push_back(Res);
+      break;
+    }
     case Intrinsic::primate_extract: {
       // check and replace ops
       

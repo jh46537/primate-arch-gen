@@ -5114,7 +5114,7 @@ void SelectionDAGBuilder::visitTargetIntrinsic(const CallInst &I,
     }
   }
 
-  LLVM_DEBUG(dbgs() << "Compute VTs for the outputs");
+  LLVM_DEBUG(dbgs() << "Compute VTs for the outputs\n");
   SmallVector<EVT, 4> ValueVTs;
   ComputeValueVTs(TLI, DAG.getDataLayout(), I.getType(), ValueVTs);
 

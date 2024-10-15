@@ -2295,6 +2295,7 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
             LLVM_DEBUG(dbgs() << "non primate main. skipping eval\n");
             continue; 
         }
+	LLVM_DEBUG(dbgs() << "Found Primate Main!\n";);
         int numALU = 0, numInst = 0;
         unsigned constVal;
         evalFunc(*MI, numALU, numInst, constVal);
@@ -2315,6 +2316,7 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
             numRegs = i;
     }
     unsigned maxLatency = getNumThreads(M, maxNumALU);
+    numRegs = numRegs < 32 ? 32 : numRegs;
 
     primateCFG << "NUM_THREADS=" << int(pow(2, ceil(log2(maxLatency)))) << "\n";
     errs() << "Number of regs: " << numRegs << "\n";
