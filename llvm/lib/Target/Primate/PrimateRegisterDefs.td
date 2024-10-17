@@ -5,7 +5,7 @@
   // compressed instruction set. This will influence the greedy register
   // allocator to reduce the use of registers that can't be encoded in 16 bit
   // instructions.
-  foreach Index = 1-127 in {
+  foreach Index = 1-31 in {
     // Pseudo regs
     let RegAltNameIndices = [ABIRegAltName] in {
       def X#Index  : PrimateReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;

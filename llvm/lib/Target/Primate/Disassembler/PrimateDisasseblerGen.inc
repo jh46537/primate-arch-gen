@@ -1,4 +1,4 @@
 
-  unsigned InstructionSize = 5;
-  auto DecTable = DecoderTable40;
+  unsigned InstructionSize = 4;
+  auto DecTable = DecoderTable32;
   

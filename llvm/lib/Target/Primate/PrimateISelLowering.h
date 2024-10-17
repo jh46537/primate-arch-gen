@@ -255,10 +255,10 @@ public:
                     bool ForCodeSize) const override;
 
   // size 32 pos 0
-  unsigned int getScalarField() const {
+  unsigned int getScalarField(int size=32) const {
     int posBits = 32 - __builtin_clz(allPoses.size());
     int sizeBits = 32 - __builtin_clz(allSizes.size());
-    if(find(allSizes.begin(), allSizes.end(), 32) == allSizes.end()) {
+    if(find(allSizes.begin(), allSizes.end(), size) == allSizes.end()) {
       llvm_unreachable("Can't find 32 bit size. Regs improperly configured");
     }
     int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), 32));
@@ -610,6 +610,7 @@ private:
   SDValue lowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVectorMaskVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFPVECREDUCE(SDValue Op, SelectionDAG &DAG) const;

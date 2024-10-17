@@ -81,15 +81,19 @@ private:
 #define GEN_COMPRESS_INSTR
 #include "PrimateGenCompressInstEmitter.inc"
 
+// need to rewind the slot index for the number of ops generated BEFORE the pseudo operation
+// prevents nops from generating when we are going to fill those slots with extracts
 void PrimateAsmPrinter::PseudoExpansionIndexFixup(const MachineInstr *MI, unsigned int *slotIdx, unsigned int *lastSlotIdx) {
   if(!MI->isPseudo()) {
     return;
   }
 
   switch(MI->getOpcode()) {
-    case Primate::PseudoADDIwsi:
-    case Primate::PseudoADDIwwi:
-    case Primate::PseudoADDwww:
+    case Primate::PseudoADDwww: {
+      *slotIdx -= 2;
+      return;
+    } 
+    case Primate::PseudoADDIwwi: 
     case Primate::PseudoADDwss: {
       *slotIdx -= 1;
       return;
@@ -100,15 +104,15 @@ void PrimateAsmPrinter::PseudoExpansionIndexFixup(const MachineInstr *MI, unsign
   }
 }
 
+// custom lower the fused op instructions
+// tablegen only able to do 1 -> 1 lowering we do 1 -> n lowering
+// advance the lastSlotIdx to account for EXTRA instructions generated
+// return true if the instruction was pseudo and was lowered
 bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreamer, const MachineInstr *MI, unsigned int *lastSlotIdx) {
   if(!MI->isPseudo()) {
     return false;
   }
   
-  // custom lower the fused op instructions
-  // lower things that are things that need to be lowered
-  // only need to lower the words down to the other things
-  // create instrs, and then move the slot idx n-1 (n is number of ops generated)
   switch(MI->getOpcode()) {
     case Primate::PseudoANDIswi: {
       // WIDEREG:$rs1, simm12:$imm1, simm12:$imm2
@@ -362,7 +366,57 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       *lastSlotIdx += 1; 
       break;
     }
-    case Primate::PseudoADDwww: 
+    case Primate::PseudoADDwww: {
+      MCInst InsertDest;
+      MCInst ExtractOp1;
+      MCInst ExtractOp2;
+      MCInst TmpInst;
+      MCOperand MCOp;
+      InsertDest.setOpcode(Primate::INSERT);
+      // rd
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg()));
+      // rs1
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(1).getReg()));
+      // rs2 
+      InsertDest.addOperand(MCOperand::createReg(Primate::X0));
+      // imm12
+      lowerOperand(MI->getOperand(2), MCOp);
+      InsertDest.addOperand(MCOp);
+
+      TmpInst.setOpcode(Primate::ADD);
+      // Operand: rd
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx()));
+      // rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 1));
+      // Operand: rs2
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0 + MI->getSlotIdx() + 2));
+
+
+      ExtractOp1.setOpcode(Primate::EXTRACT);
+      // rd
+      ExtractOp1.addOperand(MCOperand::createReg(Primate::X0));
+      // rs1
+      ExtractOp1.addOperand(MCOperand::createReg(MI->getOperand(3).getReg()));
+      // imm12
+      lowerOperand(MI->getOperand(4), MCOp);
+      ExtractOp1.addOperand(MCOp);
+
+      ExtractOp2.setOpcode(Primate::EXTRACT);
+      // rd
+      ExtractOp2.addOperand(MCOperand::createReg(Primate::X0));
+      // rs1
+      ExtractOp2.addOperand(MCOperand::createReg(MI->getOperand(5).getReg()));
+      // imm12
+      lowerOperand(MI->getOperand(6), MCOp);
+      ExtractOp2.addOperand(MCOp);
+
+      EmitToStreamer(OutStreamer, ExtractOp2);
+      EmitToStreamer(OutStreamer, ExtractOp1);
+      EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertDest);
+      *lastSlotIdx += 3; 
+      break;
+    }
     default: {
       return false;
       //llvm_unreachable("don't know how to custom or TABLEGEN expand this pseudo instr. See Kayvan.");

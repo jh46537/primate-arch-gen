@@ -85,9 +85,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 
   // Set up the register classes.
   addRegisterClass(XLenVT, &Primate::GPRRegClass);
-
-  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, LegalizeAction::Custom);
-  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i64, LegalizeAction::Custom);
+  
   addRegisterClass(MVT::Primate_aggregate, &Primate::WIDEREGRegClass);
   addRegisterClass(MVT::i128, &Primate::GPR128RegClass);
   // addRegisterClass(MVT::i8, &Primate::GPR8RegClass);
@@ -177,6 +175,11 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   for (auto N : {ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD})
     setLoadExtAction(N, XLenVT, MVT::i1, Promote);
 
+  // operations for intrinsics with integral types
+  setOperationAction(ISD::INTRINSIC_W_CHAIN,  MVT::Other, LegalizeAction::Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, LegalizeAction::Custom);
+  setOperationAction(ISD::INTRINSIC_VOID,     MVT::Other, LegalizeAction::Custom);
+  
   // TODO: add all necessary setOperationAction calls.
   setOperationAction(ISD::DYNAMIC_STACKALLOC, XLenVT, Expand);
 
@@ -2254,7 +2257,7 @@ SDValue PrimateTargetLowering::expandUnalignedPRVStore(SDValue Op,
 SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
   dbgs() << "kayvan lowerOperation()\n";
-    switch (Op.getOpcode()) {
+  switch (Op.getOpcode()) {
   default:
     report_fatal_error("unimplemented operand");
   case ISD::GlobalAddress:
@@ -2332,6 +2335,8 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
     return LowerINTRINSIC_WO_CHAIN(Op, DAG);
   case ISD::INTRINSIC_W_CHAIN:
     return LowerINTRINSIC_W_CHAIN(Op, DAG);
+  case ISD::INTRINSIC_VOID:
+    return LowerINTRINSIC_VOID(Op, DAG);
   case ISD::BSWAP:
   case ISD::BITREVERSE: {
     // Convert BSWAP/BITREVERSE to GREVI to enable GREVI combinining.
@@ -3874,14 +3879,78 @@ SDValue PrimateTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   return lowerVectorIntrinsicSplats(Op, DAG, Subtarget);
 }
 
-SDValue PrimateTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
-                                                    SelectionDAG &DAG) const {
-  dbgs() << "lowerINTRINSIC_W_CHAIN()\n";
+SDValue PrimateTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+
+  dbgs() << "lowerINTRINSIC_VOID()\n";
+  dbgs() << "custom lower for";
+  Op->dump();
   SDLoc DL(Op);
-  unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  bool hasChain = Op.getOperand(0).getValueType() == MVT::Other;
+  unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(hasChain ? 1 : 0))->getZExtValue();
   switch (IntNo) {
   default:
-    return lowerVectorIntrinsicSplats(Op, DAG, Subtarget);
+    LLVM_DEBUG(dbgs()<< "no custom lower for this void intrin\n");
+    return Op;
+  case Intrinsic::primate_output:{
+    if(hasChain) {
+      SDValue chain  = Op.getOperand(0);
+      SDValue intrin = Op.getOperand(1);
+      SDValue out    = Op.getOperand(2);
+      SDValue bytes  = Op.getOperand(3);
+
+      if(out.getValueType() == MVT::Primate_aggregate) {
+	return Op;
+      }
+      
+      // gen insert val
+      unsigned int fieldSpec = getScalarField(out.getSimpleValueType().getFixedSizeInBits());
+      SmallVector<SDValue> insOps = {DAG.getUNDEF(MVT::Primate_aggregate), out, DAG.getConstant(fieldSpec, DL, MVT::i32)};
+      out = DAG.getNode(ISD::INSERT_VALUE, DL, MVT::Primate_aggregate, insOps);
+
+      // gen intrin
+      SmallVector<SDValue> ops = {chain, intrin, out, bytes};
+      return DAG.getNode(ISD::INTRINSIC_VOID, DL, Op.getValueType(), ops);
+    }
+    else {
+      SDValue intrin = Op.getOperand(0);
+      SDValue out    = Op.getOperand(1);
+      SDValue bytes  = Op.getOperand(2);
+
+      // gen insert val
+      unsigned int fieldSpec = getScalarField(out.getSimpleValueType().getFixedSizeInBits());
+      SmallVector<SDValue> insOps = {DAG.getUNDEF(MVT::Primate_aggregate), out, DAG.getConstant(fieldSpec, DL, MVT::i32)};
+      out = DAG.getNode(ISD::INSERT_VALUE, DL, MVT::Primate_aggregate, insOps);
+
+      // gen intrin
+      SmallVector<SDValue> ops = {intrin, out, bytes};
+      return DAG.getNode(ISD::INTRINSIC_VOID, DL, Op.getValueType(), ops);
+    }
+  }
+  }
+
+}
+SDValue PrimateTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
+                                                      SelectionDAG &DAG) const {
+  dbgs() << "lowerINTRINSIC_W_CHAIN()\n";
+  SDLoc DL(Op);
+  unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+  switch (IntNo) {
+  case Intrinsic::primate_input:{
+    SDValue chain  = Op.getOperand(0);
+    SDValue intrin = Op.getOperand(1);
+    SDValue bytes  = Op.getOperand(2);
+
+    if(Op.getValueType() == MVT::Primate_aggregate) {
+      return Op;
+    }
+    else {
+      llvm_unreachable("primate input with chain not implemented");
+    }
+  }
+  default:
+    LLVM_DEBUG(dbgs() << "no custom lower for this chain intrin\n");
+    return Op;
   }
 }
 
@@ -5049,8 +5118,8 @@ static SDValue customLegalizeToWOpWithSExt(SDNode *N, SelectionDAG &DAG) {
 }
 
 void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
-                                             SmallVectorImpl<SDValue> &Results,
-                                             SelectionDAG &DAG) const {
+                                               SmallVectorImpl<SDValue> &Results,
+                                               SelectionDAG &DAG) const {
   SDLoc DL(N);
   switch (N->getOpcode()) {
   default:
@@ -5430,9 +5499,12 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
       SmallVector<SDValue> ops = {N->getOperand(0), N->getOperand(1), N->getOperand(2)};
       SmallVector<EVT> retTypes = {MVT::Primate_aggregate, MVT::Other};
 
-      SDValue Res = DAG.getNode(N->getOpcode(), DL, retTypes, ops); // simply replace with an i32
-      Results.push_back(Res.getValue(0));
-      Results.push_back(Res.getValue(1));
+      EVT returnType = N->getValueType(0);
+      int scalarFieldSpec = getScalarField(returnType.getFixedSizeInBits());
+      SDValue input = DAG.getNode(N->getOpcode(), DL, retTypes, ops); 
+      SDValue extract = DAG.getNode(ISD::EXTRACT_VALUE, DL, returnType, input, DAG.getConstant(scalarFieldSpec, DL, MVT::i32));
+      Results.push_back(extract.getValue(0));
+      Results.push_back(input.getValue(1));
       break;
     }
     }
@@ -5446,11 +5518,15 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
     case Intrinsic::primate_input: {
-      SDValue op1 = N->getOperand(0);
-      SDValue op2 = N->getOperand(1);
+      auto& TLI = DAG.getTargetLoweringInfo();
+      SmallVector<SDValue> ops = {N->getOperand(0), N->getOperand(1)};
+      SmallVector<EVT> retTypes = {MVT::Primate_aggregate};
 
-      SDValue Res = DAG.getNode(N->getOpcode(), DL, MVT::Primate_aggregate, op1, op2); // simply replace with an i32
-      Results.push_back(Res);
+      EVT returnType = N->getValueType(0);
+      int scalarFieldSpec = getScalarField(returnType.getFixedSizeInBits());
+      SDValue input = DAG.getNode(N->getOpcode(), DL, retTypes, ops); 
+      SDValue extract = DAG.getNode(ISD::EXTRACT_VALUE, DL, returnType, input, DAG.getConstant(scalarFieldSpec, DL, MVT::i32));
+      Results.push_back(extract.getValue(0));
       break;
     }
     case Intrinsic::primate_extract: {
