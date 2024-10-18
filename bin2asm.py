@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import math
 
 if len(sys.argv) != 5: 
     print("wrong number of arguments....")
@@ -16,6 +17,9 @@ with open(config_name) as f:
             numALUs = int(toks[1])
         if toks[0] == "NUM_BFUS":
             numBFUs = int(toks[1]) + 2 # IO and memory unit is implicit
+        if toks[0] == "NUM_REGS":
+            num_regs = int(toks[1])
+            num_regs_lg = int(math.ceil(math.log2(num_regs)))
 
 numSlots = max(numBFUs, numALUs)
 
@@ -38,7 +42,8 @@ for g, b in zip(hasGFU, hasBFU):
         exit(-1)
   
 # pkt size in bytes
-PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_INSTRS*4
+SUBINSTR_SIZE_BYTES = int(math.ceil((num_regs_lg * 3 + 7 + 3 + 7)/8))
+PACKET_SIZE_IN_BYTES = PACKET_SIZE_IN_INSTRS*SUBINSTR_SIZE_BYTES
 # addresses per packet
 LOCATIONS_PER_PACKET = 4
 
@@ -63,15 +68,10 @@ pktBrk = re.compile(r"[0-9]+ --------$")
 symTable = {}
 
 def write_packet(packet):
-    instr_byte_str = "".join(currentPacket[-1].split()[0:4][::-1])
-    if not (instr_byte_str == NOP_STR or instr_byte_str == RET_STR):
-        # print("REAL branch found")
-        fix_last_branch(packet)
-        
     for instr in currentPacket[::-1]:
         iToks = instr.split()
         instr_val = ""
-        for i in iToks[0:4][::-1]:
+        for i in iToks[0:SUBINSTR_SIZE_BYTES][::-1]:
             instr_val += i.strip()
         # print(instr_val)
         outFile.write(instr_val)
