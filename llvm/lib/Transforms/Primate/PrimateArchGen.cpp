@@ -424,13 +424,14 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
 
     primateCFG << "REG_BLOCK_WIDTH=";
     auto lastBlockEnd = 0;
-    std::vector<std::pair<unsigned, unsigned>> regBlockWidths; // (width, mask)
-    unsigned mask = 1;
+    std::vector<std::pair<unsigned, uint64_t>> regBlockWidths; // (width, mask)
+    uint64_t mask = 1;
     for (auto currentBlock: allBitEnds) {
         regBlockWidths.push_back({currentBlock - lastBlockEnd, mask});
         primateCFG << currentBlock - lastBlockEnd << " ";
         lastBlockEnd = currentBlock;
         mask = (mask << 1);
+	assert(mask && "Ran out of mask bits!");
     }
     primateCFG << "\n";
 
@@ -492,30 +493,31 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
 
     // DST_EN is a field representing the block write enables required to cover an 
     // offset, size pair
-    std::vector<unsigned> scatterWbens; 
+    std::vector<uint64_t> scatterWbens; 
     int numBlocks = regBlockWidths.size();
     for (const auto& [offset, sizes] : *fieldIndex) {
         // skip blocks until we match offset
-        unsigned offsetTemp = offset;
-        int maskSkippedBlocks = 0;
+        uint64_t offsetTemp = offset;
+        int64_t maskSkippedBlocks = 0;
         auto blockIterator = regBlockWidths.begin();
         while (offsetTemp > 0) {
-            maskSkippedBlocks += 1;
+	  // maskSkippedBlocks += 1;
             offsetTemp -= blockIterator->first;
             blockIterator++;
         }
+	assert(offsetTemp == 0 && "failed to enabled for given regblock due to bad offset");
 
         // enable blocks until we cover the size
         for(const auto& size: *sizes) {
-            unsigned blockMask = 0;
-            unsigned sizeCounter = size;
+            uint64_t blockMask = 0;
+            uint64_t sizeCounter = size;
             auto sizeBlockIterator = blockIterator;
             while(sizeCounter > 0 && sizeBlockIterator != regBlockWidths.end()) {
                 blockMask |= sizeBlockIterator->second << maskSkippedBlocks;
                 sizeCounter -= sizeBlockIterator->first;
                 sizeBlockIterator++;
             } 
-            assert(sizeCounter == 0 && "failed to enable for the given reg blocks and the size");
+            assert(sizeCounter == 0 && "failed to enable for the given reg blocks due to size");
             scatterWbens.push_back(blockMask);
         }
     }
