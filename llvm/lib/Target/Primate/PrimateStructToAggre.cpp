@@ -1,5 +1,6 @@
 #include "PrimateStructToAggre.h"
 
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -7,6 +8,7 @@
 #include "llvm/IR/User.h" 
 #include "llvm/IR/IntrinsicInst.h"
 
+#include <cstring>
 #include <fstream>
 #include <algorithm> 
 #include <cctype>
@@ -49,6 +51,9 @@ namespace llvm {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Function& F, FunctionAnalysisManager& PA) {
+        if (strcmp(demangle(F.getName()).c_str(), "primate_main") != 0)
+          return PreservedAnalyses::none();
+
         BFUTypes = PA.getResult<PrimateBFUTypeFinding>(F);
         dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";
         for(Type* type: BFUTypes) {
