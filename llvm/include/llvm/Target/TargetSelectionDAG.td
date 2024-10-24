@@ -103,7 +103,7 @@ class SDTypeProfile<int numresults, int numoperands,
 
 // Builtin profiles.
 def SDTExtAgg: SDTypeProfile<1, 2, [SDTCisVT<1, Primate_aggregate>, SDTCisInt<2>]>;
-def SDTInsAgg: SDTypeProfile<1, 3, [SDTCisVT<0, Primate_aggregate>, SDTCisVT<1, Primate_aggregate>, SDTCisInt<2>, SDTCisInt<3>]>;
+def SDTInsAgg: SDTypeProfile<1, 3, [SDTCisVT<0, Primate_aggregate>, SDTCisVT<1, Primate_aggregate>, SDTCisInt<3>]>;
 
 def SDTIntLeaf: SDTypeProfile<1, 0, [SDTCisInt<0>]>;         // for 'imm'.
 def SDTFPLeaf : SDTypeProfile<1, 0, [SDTCisFP<0>]>;          // for 'fpimm'.
