@@ -28,6 +28,7 @@ tablegen(LLVM PrimateGenGlobalISel.inc -gen-global-isel)
 add_public_tablegen_target(PrimateCommonTableGen)
 
 add_llvm_target(PrimateCodeGen
+  PrimateModuleCleanPass.cpp
   PrimateAsmPrinter.cpp
   PrimateCallLowering.cpp
   PrimateExpandAtomicPseudoInsts.cpp

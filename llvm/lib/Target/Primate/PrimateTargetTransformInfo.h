@@ -182,6 +182,33 @@ public:
   unsigned getMaxInterleaveFactor(ElementCount VF) {
     return ST->getMaxInterleaveFactor();
   }
+
+  // force unrolling always
+  void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
+                                TTI::UnrollingPreferences &UP,
+                                OptimizationRemarkEmitter *ORE) {
+  // TODO: More tuning on benchmarks and metrics with changes as needed
+  //       would apply to all settings below to enable performance.
+
+
+  if (ST->enableDefaultUnroll())
+    return BasicTTIImplBase::getUnrollingPreferences(L, SE, UP, ORE);
+
+  // Enable Upper bound unrolling universally, not dependant upon the conditions
+  // below.
+  UP.UpperBound = true;
+
+  UP.Partial = true;
+  UP.Runtime = true;
+  UP.UnrollRemainder = true;
+  UP.UnrollAndJam = true;
+  UP.UnrollAndJamInnerLoopThreshold = 60;
+
+  // Force unrolling small loops can be very useful because of the branch
+  // taken cost of the backedge.
+  UP.Force = true;
+}
+
 };
 
 } // end namespace llvm

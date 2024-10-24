@@ -322,7 +322,7 @@ Type* followPointerForType(Value* start) {
         }
         else {
             curInst->dump();
-            llvm_unreachable("can't follow a pointer..");
+            return nullptr;
         }
     }
 }
@@ -340,6 +340,10 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
         MDNode* primateMD = F.getMetadata("primate");
         if (primateMD && 
             dyn_cast<MDString>(primateMD->getOperand(0))->getString() == "blue") {
+	    if(F.hasNUses(0)) {
+	      LLVM_DEBUG(dbgs() << "Primate function is unused. not going to type check.";);
+	      continue;
+	    }
             LLVM_DEBUG(dbgs() << "found primate Function: "; F.dump(););
             int argIdx = 0;
             for (auto& arg: F.args()) {
@@ -352,7 +356,9 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
                            F.getType()->dump(););
                 if(arg.getType()->isPointerTy()) {
                     // get users (calls) and check their args
+                    bool hasUser = false;
                     for (auto user: F.users()) {
+		        hasUser = true;
                         if (auto *call = dyn_cast<CallInst>(user)) {
                             auto* callArg = call->getOperand(argIdx);
                             if(callArg->getType()->isPointerTy()) {
@@ -363,6 +369,10 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
                             }
                         }
                     }
+		    if (!hasUser || !argTy) {
+		      LLVM_DEBUG(dbgs() << "No users! not going to type check this guy...");
+		      continue;
+		    }
                 }
                 else {
                     argTy = arg.getType();
@@ -370,7 +380,7 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
                 unsigned regWidth = getTypeBitWidth(argTy, true);
                 if (regWidth > maxRegWidth) {
                     maxRegWidth = regWidth;
-                }
+                } 
                 LLVM_DEBUG(dbgs() << "reg width of type : "; argTy->dump(););
                 LLVM_DEBUG(dbgs() << regWidth << "\n";);
                 argIdx++;
@@ -513,7 +523,7 @@ void PrimateArchGen::printRegfileKnobs(Module &M, raw_fd_stream &primateCFG) {
             uint64_t sizeCounter = size;
             auto sizeBlockIterator = blockIterator;
             while(sizeCounter > 0 && sizeBlockIterator != regBlockWidths.end()) {
-                blockMask |= sizeBlockIterator->second << maskSkippedBlocks;
+                blockMask |= sizeBlockIterator->second;
                 sizeCounter -= sizeBlockIterator->first;
                 sizeBlockIterator++;
             } 
@@ -2295,9 +2305,9 @@ PreservedAnalyses PrimateArchGen::run(Module &M, ModuleAnalysisManager& AM) {
     for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
         if (demangle(MI->getName()).find("primate_main") == std::string::npos) {
             LLVM_DEBUG(dbgs() << "non primate main. skipping eval\n");
-            continue; 
+            continue;
         }
-	LLVM_DEBUG(dbgs() << "Found Primate Main!\n";);
+        LLVM_DEBUG(dbgs() << "Found Primate Main!\n";);
         int numALU = 0, numInst = 0;
         unsigned constVal;
         evalFunc(*MI, numALU, numInst, constVal);

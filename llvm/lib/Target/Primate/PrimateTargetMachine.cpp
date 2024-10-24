@@ -20,6 +20,7 @@
 #include "PrimateGEPFilter.h"
 #include "PrimateStructToAggre.h"
 #include "PrimateIntrinsicPromotion.h"
+#include "PrimateModuleCleanPass.h"
 #include "PrimateScheduleStrategy.h"
 #include "PrimateMachineFunctionInfo.h"
 #include "TargetInfo/PrimateTargetInfo.h"
@@ -239,6 +240,9 @@ void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB, b
   PB.registerPeepholeEPCallback([](llvm::FunctionPassManager& FPM, OptimizationLevel Level){
     // FPM.addPass(llvm::PrimateGEPFilterPass());
     // FPM.addPass(llvm::PrimateStructLoadCombinerPass());
+  });
+  PB.registerOptimizerLastEPCallback([this](ModulePassManager &MPM, OptimizationLevel opt) {
+    MPM.addPass(llvm::PrimateModuleCleanPass());
   });
 }
 

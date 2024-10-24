@@ -1103,6 +1103,13 @@ def INSERT :
           let Constraints = "$rd = $rs1";
           let Itinerary = ItinGreen;
 }
+def INSERT_WIDE :
+    PRInstI<0b001, OPC_PR_REG, (outs WIDEREG:$rd), (ins WIDEREG:$rs1, WIDEREG:$rs2, simm12:$imm12),
+        "insert", "$rd, $rs1, $rs2">, Sched<[WriteIALU, ReadIALU]> 
+        {
+          let Constraints = "$rd = $rs1";
+          let Itinerary = ItinGreen;
+}
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def INSERT_hang :
@@ -1574,6 +1581,8 @@ def : Pat<(extract_value WIDEREG:$rs1, simm12:$imm1),
            (XLenVT (EXTRACT WIDEREG:$rs1, simm12:$imm1))>;
 def : Pat<(insert_value WIDEREG:$rs1, (XLenVT GPR:$rs2), simm12:$imm1), 
            (PrimateAGGVT (INSERT WIDEREG:$rs1, GPR:$rs2, simm12:$imm1))>;
+def : Pat<(insert_value WIDEREG:$rs1, WIDEREG:$rs2, simm12:$imm1), 
+           (PrimateAGGVT (INSERT_WIDE WIDEREG:$rs1, (PrimateAGGVT WIDEREG:$rs2), simm12:$imm1))>;
 
 
 // PseudoTAIL is a pseudo instruction similar to PseudoCALL and will eventually// expand to auipc and jalr while encoding.

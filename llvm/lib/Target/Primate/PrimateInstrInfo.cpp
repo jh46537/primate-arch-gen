@@ -132,6 +132,27 @@ void PrimateInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  // GPR -> WIDE copies
+  if (Primate::GPRRegClass.contains(SrcReg)) {
+    if (Primate::WIDEREGRegClass.contains(DstReg)) {
+      BuildMI(MBB, MBBI, DL, get(Primate::INSERT), DstReg)
+          .addReg(DstReg, RegState::Define)
+          .addReg(SrcReg, getKillRegState(KillSrc))
+          .addImm(STI.getTargetLowering()->getScalarField());
+      return;
+    }
+  }
+
+  // WIDE -> Other copies
+  if(Primate::WIDEREGRegClass.contains(SrcReg)) {
+    if (Primate::GPRRegClass.contains(DstReg)) {
+      BuildMI(MBB, MBBI, DL, get(Primate::EXTRACT), DstReg)
+          .addReg(SrcReg, getKillRegState(KillSrc))
+          .addImm(STI.getTargetLowering()->getScalarField());
+      return;
+    }
+  }
+
   // FPR->FPR copies and VR->VR copies.
   unsigned Opc;
   bool IsScalableVector = true;

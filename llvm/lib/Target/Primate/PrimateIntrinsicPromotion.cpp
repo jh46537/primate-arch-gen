@@ -61,8 +61,12 @@ PreservedAnalyses PrimateIntrinsicPromotion::run(Function& F, FunctionAnalysisMa
 
 void PrimateIntrinsicPromotion::promoteArgs(std::vector<CallInst*>& worklist) {
     SmallVector<Value*, 8> instructionsToRemove;
+    SmallVector<Function*, 8> functionsToRemove;
     
     for (CallInst* ci: worklist) {
+      	if(ci->getCalledFunction()->hasNUses(0)) {
+           functionsToRemove.push_back(ci->getCalledFunction());
+        }
         IRBuilder<> builder(ci);
         LLVM_DEBUG(dbgs() << "Promoting call arguments: "; ci->dump(););
         
@@ -100,9 +104,15 @@ void PrimateIntrinsicPromotion::promoteArgs(std::vector<CallInst*>& worklist) {
         auto* newCall = builder.CreateCall(newFunc, args);
         ci->replaceAllUsesWith(newCall);
         instructionsToRemove.push_back(ci);
+        if(ci->getCalledFunction()->hasNUses(0)) {
+        functionsToRemove.push_back(ci->getCalledFunction());
+        }
     }
     for(auto* instr: instructionsToRemove) {
         dyn_cast<Instruction>(instr)->eraseFromParent();
+    }
+    for(auto* instr: functionsToRemove) {
+        instr->eraseFromParent();
     }
 }
 
@@ -110,6 +120,7 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
     SmallVector<Value*, 8> instructionsToRemove;
 
     for (CallInst* ci: worklist) {
+        SmallVector<Value*, 2> newInstrsToRemove;
         LLVM_DEBUG(dbgs() << "Promoting call result: "; ci->dump(););
         // only promote calls that are memcpy'd
         // these should have only one use (the memcpy....)
@@ -129,7 +140,7 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
                 loadInstr = nullptr;
             }
             else if(auto* memcpy = dyn_cast<MemCpyInst>(user)) {
-                instructionsToRemove.push_back(memcpy);
+                newInstrsToRemove.push_back(memcpy);
                 destAlloca = memcpy->getDest();
                 destAlloca = dyn_cast<AllocaInst>(destAlloca);
                 LLVM_DEBUG(dbgs() << "found a memcpy. Probably an alloca.\n";);
@@ -147,10 +158,10 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
                             LLVM_DEBUG(dbgs() << "found an alloca.\n";);
                             destAlloca = ai;
                         }
-                        instructionsToRemove.push_back(store);
+                        newInstrsToRemove.push_back(store);
                     }
                 }
-                instructionsToRemove.push_back(load);
+                newInstrsToRemove.push_back(load);
             }
             else {
                 destAlloca = nullptr;
@@ -191,6 +202,7 @@ void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& workli
         } else if(loadInstr) {
             loadInstr->replaceAllUsesWith(newCall);
         }
+        instructionsToRemove.insert(instructionsToRemove.end(), newInstrsToRemove.begin(), newInstrsToRemove.end());
         instructionsToRemove.push_back(ci);
     }
     LLVM_DEBUG(dbgs() << "Removing instructions\n";);

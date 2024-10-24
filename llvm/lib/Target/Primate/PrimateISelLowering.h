@@ -340,6 +340,32 @@ public:
     return width;
   }
   
+  virtual unsigned int linearToAggregateIndex(ArrayType &ATy, unsigned int linearIndex) const override {
+    // first find a field that fits this width, then attempt to put it at the bottom of that field.
+
+    int posBits = 32 - __builtin_clz(allPoses.size());
+    int sizeBits = 32 - __builtin_clz(allSizes.size());
+    unsigned elementSize = getElementSizeInBits(ATy.getElementType());
+    int bitPos = elementSize * linearIndex;
+    if(find(allPoses.begin(), allPoses.end(), bitPos) == allPoses.end()) {
+      llvm_unreachable("unsupported array position");
+    }
+    int posIdx = std::distance(allPoses.begin(), find(allPoses.begin(), allPoses.end(), bitPos));
+    // insert can leave off zeros at the end, so we need to find the next field that fits
+    if(find(allSizes.begin(), allSizes.end(), elementSize) == allSizes.end()) {
+      LLVM_DEBUG(dbgs() << "unsupported array element size: " << elementSize << "\n";);
+      LLVM_DEBUG(dbgs() << "type: "; ATy.getElementType()->dump(););
+      llvm_unreachable("unsupported array element size");
+    }
+    int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), ATy.getElementType()->getScalarSizeInBits()));
+    
+    LLVM_DEBUG(dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";);
+    LLVM_DEBUG(dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posIdx: " << posIdx << " posBits: " << posBits << "\n";);
+    LLVM_DEBUG(dbgs() << "final index is: " << ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1)) << "\n";);
+
+    return ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1));
+  }
+
   virtual unsigned int linearToAggregateIndex(StructType &STy, unsigned int linearIndex) const override {
     // first find a field that fits this width, then attempt to put it at the bottom of that field.
 
@@ -347,7 +373,7 @@ public:
     int sizeBits = 32 - __builtin_clz(allSizes.size());
     int bitPos = 0;
     for(unsigned i = 0; i < linearIndex; i++) {
-      bitPos += STy.getElementType(i)->getScalarSizeInBits();
+      bitPos += getElementSizeInBits(STy.getElementType(i));
       dbgs() << "bit pos currently: " << bitPos << "\n";
     }
     if(find(allPoses.begin(), allPoses.end(), bitPos) == allPoses.end()) {
@@ -363,10 +389,9 @@ public:
     }
     int sizeIdx = std::distance(allSizes.begin(), find(allSizes.begin(), allSizes.end(), STy.getElementType(linearIndex)->getScalarSizeInBits()));
     
-    dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";
-    dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posIdx: " << posIdx << " posBits: " << posBits << "\n";
-    dbgs() << "final index is: " << ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1)) << "\n";
-
+    LLVM_DEBUG(dbgs() << "posSize: " << allPoses.size() << " sizeSize: " << allSizes.size() << "\n";);
+    LLVM_DEBUG(dbgs() << "Get scalar field as: " << sizeIdx << " Size bits: " << sizeBits << " posIdx: " << posIdx << " posBits: " << posBits << "\n";);
+    LLVM_DEBUG(dbgs() << "final index is: " << ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1)) << "\n";);
 
     return ((sizeIdx & ((1 << sizeBits) - 1)) << posBits) + (posIdx & ((1<<posBits) - 1));
   }
@@ -376,6 +401,10 @@ public:
 
   // returns the EVT of a given aggregate if its supported by the target.
   virtual EVT getAggregateVT(StructType &STy) const override {
+    return EVT(MVT::Primate_aggregate);
+  }
+
+  virtual EVT getArrayVT(ArrayType &ATy) const override {
     return EVT(MVT::Primate_aggregate);
   }
 

@@ -58,10 +58,12 @@ def write_instr_format(num_regs: int):
   unsigned InstructionSize = {total_bytes};
   auto DecTable = DecoderTable{total_bytes*8};
   """, file=f)
+  f.close()
 
   f = open(f"{gen_file_dir}/PrimateInstructionSize.inc", "w")
   print(f"""const unsigned instrSize = {total_bytes};
   const unsigned regFieldBitWidth = {reg_bits};""", file=f)
+  f.close()
 
   f = open(f"{gen_file_dir}/PrimateInstrReconfigFormats.td", "w")
 
@@ -976,7 +978,7 @@ def write_bfu_intrins(num_bfus: int):
 # generate builtin frontend shit
 def write_bfu_clang_builtins(num_bfus: int): 
   # /primate/primate-compiler/clang/include/clang/Basic/BuiltinsPrimate.def
-  builtin_single = """TARGET_BUILTIN(__primate_bfu_{0}, "v", "nt", "")"""
+  builtin_single = """TARGET_BUILTIN(__primate_BFU_{0}, "v*v*", "nt", "")"""
   BFU_BUILTINS = comb_str(builtin_single, max(num_bfus-2, 1))
 
   builtins_str = f"""
@@ -1062,7 +1064,7 @@ def write_bfu_clang_builtins(num_bfus: int):
 def write_bfu_CG(num_bfus: int):
   # /primate/primate-compiler/clang/include/clang/Basic/primate_bfu.td
 
-  BFU_BUILTINS_TEMPS = """def BFU_{0}:      PrimateBuiltin<"__primate_BFU_{0}", "BB", "primate_BFU_{0}">;"""
+  BFU_BUILTINS_TEMPS = """def BFU_{0}:      PrimateBuiltin<"__primate_BFU_{0}", "BB", "primate_BFU_{0}", "aes128">;"""
   BFU_BUILTINS = comb_str(BFU_BUILTINS_TEMPS, max(num_bfus-2, 1))
 
   front_end_stuff_template = f"""
@@ -1077,19 +1079,21 @@ def write_bfu_CG(num_bfus: int):
   //
   // intrin_name is the name of the backend intrinsic to use
   // defined in llvm/include/llvm/IR/IntrinsicsPrimate.td (strip the int_ from the tablegen name)
+  // Prototype should only specify the llvm_any_ty from the intrinsics
 
 
-  class PrimateBuiltin<string name, string prototype, string intrin_name> {{
+  class PrimateBuiltin<string name, string prototype, string intrin_name, string bfu_name> {{
       string Name = name;
       string PType = prototype;
       string IntrinName = intrin_name;
+      string BFUName = bfu_name;
   }}
 
 
-  def input:      PrimateBuiltin<"__primate_input", "B", "primate_input">;
-  def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done">;
-  def output:     PrimateBuiltin<"__primate_output", "B", "primate_output">;
-  def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done">;
+  def input:      PrimateBuiltin<"__primate_input", "Bi", "primate_input", "IO">;
+  def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done", "IO">;
+  def output:     PrimateBuiltin<"__primate_output", "Bi", "primate_output", "IO">;
+  def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done", "IO">;
   {BFU_BUILTINS}
   """
 

@@ -4040,6 +4040,15 @@ void SelectionDAGBuilder::visitInsertValue(const InsertValueInst &I) {
 
   unsigned LinearIndex = ComputeLinearIndex(AggTy, Indices);
 
+  dbgs() << "Insert dump: \nAgg: "; AggTy->dump(); 
+  dbgs() << "Val: "; ValTy->dump();
+  dbgs() << "LinearIndex: " << LinearIndex << "\n";
+  dbgs() << "Indeices: "; 
+  for(auto I: Indices) {
+    dbgs() << I << " ";
+  }
+  dbgs() << "\n";
+
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SmallVector<EVT, 4> AggValueVTs;
   ComputeValueVTs(TLI, DAG.getDataLayout(), AggTy, AggValueVTs);
@@ -4061,13 +4070,24 @@ void SelectionDAGBuilder::visitInsertValue(const InsertValueInst &I) {
   unsigned i = 0;
   // insert the value and move on.
   StructType *sTY = (dyn_cast<StructType>(AggTy)); 
+  ArrayType *aTY = (dyn_cast<ArrayType>(AggTy)); 
   if(sTY && TLI.supportedAggregate(*sTY)) {
+    assert(Indices.size() == 1 && "only support one index for array");
     dbgs() << "insert to supported aggregate\n";
     Values.clear();
     Values.push_back(Agg);
     Values.push_back(insVal);
-    Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(dyn_cast<StructType>(AggTy)), LinearIndex), getCurSDLoc(), MVT::i32, false, false));
+    Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(sTY), Indices[0]), getCurSDLoc(), MVT::i32, false, false));
     setValue(&I, DAG.getNode(ISD::INSERT_VALUE, getCurSDLoc(), TLI.getAggregateVT(*sTY), Values));
+  }
+  else if(aTY && TLI.supportedArray(*aTY)) {
+    assert(Indices.size() == 1 && "only support one index for array");
+    dbgs() << "insert to supported array\n";
+    Values.clear();
+    Values.push_back(Agg);
+    Values.push_back(insVal);
+    Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(aTY), Indices[0]), getCurSDLoc(), MVT::i32, false, false));
+    setValue(&I, DAG.getNode(ISD::INSERT_VALUE, getCurSDLoc(), TLI.getArrayVT(*aTY), Values));
   }
   else {
     // Copy the beginning value(s) from the original aggregate.
@@ -4126,14 +4146,29 @@ void SelectionDAGBuilder::visitExtractValue(const ExtractValueInst &I) {
 
   SDValue Agg = getValue(Op0);
   // Copy out the selected value(s).
-  if(TLI.supportedAggregate(*(dyn_cast<StructType>(AggTy)))) {
-    dbgs() << "supported Aggregate\n";
-    Values.clear(); // clear since we are pushing ops not setting.
+  if(auto* sty = dyn_cast<StructType>(AggTy)) {
+    if(TLI.supportedAggregate(*sty)) {
+      assert(Indices.size() == 1 && "only support one index for struct");
+      dbgs() << "supported Aggregate\n";
+      Values.clear(); // clear since we are pushing ops not setting.
 
-    Values.push_back(Agg);
-    Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(dyn_cast<StructType>(AggTy)), LinearIndex), getCurSDLoc(), MVT::i32, /*isTarget=*/false,
-                                 /*isOpaque*/false));
-    setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
+      Values.push_back(Agg);
+      Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(sty), Indices[0]), getCurSDLoc(), MVT::i32, /*isTarget=*/false,
+                                  /*isOpaque*/false));
+      setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
+    }
+  }
+  else if(auto* aty = dyn_cast<ArrayType>(AggTy)) {
+    if(TLI.supportedArray(*aty)) {
+      assert(Indices.size() == 1 && "only support one index for struct");
+      dbgs() << "supported Aggregate\n";
+      Values.clear(); // clear since we are pushing ops not setting.
+
+      Values.push_back(Agg);
+      Values.push_back(DAG.getConstant(TLI.linearToAggregateIndex(*(aty), Indices[0]), getCurSDLoc(), MVT::i32, /*isTarget=*/false,
+                                  /*isOpaque*/false));
+      setValue(&I, DAG.getNode(ISD::EXTRACT_VALUE, getCurSDLoc(), DAG.getVTList(ValValueVTs), Values));
+    }
   }
   else {
     dbgs() << "unsupported Aggregate\n";

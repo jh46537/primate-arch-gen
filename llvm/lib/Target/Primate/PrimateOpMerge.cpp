@@ -16,16 +16,16 @@ bool PrimateOPMerge::runOnMachineFunction(MachineFunction& MF) {
     SmallVector<MachineInstr*> MIToRemove;
     MachineRegisterInfo &MRI = MF.getRegInfo();
     assert(MRI.isSSA() && "Not in SSA for merging aggregate ext/ins");
-    for(MachineBasicBlock &MBB : MF) {
-        worklist.clear();
-        MIToRemove.clear(); 
-        for(MachineInstr &MI: MBB) {
-            MI.dump();
-            if(MI.getOpcode() != Primate::EXTRACT) {
-                worklist.push_back(&MI);
-            }
-        }
-    }
+    // for(MachineBasicBlock &MBB : MF) {
+    //     worklist.clear();
+    //     MIToRemove.clear(); 
+    //     for(MachineInstr &MI: MBB) {
+    //         MI.dump();
+    //         if(MI.getOpcode() != Primate::EXTRACT) {
+    //             worklist.push_back(&MI);
+    //         }
+    //     }
+    // }
 
     return false;
 }
