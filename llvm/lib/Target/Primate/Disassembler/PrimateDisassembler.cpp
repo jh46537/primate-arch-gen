@@ -282,29 +282,10 @@ static DecodeStatus decodeVMaskReg(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
-// Add implied SP operand for instructions *SP compressed instructions. The SP
-// operand isn't explicitly encoded in the instruction.
-static void addImplySP(MCInst &Inst, int64_t Address, const void *Decoder) {
-  if (Inst.getOpcode() == Primate::C_LWSP || Inst.getOpcode() == Primate::C_SWSP ||
-      Inst.getOpcode() == Primate::C_LDSP || Inst.getOpcode() == Primate::C_SDSP ||
-      Inst.getOpcode() == Primate::C_FLWSP ||
-      Inst.getOpcode() == Primate::C_FSWSP ||
-      Inst.getOpcode() == Primate::C_FLDSP ||
-      Inst.getOpcode() == Primate::C_FSDSP ||
-      Inst.getOpcode() == Primate::C_ADDI4SPN) {
-    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
-  }
-  if (Inst.getOpcode() == Primate::C_ADDI16SP) {
-    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
-    DecodeGPRRegisterClass(Inst, 2, Address, Decoder);
-  }
-}
-
 template <unsigned N>
 static DecodeStatus decodeUImmOperand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<N>(Imm) && "Invalid immediate");
-  addImplySP(Inst, Address, Decoder);
   Inst.addOperand(MCOperand::createImm(Imm));
   return MCDisassembler::Success;
 }
@@ -322,7 +303,6 @@ template <unsigned N>
 static DecodeStatus decodeSImmOperand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<N>(Imm) && "Invalid immediate");
-  addImplySP(Inst, Address, Decoder);
   // Sign-extend the number in the bottom N bits of Imm
   Inst.addOperand(MCOperand::createImm(SignExtend64<N>(Imm)));
   return MCDisassembler::Success;

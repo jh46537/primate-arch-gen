@@ -8994,9 +8994,10 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
 static void handlePrimateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   IdentifierLoc *PragmaNameLoc = AL.getArgAsIdent(0);
   IdentifierLoc *OptionLoc = AL.getArgAsIdent(1);
-  IdentifierLoc *SuboptionLoc = AL.getArgAsIdent(2);
-  Expr *ValueArg0 = AL.getArgAsExpr(3);
-  Expr *ValueArg1 = AL.getArgAsExpr(4);
+  IdentifierLoc *FuncUnitLoc = AL.getArgAsIdent(2);
+  IdentifierLoc *InstructionLoc = AL.getArgAsIdent(3);
+  Expr *ValueArg0 = AL.getArgAsExpr(4);
+  Expr *ValueArg1 = AL.getArgAsExpr(5);
 
   StringRef PragmaName = PragmaNameLoc->Ident->getName();
 
@@ -9008,11 +9009,14 @@ static void handlePrimateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       .Case("model", PrimateAttr::Model)
       .Default(PrimateAttr::Invalid);
 
-  StringRef Suboption = SuboptionLoc ? SuboptionLoc->Ident->getName() :
+  StringRef FuncUnit = FuncUnitLoc ? FuncUnitLoc->Ident->getName() :
+      StringRef();
+  
+  StringRef SubInstr = InstructionLoc ? InstructionLoc->Ident->getName() :
       StringRef();
 
   PrimateAttr *Attr =
-      PrimateAttr::CreateImplicit(S.Context, Option, Suboption, ValueArg0,
+      PrimateAttr::CreateImplicit(S.Context, Option, FuncUnit, SubInstr, ValueArg0,
                                   ValueArg1, AL);
   D->addAttr(Attr);
 }

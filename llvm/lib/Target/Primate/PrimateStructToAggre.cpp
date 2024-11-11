@@ -51,8 +51,10 @@ namespace llvm {
     }
 
     PreservedAnalyses PrimateStructToAggre::run(Function& F, FunctionAnalysisManager& PA) {
-        if (strcmp(demangle(F.getName()).c_str(), "primate_main") != 0)
-          return PreservedAnalyses::none();
+        if (demangle(F.getName()).find("primate_main") == std::string::npos) {
+            LLVM_DEBUG(dbgs() << "Not primate_main, skipping\n");
+            return PreservedAnalyses::none();
+        }
 
         BFUTypes = PA.getResult<PrimateBFUTypeFinding>(F);
         dbgs() << "Found " << BFUTypes.size() << " unique BFU types\n";

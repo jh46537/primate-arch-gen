@@ -25,14 +25,17 @@ struct PrimatePragma {
   IdentifierLoc *PragmaNameLoc;
   // Name of the primate option.  "blue", "green", "reg", "model"
   IdentifierLoc *OptionLoc;
-  // Name of the primate suboption. Depends on option.
-  IdentifierLoc *SuboptionLoc;
+  // Name of the primate Functional unit. Depends on option.
+  IdentifierLoc *FuncUnitNameLoc;
+  // Name of the primate instruction for this functional unit (IO unit has input and output operations)
+  IdentifierLoc *InstructionNameLoc;
   // Expression for the option argument if it exists, null otherwise.
   Expr *ValueArg0;
   Expr *ValueArg1;
 
   PrimatePragma()
-      : PragmaNameLoc(nullptr), OptionLoc(nullptr), SuboptionLoc(nullptr),
+      : PragmaNameLoc(nullptr), OptionLoc(nullptr), FuncUnitNameLoc(nullptr), 
+        InstructionNameLoc(nullptr),
         ValueArg0(nullptr), ValueArg1(nullptr) {}
 };
 

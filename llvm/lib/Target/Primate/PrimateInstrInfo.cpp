@@ -55,8 +55,6 @@ PrimateInstrInfo::PrimateInstrInfo(PrimateSubtarget &STI)
       STI(STI) {}
 
 MCInst PrimateInstrInfo::getNop() const {
-  if (STI.getFeatureBits()[Primate::FeatureStdExtC])
-    return MCInstBuilder(Primate::C_NOP);
   return MCInstBuilder(Primate::ADDI)
       .addReg(Primate::X0)
       .addReg(Primate::X0)

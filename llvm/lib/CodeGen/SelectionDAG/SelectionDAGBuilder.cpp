@@ -4328,8 +4328,10 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
 void SelectionDAGBuilder::visitAlloca(const AllocaInst &I) {
   // If this is a fixed sized alloca in the entry block of the function,
   // allocate it statically on the stack.
-  if (FuncInfo.StaticAllocaMap.count(&I))
+  if (FuncInfo.StaticAllocaMap.count(&I)) {
+    LLVM_DEBUG(dbgs() << "static alloca\n");
     return;   // getValue will auto-populate this.
+  }
 
   SDLoc dl = getCurSDLoc();
   Type *Ty = I.getAllocatedType();

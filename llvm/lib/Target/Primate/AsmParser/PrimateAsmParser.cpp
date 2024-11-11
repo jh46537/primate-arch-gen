@@ -1128,64 +1128,17 @@ bool PrimateAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     if (isPR64())
       return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 6) - 1);
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
-  case Match_InvalidUImmLog2XLenNonZero:
-    if (isPR64())
-      return generateImmOutOfRangeError(Operands, ErrorInfo, 1, (1 << 6) - 1);
-    return generateImmOutOfRangeError(Operands, ErrorInfo, 1, (1 << 5) - 1);
   case Match_InvalidUImmLog2XLenHalf:
     if (isPR64())
       return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 4) - 1);
   case Match_InvalidUImm5:
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
-  case Match_InvalidSImm6:
-    return generateImmOutOfRangeError(Operands, ErrorInfo, -(1 << 5),
-                                      (1 << 5) - 1);
-  case Match_InvalidSImm6NonZero:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, -(1 << 5), (1 << 5) - 1,
-        "immediate must be non-zero in the range");
-  case Match_InvalidCLUIImm:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 1, (1 << 5) - 1,
-        "immediate must be in [0xfffe0, 0xfffff] or");
-  case Match_InvalidUImm7Lsb00:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 0, (1 << 7) - 4,
-        "immediate must be a multiple of 4 bytes in the range");
-  case Match_InvalidUImm8Lsb00:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 0, (1 << 8) - 4,
-        "immediate must be a multiple of 4 bytes in the range");
-  case Match_InvalidUImm8Lsb000:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 0, (1 << 8) - 8,
-        "immediate must be a multiple of 8 bytes in the range");
-  case Match_InvalidSImm9Lsb0:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, -(1 << 8), (1 << 8) - 2,
-        "immediate must be a multiple of 2 bytes in the range");
-  case Match_InvalidUImm9Lsb000:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 0, (1 << 9) - 8,
-        "immediate must be a multiple of 8 bytes in the range");
-  case Match_InvalidUImm10Lsb00NonZero:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, 4, (1 << 10) - 4,
-        "immediate must be a multiple of 4 bytes in the range");
-  case Match_InvalidSImm10Lsb0000NonZero:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, -(1 << 9), (1 << 9) - 16,
-        "immediate must be a multiple of 16 bytes and non-zero in the range");
   case Match_InvalidSImm12:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 11), (1 << 11) - 1,
         "operand must be a symbol with %lo/%pcrel_lo/%tprel_lo modifier or an "
         "integer in the range");
-  case Match_InvalidSImm12Lsb0:
-    return generateImmOutOfRangeError(
-        Operands, ErrorInfo, -(1 << 11), (1 << 11) - 2,
-        "immediate must be a multiple of 2 bytes in the range");
   case Match_InvalidSImm13Lsb0:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 12), (1 << 12) - 2,
@@ -2352,10 +2305,7 @@ bool PrimateAsmParser::parseDirectiveAttribute() {
 
 void PrimateAsmParser::emitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
-  bool Res = compressInst(CInst, Inst, getSTI());
-  if (Res)
-    ++PrimateNumInstrsCompressed;
-  S.emitInstruction((Res ? CInst : Inst), getSTI());
+  S.emitInstruction((Inst), getSTI());
 }
 
 void PrimateAsmParser::emitLoadImm(MCRegister DestReg, int64_t Value,

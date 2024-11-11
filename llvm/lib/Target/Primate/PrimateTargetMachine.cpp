@@ -15,6 +15,7 @@
 #include "PrimateTargetMachine.h"
 #include "MCTargetDesc/PrimateBaseInfo.h"
 #include "Primate.h"
+#include "PrimatePrinterPass.h"
 #include "PrimateTargetObjectFile.h"
 #include "PrimateTargetTransformInfo.h"
 #include "PrimateGEPFilter.h"
@@ -241,7 +242,8 @@ void PrimateTargetMachine::registerPassBuilderCallbacks(llvm::PassBuilder &PB, b
     // FPM.addPass(llvm::PrimateGEPFilterPass());
     // FPM.addPass(llvm::PrimateStructLoadCombinerPass());
   });
-  PB.registerOptimizerLastEPCallback([this](ModulePassManager &MPM, OptimizationLevel opt) {
+  PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM, OptimizationLevel opt) {
+    MPM.addPass(llvm::PrimatePrinterPass());
     MPM.addPass(llvm::PrimateModuleCleanPass());
   });
 }

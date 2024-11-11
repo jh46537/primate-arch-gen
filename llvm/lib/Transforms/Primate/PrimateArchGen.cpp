@@ -610,7 +610,7 @@ std::vector<Value*>* PrimateArchGen::getBFCOutputs(Instruction *ii) {
                 
                 auto numIn_i = 
                     cast<ConstantInt>(cast<ConstantAsMetadata>(
-                            PrimateMetadata->getOperand(3))->getValue())
+                            PrimateMetadata->getOperand(4))->getValue())
                                                            ->getValue();
                 
                 unsigned numIn = unsigned(numIn_i.getZExtValue());
@@ -638,7 +638,7 @@ std::vector<Value*>* PrimateArchGen::getBFCInputs(Instruction *ii) {
                 
                 auto numIn_i = 
                     cast<ConstantInt>(cast<ConstantAsMetadata>(
-                        PrimateMetadata->getOperand(3))->getValue())->getValue();
+                        PrimateMetadata->getOperand(4))->getValue())->getValue();
                 
                 unsigned numIn = unsigned(numIn_i.getZExtValue());
                 
@@ -1960,7 +1960,7 @@ unsigned PrimateArchGen::getNumThreads(Module &M, unsigned numALU) {
     for (auto FI = blueFunctions.begin(); FI != blueFunctions.end(); FI++) {
         Function* bf = dyn_cast<Function>(*FI);
         MDNode *metadata = bf->getMetadata("primate");
-        auto *latency = cast<ConstantAsMetadata>(metadata->getOperand(2))->getValue();
+        auto *latency = cast<ConstantAsMetadata>(metadata->getOperand(3))->getValue();
         auto latency_val = cast<ConstantInt>(latency)->getValue();
         if (latency_val.ugt(maxVal)) {
             maxVal = latency_val;

@@ -131,11 +131,6 @@ public:
       return true;
     }
 
-    if (Inst.getOpcode() == Primate::C_JAL || Inst.getOpcode() == Primate::C_J) {
-      Target = Addr + Inst.getOperand(0).getImm();
-      return true;
-    }
-
     if (Inst.getOpcode() == Primate::JAL) {
       Target = Addr + Inst.getOperand(1).getImm();
       return true;

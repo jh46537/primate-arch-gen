@@ -11,9 +11,13 @@
 
 namespace llvm {
 
-
+cl::opt<bool> PromoteIntrinsics("pri-intrins-promote", cl::desc("toggle for intrinsic type promotion for debug"), cl::init(true));
+  
 PreservedAnalyses PrimateIntrinsicPromotion::run(Function& F, FunctionAnalysisManager& FAM) {
     LLVM_DEBUG(dbgs() << "PrimateIntrinsicPromotion\n");
+    if(!PromoteIntrinsics) {
+      return PreservedAnalyses::all();
+    }
 
     std::vector<CallInst*> worklist;
 
@@ -26,7 +30,7 @@ PreservedAnalyses PrimateIntrinsicPromotion::run(Function& F, FunctionAnalysisMa
                     continue;
                 }
 
-                if(!call->getType()->isPointerTy()) {
+                if(!(call->getType()->isPointerTy() || call->getCalledFunction()->hasStructRetAttr())) {
                     LLVM_DEBUG(dbgs() << "Call returns a value already: "; call->dump(););
                     continue;
                 }
@@ -37,10 +41,30 @@ PreservedAnalyses PrimateIntrinsicPromotion::run(Function& F, FunctionAnalysisMa
     }
 
     promoteReturnType(worklist);
-
-    // promote the args
     worklist.clear();
 
+    // convert normal ops into intrinsic ops (if needed)
+    for (auto& bb: F) {
+        for(auto &instr: bb) {
+            if (auto* call = dyn_cast<CallInst>(&instr)) {
+                MDNode* priTop = call->getCalledFunction()->getMetadata("primate");
+                if(!(priTop && dyn_cast<MDString>(priTop->getOperand(0))->getString() == "blue")) {
+                    LLVM_DEBUG(dbgs() << "Call is not a primate BFU call: "; call->dump(););
+                    continue;
+                }
+                if(isa<IntrinsicInst>(call)) {
+                    LLVM_DEBUG(dbgs() << "Call is already an intrinsic: "; call->dump(););
+                    continue;
+                }
+                worklist.push_back(call);
+            }
+        }
+    }
+    convertToIntrinsic(worklist);
+
+    worklist.clear();
+
+    // promote the args
     for (auto& bb: F) {
         for(auto &instr: bb) {
             if (auto* call = dyn_cast<CallInst>(&instr)) {
@@ -59,6 +83,37 @@ PreservedAnalyses PrimateIntrinsicPromotion::run(Function& F, FunctionAnalysisMa
     return PreservedAnalyses::none();
 }
 
+void PrimateIntrinsicPromotion::convertToIntrinsic(std::vector<CallInst*>& worklist) {
+    for (CallInst* ci: worklist) {
+        auto* calledFunc = ci->getCalledFunction();
+        IRBuilder<> builder(ci);
+        LLVM_DEBUG(dbgs() << "Converting call to intrinsic: "; ci->dump(););
+        SmallVector<Value*, 3> args;
+        SmallVector<Type*, 3> argTypes;
+
+        if (!ci->getType()->isVoidTy()) {
+            argTypes.push_back(ci->getType());
+        }
+
+        for(auto& arg: ci->args()) {
+            args.push_back(arg);
+            argTypes.push_back(arg->getType());
+        }
+
+        MDNode* priTop = calledFunc->getMetadata("primate");
+        std::string bfuUnitName = dyn_cast<MDString>(priTop->getOperand(1))->getString().str();
+        std::string bfuInstructionName = dyn_cast<MDString>(priTop->getOperand(2))->getString().str();
+        LLVM_DEBUG(dbgs() << "Looking for intrinsic named llvm.primate.BFU." << bfuUnitName << "." << bfuInstructionName << "\n"; );
+        auto intrinsicID = (llvm::Intrinsic::PRIMATEIntrinsics)ci->getParent()->getParent()->lookupIntrinsicID("llvm.primate.BFU." + bfuUnitName + "." + bfuInstructionName);
+        Function* newFunc = llvm::Intrinsic::getDeclaration(ci->getCalledFunction()->getParent(), intrinsicID, argTypes);
+        newFunc->setMetadata("primate", ci->getCalledFunction()->getMetadata("primate"));
+
+        auto* newCall = builder.CreateCall(newFunc, args);
+        ci->replaceAllUsesWith(newCall);
+        ci->eraseFromParent();
+    }
+}
+  
 void PrimateIntrinsicPromotion::promoteArgs(std::vector<CallInst*>& worklist) {
     SmallVector<Value*, 8> instructionsToRemove;
     SmallVector<Function*, 8> functionsToRemove;
@@ -116,10 +171,75 @@ void PrimateIntrinsicPromotion::promoteArgs(std::vector<CallInst*>& worklist) {
     }
 }
 
+  // 1 grab the sret pointer
+  // 2 check if function is already replaced.
+  // 3 convert the function to something that returns the value
+  // 4 replace all calls to old with new
+  // 5 store the returned value into the old sret pointer
+void PrimateIntrinsicPromotion::promoteSRET(CallInst* ci) {
+    auto* calledFunc = ci->getCalledFunction();
+
+    // 1
+    // sret always either 0 or 1
+    int argStartIdx = 1;
+    auto* returnType = calledFunc->getParamStructRetType(0);
+    auto* returnDestPtr  = ci->getArgOperand(0);
+    if(!returnType) {
+        returnType = calledFunc->getParamStructRetType(1);
+        returnDestPtr  = ci->getArgOperand(1);
+        argStartIdx = 2;
+    }
+  
+    // collect other args
+    SmallVector<Type*, 3> argTypes = {returnType};
+    SmallVector<Value*, 3> args;
+    for(auto& arg: ci->args()) {
+        if(argStartIdx) {
+            argStartIdx--;
+            continue;
+        }
+        argTypes.push_back(arg->getType());
+        args.push_back(arg);
+    }
+
+
+    // 2
+    if(replacedFunctions.find(calledFunc) != replacedFunctions.end()) {
+        auto* newFunc = replacedFunctions[calledFunc];
+        // create the new call
+        IRBuilder<> builder(ci);
+        auto* newCall = builder.CreateCall(newFunc, args);
+        builder.CreateStore(newCall, returnDestPtr);
+        ci->eraseFromParent();
+        return;
+    }
+    
+    // 3
+    MDNode* priTop = calledFunc->getMetadata("primate");
+    std::string bfuUnitName = dyn_cast<MDString>(priTop->getOperand(1))->getString().str();
+    std::string bfuInstructionName = dyn_cast<MDString>(priTop->getOperand(2))->getString().str();
+    LLVM_DEBUG(dbgs() << "Looking for intrinsic named llvm.primate.BFU." << bfuUnitName << "." << bfuInstructionName << "\n"; );
+    auto intrinsicID = (llvm::Intrinsic::PRIMATEIntrinsics)ci->getParent()->getParent()->lookupIntrinsicID("llvm.primate.BFU." + bfuUnitName + "." + bfuInstructionName);
+    Function* newFunc = llvm::Intrinsic::getDeclaration(ci->getCalledFunction()->getParent(), intrinsicID, argTypes);
+    newFunc->setMetadata("primate", ci->getCalledFunction()->getMetadata("primate"));
+
+    // 4
+    IRBuilder<> builder(ci);
+    auto* newCall = builder.CreateCall(newFunc, args);
+    builder.CreateStore(newCall, returnDestPtr);
+    ci->eraseFromParent();
+
+    replacedFunctions[calledFunc] = newFunc;
+}
+
 void PrimateIntrinsicPromotion::promoteReturnType(std::vector<CallInst*>& worklist) {
     SmallVector<Value*, 8> instructionsToRemove;
 
     for (CallInst* ci: worklist) {
+        if(ci->getCalledFunction()->hasStructRetAttr()) {
+            promoteSRET(ci);
+            continue;
+        }
         SmallVector<Value*, 2> newInstrsToRemove;
         LLVM_DEBUG(dbgs() << "Promoting call result: "; ci->dump(););
         // only promote calls that are memcpy'd

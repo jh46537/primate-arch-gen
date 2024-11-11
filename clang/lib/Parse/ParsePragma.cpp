@@ -729,7 +729,8 @@ namespace {
 struct PragmaPrimateInfo {
   Token PragmaName;
   Token Option;
-  Token Suboption;
+  Token FunctionalUnitName;
+  Token InstructionName;
   ArrayRef<Token> Toks;
 };
 } // end anonymous namespace
@@ -769,13 +770,17 @@ bool Parser::HandlePragmaPrimate(PrimatePragma &Pragma) {
   }
 
   if (OptionBlue || OptionGreen || OptionModel) {
-    IdentifierInfo *SuboptionInfo = Info->Suboption.getIdentifierInfo();
-    Pragma.SuboptionLoc = IdentifierLoc::create(
-        Actions.Context, Info->Suboption.getLocation(), SuboptionInfo);
+    IdentifierInfo *SuboptionInfo = Info->FunctionalUnitName.getIdentifierInfo();
+    Pragma.FuncUnitNameLoc = IdentifierLoc::create(
+        Actions.Context, Info->FunctionalUnitName.getLocation(), SuboptionInfo);
   }
 
   // TODO: @ahsu constants are optional
   if (OptionBlue) {
+    IdentifierInfo *InstructionInfo = Info->InstructionName.getIdentifierInfo();
+    Pragma.InstructionNameLoc = IdentifierLoc::create(
+        Actions.Context, Info->InstructionName.getLocation(),
+        InstructionInfo);
     Pragma.ValueArg0 = ParseConstantExpression().get();
     Pragma.ValueArg1 = ParseConstantExpression().get();
   }
@@ -2135,8 +2140,8 @@ void Parser::HandlePragmaAttribute() {
 }
 
 /// Parses primate pragma value and fills in Info.
-static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName,
-                              Token Option, Token Suboption,
+static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName, 
+                              Token Option, Token Suboption, Token InstructionName,
                               PragmaPrimateInfo &Info) {
   SmallVector<Token, 1> ValueList;
 
@@ -2156,7 +2161,8 @@ static bool ParsePrimateValue(Preprocessor &PP, Token &Tok, Token PragmaName,
   Info.Toks = llvm::ArrayRef(ValueList).copy(PP.getPreprocessorAllocator());
   Info.PragmaName = PragmaName;
   Info.Option = Option;
-  Info.Suboption = Suboption;
+  Info.FunctionalUnitName = Suboption;
+  Info.InstructionName = InstructionName;
 
   return true;
 }
@@ -2198,6 +2204,11 @@ void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
                                .Case("green", true)
                                .Case("model", true)
                                .Default(false);
+  
+  bool instrExpected = llvm::StringSwitch<bool>(OptionInfo->getName())
+                               .Case("blue", true)
+                               .Default(false);
+
   Token Suboption;
   if (SuboptionExpected) {
     // Lex the suboption and verify it is an identifier.
@@ -2211,9 +2222,22 @@ void PragmaPrimateHandler::HandlePragma(Preprocessor &PP,
     }
   }
 
+  Token InstructionName;
+  if (instrExpected) {
+    // Lex the subinstruction
+    PP.Lex(Tok);
+    InstructionName = Tok;
+    IdentifierInfo *InstructionInfo = Tok.getIdentifierInfo();
+    if (Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_primate_invalid_suboption)
+          << /*MissingSuboption=*/false << InstructionInfo;
+      return;
+    }
+  }
+
   PP.Lex(Tok);
   auto *Info = new (PP.getPreprocessorAllocator()) PragmaPrimateInfo;
-  if (!ParsePrimateValue(PP, Tok, PragmaName, Option, Suboption, *Info))
+  if (!ParsePrimateValue(PP, Tok, PragmaName, Option, Suboption, InstructionName, *Info))
     return;
 
   // Generate the primate token.

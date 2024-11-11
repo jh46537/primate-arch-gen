@@ -7,6 +7,6 @@
   //
   //===----------------------------------------------------------------------===//
 
-  def ItinBlue0   : InstrItinClass;
+  def ItinBlueaes128   : InstrItinClass;
 
   

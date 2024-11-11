@@ -5,6 +5,7 @@ import os
 import sys
 import argparse
 from math import log2, ceil
+import json
 
 parser = argparse.ArgumentParser(
                     prog='archgen2tablegen',
@@ -22,14 +23,13 @@ gen_file_dir = ""
 DRY_RUN = False
 VERBOSE = False
 
-def comb_str(in_str, num_iter):
-    return "".join([in_str.format(i) for i in range(num_iter)])
+def comb_str(in_str, items):
+    return "".join([in_str.format(i) for i in items])
 
 # returns the number of unique BFUs
 def parse_BFU_list(file_path):
     with open(file_path, 'r') as f:
-      # just return the number of { in the file
-      return len(re.findall(r'{', f.read()))
+      return json.loads(f.read())
 
 # returns the number of BFUs and ALUs archgen instanced
 def parse_arch_config(file_path):
@@ -468,7 +468,7 @@ def write_regfile(num_regs: int):
 # num_bfus is number of instanced BFUs
 # will need to be updated to have BFU ordering for now is in order of definition in 
 # bfu_list.txt 
-def write_schedule(num_bfus: int, num_alus: int):
+def write_schedule(num_bfus: int, num_alus: int, bfu_list: list):
   numSlots = max(num_bfus, num_alus)
 
   # BFUs and ALUs are merged starting with the last BFU slot. 
@@ -528,11 +528,11 @@ def write_schedule(num_bfus: int, num_alus: int):
         packetOrderUnitNames += [LSUnitMergedDef.format(slot)]
         funcUnitDef += unitDefTemplate.format(LSUnitMergedDef).format(slot)
       else:
-        BFUItinData += BFUItinDataTemplate.format(slot, mergedUnitDef.format(slot))
-        allGFUnitNames += [mergedUnitDef.format(slot)]
-        allBFUnitNames += [mergedUnitDef.format(slot)]
-        packetOrderUnitNames += [mergedUnitDef.format(slot)]
-        funcUnitDef += unitDefTemplate.format(mergedUnitDef).format(slot)
+        BFUItinData += BFUItinDataTemplate.format(bfu_list[slot], mergedUnitDef.format(bfu_list[slot]))
+        allGFUnitNames += [mergedUnitDef.format(bfu_list[slot])]
+        allBFUnitNames += [mergedUnitDef.format(bfu_list[slot])]
+        packetOrderUnitNames += [mergedUnitDef.format(bfu_list[slot])]
+        funcUnitDef += unitDefTemplate.format(mergedUnitDef).format(bfu_list[slot])
     elif gfu:
       allGFUnitNames += [greenUnitDef.format(slot)]
       packetOrderUnitNames += [greenUnitDef.format(slot)]
@@ -547,10 +547,10 @@ def write_schedule(num_bfus: int, num_alus: int):
         packetOrderUnitNames += [LSUnitDef.format(slot)]
         funcUnitDef += unitDefTemplate.format(LSUnitDef).format(slot)
       else:
-        BFUItinData += BFUItinDataTemplate.format(slot, blueUnitDef.format(slot))
-        allBFUnitNames += [blueUnitDef.format(slot)]
-        packetOrderUnitNames += [blueUnitDef.format(slot)]
-        funcUnitDef += unitDefTemplate.format(blueUnitDef).format(slot)
+        BFUItinData += BFUItinDataTemplate.format(bfu_list[slot], blueUnitDef.format(bfu_list[slot]))
+        allBFUnitNames += [blueUnitDef.format(bfu_list[slot])]
+        packetOrderUnitNames += [blueUnitDef.format(bfu_list[slot])]
+        funcUnitDef += unitDefTemplate.format(blueUnitDef).format(bfu_list[slot])
     else:
       print("slot is neither GFU or BFU. Should never happen")
       exit(-1)
@@ -879,10 +879,10 @@ def write_schedule(num_bfus: int, num_alus: int):
 
 # write the schedule resources that are used in the schedule
 # num_bfu is number of unique BFUs
-def write_sched_resources_def(num_bfus: int):
+def write_sched_resources_def(num_bfus: int, bfu_list: list):
   NewItinDefTemplate = "def ItinBlue{0}   : InstrItinClass;\n"
 
-  NewItinDef = comb_str(NewItinDefTemplate, max(num_bfus-2, 1))
+  NewItinDef = comb_str(NewItinDefTemplate, bfu_list)
 
   PrimateSchedule = f"""
   //===- PrimateScheduleBFUs.td - Primate Scheduling Definitions -*- tablegen -*-===//
@@ -903,10 +903,10 @@ def write_sched_resources_def(num_bfus: int):
       print(PrimateSchedule, file=f)
 
 # writes the machine instructions AND their codegen patterns for each unique BFU 
-def write_BFU_instr_info(num_bfus: int):
+def write_BFU_instr_info(num_bfus: int, bfu_list: list):
   BFUInstPatternTemplate = ("def : Pat<(int_primate_BFU_{0} WIDEREG:$rs1), (BFU{0} WIDEREG:$rs1)>;\n")
 
-  BFUInstPattern = comb_str(BFUInstPatternTemplate, max(num_bfus-2, 1))
+  BFUInstPattern = comb_str(BFUInstPatternTemplate, bfu_list)
 
   BFUInstDefsTemplate = """let Itinerary = ItinBlue{0} in
   let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
@@ -918,7 +918,7 @@ def write_BFU_instr_info(num_bfus: int):
           }}
   """
 
-  BFUInstDefs = comb_str(BFUInstDefsTemplate, max(num_bfus-2, 1))
+  BFUInstDefs = comb_str(BFUInstDefsTemplate, bfu_list)
 
   PrimateInstrInfo = f"""
   //===- PrimateInstrInfoBFU.td - Target Description for Primate *- tablegen -*-===//
@@ -947,12 +947,12 @@ def write_BFU_instr_info(num_bfus: int):
       print(PrimateInstrInfo, file=f)
     
 # writes the bfu tablegen for number of UNIQUE bfus
-def write_bfu_intrins(num_bfus: int): 
+def write_bfu_intrins(num_bfus: int, bfu_list: list): 
   PrimateIntrinsDefTemplate = """def int_primate_BFU_{0} :  Intrinsic<[llvm_any_ty], // return val
                     [llvm_any_ty], // Params: gpr w/ struct
                     [IntrHasSideEffects]>; // properties;
                   """
-  PrimateIntrinsDef = comb_str(PrimateIntrinsDefTemplate, max(num_bfus-2, 1))
+  PrimateIntrinsDef = comb_str(PrimateIntrinsDefTemplate, bfu_list)
       
   IntrinsicsPrimate = f"""
   //===- IntrinsicsPrimateBFU.td - Defines Primate BFU intrinsics ---*- tablegen -*-===//
@@ -976,10 +976,10 @@ def write_bfu_intrins(num_bfus: int):
       print(IntrinsicsPrimate, file=f)
 
 # generate builtin frontend shit
-def write_bfu_clang_builtins(num_bfus: int): 
+def write_bfu_clang_builtins(num_bfus: int, bfu_list: list): 
   # /primate/primate-compiler/clang/include/clang/Basic/BuiltinsPrimate.def
   builtin_single = """TARGET_BUILTIN(__primate_BFU_{0}, "v*v*", "nt", "")"""
-  BFU_BUILTINS = comb_str(builtin_single, max(num_bfus-2, 1))
+  BFU_BUILTINS = comb_str(builtin_single, bfu_list)
 
   builtins_str = f"""
   //==- BuiltinsPrimate.def - Primate Builtin function database ----*- C++ -*-==//
@@ -1061,11 +1061,11 @@ def write_bfu_clang_builtins(num_bfus: int):
       print(builtins_str, file=f)
 
 # front end language tablegen 
-def write_bfu_CG(num_bfus: int):
+def write_bfu_CG(num_bfus: int, bfu_list: list):
   # /primate/primate-compiler/clang/include/clang/Basic/primate_bfu.td
 
-  BFU_BUILTINS_TEMPS = """def BFU_{0}:      PrimateBuiltin<"__primate_BFU_{0}", "BB", "primate_BFU_{0}", "aes128">;"""
-  BFU_BUILTINS = comb_str(BFU_BUILTINS_TEMPS, max(num_bfus-2, 1))
+  BFU_BUILTINS_TEMPS = """def BFU_{0}:      PrimateBuiltin<"__primate_BFU_{0}", "BB", "primate_BFU_{0}", "{0}">;"""
+  BFU_BUILTINS = comb_str(BFU_BUILTINS_TEMPS, bfu_list)
 
   front_end_stuff_template = f"""
   // name is the builtin name from clang/include/clang/Basic/BuiltinsPrimate.def
@@ -1090,10 +1090,10 @@ def write_bfu_CG(num_bfus: int):
   }}
 
 
-  def input:      PrimateBuiltin<"__primate_input", "Bi", "primate_input", "IO">;
-  def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_input_done", "IO">;
-  def output:     PrimateBuiltin<"__primate_output", "Bi", "primate_output", "IO">;
-  def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_output_done", "IO">;
+  def input:      PrimateBuiltin<"__primate_input", "Bi", "primate_BFU_IO_input", "IO">;
+  def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_BFU_IO_input_done", "IO">;
+  def output:     PrimateBuiltin<"__primate_output", "Bi", "primate_BFU_IO_output", "IO">;
+  def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_BFU_IO_output_done", "IO">;
   {BFU_BUILTINS}
   """
 
@@ -1112,17 +1112,22 @@ def main():
   DRY_RUN = args.dry_run
   VERBOSE = args.verbose
   os.makedirs(gen_file_dir, exist_ok=True)
-  num_unique_bfus = parse_BFU_list(args.bfu_list) + 2 # IO and LSUs are hidden
+  bfu_dict = parse_BFU_list(args.bfu_list)
+  num_unique_bfus = len(bfu_dict) + 2 # IO and LSUs are hidden
+  bfu_list = list(bfu_dict.keys())
 
-  write_bfu_intrins(num_unique_bfus)
-  write_bfu_clang_builtins(num_unique_bfus)
-  write_bfu_CG(num_unique_bfus) 
-  write_BFU_instr_info(num_unique_bfus)
-  write_sched_resources_def(num_unique_bfus)
-
+  write_bfu_intrins(num_unique_bfus, bfu_list)
+  write_bfu_clang_builtins(num_unique_bfus, bfu_list)
+  write_bfu_CG(num_unique_bfus, bfu_list) 
+  write_BFU_instr_info(num_unique_bfus, bfu_list)
+  write_sched_resources_def(num_unique_bfus, bfu_list)
   if not args.FrontendOnly:
     num_ALUs, num_BFUs, num_regs = parse_arch_config(args.primate_cfg)
-    write_schedule(num_BFUs, num_ALUs)
+  else:
+    num_ALUs, num_BFUs, num_regs = (1, num_unique_bfus, 32)
+  write_schedule(num_BFUs, num_ALUs, bfu_list)
+
+  if not args.FrontendOnly:
     write_regfile(num_regs)
     write_instr_format(num_regs)
 

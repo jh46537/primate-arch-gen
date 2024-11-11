@@ -82,6 +82,11 @@ PrimateBFUTypeFinding::Result PrimateBFUTypeFinding::run(Function& F, FunctionAn
                                     KayvanfollowPointerForType(a)->dump();
                                     BFUTypes.insert(KayvanfollowPointerForType(a));
                                 }
+                                else {
+                                    dbgs() << "Found Primate Type: ";
+                                    a->getType()->dump();
+                                    BFUTypes.insert(a->getType());
+                                }
                             }
                         }
                     }

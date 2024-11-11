@@ -9,7 +9,7 @@
   // BFU Extension
 
   let TargetPrefix = "primate" in {  
-    def int_primate_BFU_0 :  Intrinsic<[llvm_any_ty], // return val
+    def int_primate_BFU_aes128 :  Intrinsic<[llvm_any_ty], // return val
                     [llvm_any_ty], // Params: gpr w/ struct
                     [IntrHasSideEffects]>; // properties;
                   

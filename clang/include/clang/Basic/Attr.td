@@ -3927,7 +3927,8 @@ def Primate : Attr {
   let Args = [EnumArgument<"Option", "OptionType",
                            ["blue", "green", "reg", "model", "invalid"],
                            ["Blue", "Green", "Reg", "Model", "Invalid"]>,
-              StringArgument<"Suboption">,
+              StringArgument<"FuncUnitName">,
+              StringArgument<"InstructionName">,
               ExprArgument<"ValueArg0">, ExprArgument<"ValueArg1">];
 
   let AdditionalMembers = [{

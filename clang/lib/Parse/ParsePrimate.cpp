@@ -20,7 +20,7 @@ using namespace clang;
 
 // Parse Primate pragma annotating a free function
 // use:
-//   #pragma primate blue <func_name> ...
+//   #pragma primate blue <Functional Unit Name> <Function> ...
 //   #pragma primate green input_read
 //   #pragma primate green input_seek
 //   #pragma primate green output_write
@@ -49,11 +49,12 @@ SourceLocation Parser::ParsePragmaPrimateFreeFunction(DeclSpec &DS) {
   EndLoc = Pragma.Range.getEnd();
 
   ArgsUnion ArgsPragma[] = {Pragma.PragmaNameLoc, Pragma.OptionLoc,
-                            Pragma.SuboptionLoc,
+                            Pragma.FuncUnitNameLoc,
+                            Pragma.InstructionNameLoc,
                             ArgsUnion(Pragma.ValueArg0),
                             ArgsUnion(Pragma.ValueArg1)};
   Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
-               Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
+               Pragma.PragmaNameLoc->Loc, ArgsPragma, 6,
                AttributeCommonInfo::Form::Pragma());
   DS.takeAttributesFrom(Attrs);
 
@@ -62,7 +63,7 @@ SourceLocation Parser::ParsePragmaPrimateFreeFunction(DeclSpec &DS) {
 
 // Parse Primate pragma annotating a class member (function or nested class)
 // use:
-//   #pragma primate blue <func_name> ...
+//   #pragma primate blue <FU Name> <Instruction> ...
 //   #pragma primate reg
 void Parser::ParsePragmaPrimateClassMember(AccessSpecifier &AS,
     ParsedAttributes &AccessAttrs, DeclSpec::TST TagType,
@@ -82,11 +83,12 @@ void Parser::ParsePragmaPrimateClassMember(AccessSpecifier &AS,
   EndLoc = Pragma.Range.getEnd();
 
   ArgsUnion ArgsPragma[] = {Pragma.PragmaNameLoc, Pragma.OptionLoc,
-                            Pragma.SuboptionLoc,
+                            Pragma.FuncUnitNameLoc,
+                            Pragma.InstructionNameLoc,
                             ArgsUnion(Pragma.ValueArg0),
                             ArgsUnion(Pragma.ValueArg1)};
   Attrs.addNew(Pragma.PragmaNameLoc->Ident, Pragma.Range, nullptr,
-               Pragma.PragmaNameLoc->Loc, ArgsPragma, 5,
+               Pragma.PragmaNameLoc->Loc, ArgsPragma, 6,
                AttributeCommonInfo::Form::Pragma());
 
   if (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&

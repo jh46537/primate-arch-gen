@@ -179,32 +179,6 @@ void PrimateAsmBackend::relaxInstruction(MCInst &Inst,
   switch (Inst.getOpcode()) {
   default:
     llvm_unreachable("Opcode not expected!");
-  case Primate::C_BEQZ:
-    // c.beqz $rs1, $imm -> beq $rs1, X0, $imm.
-    Res.setOpcode(Primate::BEQ);
-    Res.addOperand(Inst.getOperand(0));
-    Res.addOperand(MCOperand::createReg(Primate::X0));
-    Res.addOperand(Inst.getOperand(1));
-    break;
-  case Primate::C_BNEZ:
-    // c.bnez $rs1, $imm -> bne $rs1, X0, $imm.
-    Res.setOpcode(Primate::BNE);
-    Res.addOperand(Inst.getOperand(0));
-    Res.addOperand(MCOperand::createReg(Primate::X0));
-    Res.addOperand(Inst.getOperand(1));
-    break;
-  case Primate::C_J:
-    // c.j $imm -> jal X0, $imm.
-    Res.setOpcode(Primate::JAL);
-    Res.addOperand(MCOperand::createReg(Primate::X0));
-    Res.addOperand(Inst.getOperand(0));
-    break;
-  case Primate::C_JAL:
-    // c.jal $imm -> jal X1, $imm.
-    Res.setOpcode(Primate::JAL);
-    Res.addOperand(MCOperand::createReg(Primate::X1));
-    Res.addOperand(Inst.getOperand(0));
-    break;
   }
   Inst = std::move(Res);
 }
@@ -338,19 +312,12 @@ bool PrimateAsmBackend::relaxDwarfCFA(MCDwarfCallFrameFragment &DF,
   return true;
 }
 
-// Given a compressed control flow instruction this function returns
-// the expanded instruction.
+// used to give a compressed instruction. I don't want to support that
+// so now it looks like this.
 unsigned PrimateAsmBackend::getRelaxedOpcode(unsigned Op) const {
   switch (Op) {
   default:
     return Op;
-  case Primate::C_BEQZ:
-    return Primate::BEQ;
-  case Primate::C_BNEZ:
-    return Primate::BNE;
-  case Primate::C_J:
-  case Primate::C_JAL: // fall through.
-    return Primate::JAL;
   }
 }
 

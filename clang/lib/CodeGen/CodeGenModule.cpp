@@ -7674,7 +7674,8 @@ void CodeGenModule::AddPrimateMetadata(llvm::Function *F, const Decl *D,
 
       switch (PA->getOption()) {
       case PrimateAttr::Blue: {
-          llvm::StringRef suboption = PA->getSuboption();
+          llvm::StringRef suboption = PA->getFuncUnitName();
+          llvm::StringRef subInstrName = PA->getInstructionName();
           uint64_t arg0 = PA->getValueArg0()->
               EvaluateKnownConstInt(ASTCtx).getZExtValue();
           uint64_t arg1 = PA->getValueArg1()->
@@ -7684,6 +7685,7 @@ void CodeGenModule::AddPrimateMetadata(llvm::Function *F, const Decl *D,
           llvm::MDNode* metadata = llvm::MDNode::get(Ctx,
               {llvm::MDString::get(Ctx, "blue"),
                llvm::MDString::get(Ctx, suboption),
+               llvm::MDString::get(Ctx, subInstrName),
                llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
                   llvm::Type::getInt64Ty(Ctx), arg0)),
                llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
@@ -7694,7 +7696,7 @@ void CodeGenModule::AddPrimateMetadata(llvm::Function *F, const Decl *D,
         break;
 
       case PrimateAttr::Green: {
-          llvm::StringRef suboption = PA->getSuboption();
+          llvm::StringRef suboption = PA->getFuncUnitName();
 
           llvm::LLVMContext& Ctx = F->getContext();
           llvm::MDNode* metadata = llvm::MDNode::get(Ctx,

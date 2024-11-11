@@ -88,19 +88,19 @@ let TargetPrefix = "primate" in {
 		  [IntrNoMem, IntrSpeculatable, IntrWillReturn]>; // properties
 
   // primate ops
-  def int_primate_input :  Intrinsic<[llvm_any_ty], // return val
+  def int_primate_BFU_IO_input :  Intrinsic<[llvm_any_ty], // return val
                   [llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
-  def int_primate_input_done :  Intrinsic<[], // return val
+  def int_primate_BFU_IO_input_done :  Intrinsic<[], // return val
                   [], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
     
-  def int_primate_output :  Intrinsic<[], // return val
+  def int_primate_BFU_IO_output :  Intrinsic<[], // return val
                   [llvm_any_ty, llvm_any_ty], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;
                 
-  def int_primate_output_done :  Intrinsic<[], // return val
+  def int_primate_BFU_IO_output_done :  Intrinsic<[], // return val
                   [], // Params: imm12
 		              [IntrNoMem, IntrHasSideEffects]>; // properties;                
 

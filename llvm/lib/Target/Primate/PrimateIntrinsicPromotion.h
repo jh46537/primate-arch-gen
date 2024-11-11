@@ -25,8 +25,10 @@
 
 #include "PrimateBFUTypeFindingPass.h"
 #include "llvm/IR/IntrinsicsPrimate.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace llvm {
+  
   struct PrimateIntrinsicPromotion : public PassInfoMixin<PrimateIntrinsicPromotion> {
     std::unordered_map<Function*, Function*> replacedFunctions;
     std::unordered_map<AllocaInst*, Value*> latestAllocaValue;
@@ -41,7 +43,9 @@ namespace llvm {
     PreservedAnalyses run(Function&, FunctionAnalysisManager&);
     static bool isRequired() { return true; }
     void promoteReturnType(std::vector<CallInst*>& worklist);
+    void promoteSRET(CallInst* ci);
     void promoteArgs(std::vector<CallInst*>& worklist);
+    void convertToIntrinsic(std::vector<CallInst*>& worklist);
 
   };
 }

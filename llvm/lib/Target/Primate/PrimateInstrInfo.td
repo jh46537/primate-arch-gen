@@ -1273,12 +1273,12 @@ def : Pat<(XLenVT (setgt  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (SLT GPR:$rs2,
 def : Pat<(XLenVT (setge  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLT GPR:$rs1, GPR:$rs2)), 1)>;
 def : Pat<(XLenVT (setle  (XLenVT GPR:$rs1), (XLenVT GPR:$rs2))), (XORI (XLenVT (SLT GPR:$rs2, GPR:$rs1)), 1)>;
 
-def : Pat<(int_primate_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
-def : Pat<(int_primate_output_done), (OUTPUT_DONE)>;
+def : Pat<(int_primate_BFU_IO_output WIDEREG:$rs1, simm12:$imm), (OUTPUT_WRITE WIDEREG:$rs1, simm12:$imm)>;
+def : Pat<(int_primate_BFU_IO_output_done), (OUTPUT_DONE)>;
 
-def : Pat<(int_primate_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
-def : Pat<(int_primate_input (XLenVT GPR:$rs1)), (INPUT_READ (XLenVT GPR:$rs1), (XLenVT 0))>;
-def : Pat<(int_primate_input_done), (INPUT_DONE)>;
+def : Pat<(int_primate_BFU_IO_input simm12:$imm), (INPUT_READ (XLenVT X0), simm12:$imm)>;
+def : Pat<(int_primate_BFU_IO_input (XLenVT GPR:$rs1)), (INPUT_READ (XLenVT GPR:$rs1), (XLenVT 0))>;
+def : Pat<(int_primate_BFU_IO_input_done), (INPUT_DONE)>;
 
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty, ValueType vt = XLenVT>
@@ -1962,7 +1962,6 @@ include "PrimateInstrInfoM.td"
 include "PrimateInstrInfoA.td"
 include "PrimateInstrInfoF.td"
 include "PrimateInstrInfoD.td"
-include "PrimateInstrInfoC.td"
 include "PrimateInstrInfoB.td"
 include "PrimateInstrInfoZfh.td"
 

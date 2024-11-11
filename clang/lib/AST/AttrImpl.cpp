@@ -20,7 +20,7 @@ using namespace clang;
 void PrimateAttr::printPrettyPragma(raw_ostream &OS,
                                    const PrintingPolicy &Policy) const {
   unsigned SpellingIndex = getAttributeSpellingListIndex();
-  OS << ' ' << getOptionName(option) << ' ' << suboption << ' ' <<
+  OS << ' ' << getOptionName(option) << ' ' << funcUnitName << ' ' << instructionName << ' ' <<
       getValueString(Policy);
 }
 

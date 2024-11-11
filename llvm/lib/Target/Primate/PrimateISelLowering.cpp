@@ -179,6 +179,7 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::INTRINSIC_W_CHAIN,  MVT::Other, LegalizeAction::Custom);
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, LegalizeAction::Custom);
   setOperationAction(ISD::INTRINSIC_VOID,     MVT::Other, LegalizeAction::Custom);
+  // setOperationAction(ISD::STORE, MVT::i32, LegalizeAction::Custom);
   
   // TODO: add all necessary setOperationAction calls.
   setOperationAction(ISD::DYNAMIC_STACKALLOC, XLenVT, Expand);
@@ -2419,16 +2420,8 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
   case ISD::ANY_EXTEND:
   case ISD::ZERO_EXTEND:
     llvm_unreachable("Primate should not custom lower ZEXT");
-    // if (Op.getOperand(0).getValueType().isVector() &&
-    //     Op.getOperand(0).getValueType().getVectorElementType() == MVT::i1)
-    //   return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ 1);
-    // return lowerFixedLengthVectorExtendToPRV(Op, DAG, PrimateISD::VZEXT_VL);
   case ISD::SIGN_EXTEND:
     llvm_unreachable("Primate should not custom lower SEXT");
-    // if (Op.getOperand(0).getValueType().isVector() &&
-    //     Op.getOperand(0).getValueType().getVectorElementType() == MVT::i1)
-    //   return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ -1);
-    // return lowerFixedLengthVectorExtendToPRV(Op, DAG, PrimateISD::VSEXT_VL);
   case ISD::SPLAT_VECTOR_PARTS:
     return lowerSPLAT_VECTOR_PARTS(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:
@@ -2437,37 +2430,6 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
     return lowerEXTRACT_VECTOR_ELT(Op, DAG);
   case ISD::VSCALE: {
     llvm_unreachable("Primate should not see VSCALE");
-    // MVT VT = Op.getSimpleValueType();
-    // SDLoc DL(Op);
-    // SDValue VLENB = DAG.getNode(PrimateISD::READ_VLENB, DL, VT);
-    // // We define our scalable vector types for lmul=1 to use a 64 bit known
-    // // minimum size. e.g. <vscale x 2 x i32>. VLENB is in bytes so we calculate
-    // // vscale as VLENB / 8.
-    // assert(Primate::PRVBitsPerBlock == 64 && "Unexpected bits per block!");
-    // if (isa<ConstantSDNode>(Op.getOperand(0))) {
-    //   // We assume VLENB is a multiple of 8. We manually choose the best shift
-    //   // here because SimplifyDemandedBits isn't always able to simplify it.
-    //   uint64_t Val = Op.getConstantOperandVal(0);
-    //   if (isPowerOf2_64(Val)) {
-    //     uint64_t Log2 = Log2_64(Val);
-    //     if (Log2 < 3)
-    //       return DAG.getNode(ISD::SRL, DL, VT, VLENB,
-    //                          DAG.getConstant(3 - Log2, DL, VT));
-    //     if (Log2 > 3)
-    //       return DAG.getNode(ISD::SHL, DL, VT, VLENB,
-    //                          DAG.getConstant(Log2 - 3, DL, VT));
-    //     return VLENB;
-    //   }
-    //   // If the multiplier is a multiple of 8, scale it down to avoid needing
-    //   // to shift the VLENB value.
-    //   if ((Val % 8) == 0)
-    //     return DAG.getNode(ISD::MUL, DL, VT, VLENB,
-    //                        DAG.getConstant(Val / 8, DL, VT));
-    // }
-
-    // SDValue VScale = DAG.getNode(ISD::SRL, DL, VT, VLENB,
-    //                              DAG.getConstant(3, DL, VT));
-    // return DAG.getNode(ISD::MUL, DL, VT, VScale, Op.getOperand(0));
   }
   case ISD::FP_EXTEND: {
     // PRV can only do fp_extend to types double the size as the source. We
@@ -2538,19 +2500,6 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
       return convertFromScalableVector(VT, Src, DAG, Subtarget);
     }
     llvm_unreachable("Primate should not see a vector for FP Rounding");
-
-    // SDValue Mask, VL;
-    // std::tie(Mask, VL) = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
-
-    // MVT InterVT = ContainerVT.changeVectorElementType(MVT::f32);
-    // SDValue IntermediateRound =
-    //     DAG.getNode(PrimateISD::VFNCVT_ROD_VL, DL, InterVT, Src, Mask, VL);
-    // SDValue Round = getPRVFPExtendOrRound(IntermediateRound, VT, ContainerVT,
-    //                                       DL, DAG, Subtarget);
-
-    // if (VT.isFixedLengthVector())
-    //   return convertFromScalableVector(VT, Round, DAG, Subtarget);
-    // return Round;
   }
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
@@ -2563,98 +2512,6 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
     if (!VT.isVector())
       return Op;
     llvm_unreachable("Primate should not see a vector for type conversions to FP");
-    // SDLoc DL(Op);
-    // SDValue Src = Op.getOperand(0);
-    // MVT EltVT = VT.getVectorElementType();
-    // MVT SrcVT = Src.getSimpleValueType();
-    // MVT SrcEltVT = SrcVT.getVectorElementType();
-    // unsigned EltSize = EltVT.getSizeInBits();
-    // unsigned SrcEltSize = SrcEltVT.getSizeInBits();
-    // assert(isPowerOf2_32(EltSize) && isPowerOf2_32(SrcEltSize) &&
-    //        "Unexpected vector element types");
-
-    // bool IsInt2FP = SrcEltVT.isInteger();
-    // // Widening conversions
-    // if (EltSize > SrcEltSize && (EltSize / SrcEltSize >= 4)) {
-    //   if (IsInt2FP) {
-    //     // Do a regular integer sign/zero extension then convert to float.
-    //     MVT IVecVT = MVT::getVectorVT(MVT::getIntegerVT(EltVT.getSizeInBits()),
-    //                                   VT.getVectorElementCount());
-    //     unsigned ExtOpcode = Op.getOpcode() == ISD::UINT_TO_FP
-    //                              ? ISD::ZERO_EXTEND
-    //                              : ISD::SIGN_EXTEND;
-    //     SDValue Ext = DAG.getNode(ExtOpcode, DL, IVecVT, Src);
-    //     return DAG.getNode(Op.getOpcode(), DL, VT, Ext);
-    //   }
-    //   // FP2Int
-    //   assert(SrcEltVT == MVT::f16 && "Unexpected FP_TO_[US]INT lowering");
-    //   // Do one doubling fp_extend then complete the operation by converting
-    //   // to int.
-    //   MVT InterimFVT = MVT::getVectorVT(MVT::f32, VT.getVectorElementCount());
-    //   SDValue FExt = DAG.getFPExtendOrRound(Src, DL, InterimFVT);
-    //   return DAG.getNode(Op.getOpcode(), DL, VT, FExt);
-    // }
-
-    // // Narrowing conversions
-    // if (SrcEltSize > EltSize && (SrcEltSize / EltSize >= 4)) {
-    //   if (IsInt2FP) {
-    //     // One narrowing int_to_fp, then an fp_round.
-    //     assert(EltVT == MVT::f16 && "Unexpected [US]_TO_FP lowering");
-    //     MVT InterimFVT = MVT::getVectorVT(MVT::f32, VT.getVectorElementCount());
-    //     SDValue Int2FP = DAG.getNode(Op.getOpcode(), DL, InterimFVT, Src);
-    //     return DAG.getFPExtendOrRound(Int2FP, DL, VT);
-    //   }
-    //   // FP2Int
-    //   // One narrowing fp_to_int, then truncate the integer. If the float isn't
-    //   // representable by the integer, the result is poison.
-    //   MVT IVecVT =
-    //       MVT::getVectorVT(MVT::getIntegerVT(SrcEltVT.getSizeInBits() / 2),
-    //                        VT.getVectorElementCount());
-    //   SDValue FP2Int = DAG.getNode(Op.getOpcode(), DL, IVecVT, Src);
-    //   return DAG.getNode(ISD::TRUNCATE, DL, VT, FP2Int);
-    // }
-
-    // // Scalable vectors can exit here. Patterns will handle equally-sized
-    // // conversions halving/doubling ones.
-    // if (!VT.isFixedLengthVector())
-    //   return Op;
-
-    // // For fixed-length vectors we lower to a custom "VL" node.
-    // unsigned PRVOpc = 0;
-    // switch (Op.getOpcode()) {
-    // default:
-    //   llvm_unreachable("Impossible opcode");
-    // case ISD::FP_TO_SINT:
-    //   PRVOpc = PrimateISD::FP_TO_SINT_VL;
-    //   break;
-    // case ISD::FP_TO_UINT:
-    //   PRVOpc = PrimateISD::FP_TO_UINT_VL;
-    //   break;
-    // case ISD::SINT_TO_FP:
-    //   PRVOpc = PrimateISD::SINT_TO_FP_VL;
-    //   break;
-    // case ISD::UINT_TO_FP:
-    //   PRVOpc = PrimateISD::UINT_TO_FP_VL;
-    //   break;
-    // }
-
-    // MVT ContainerVT, SrcContainerVT;
-    // // Derive the reference container type from the larger vector type.
-    // if (SrcEltSize > EltSize) {
-    //   SrcContainerVT = getContainerForFixedLengthVector(SrcVT);
-    //   ContainerVT =
-    //       SrcContainerVT.changeVectorElementType(VT.getVectorElementType());
-    // } else {
-    //   ContainerVT = getContainerForFixedLengthVector(VT);
-    //   SrcContainerVT = ContainerVT.changeVectorElementType(SrcEltVT);
-    // }
-
-    // SDValue Mask, VL;
-    // std::tie(Mask, VL) = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
-
-    // Src = convertToScalableVector(SrcContainerVT, Src, DAG, Subtarget);
-    // Src = DAG.getNode(PRVOpc, DL, ContainerVT, Src, Mask, VL);
-    // return convertFromScalableVector(VT, Src, DAG, Subtarget);
   }
   case ISD::VECREDUCE_ADD:
   case ISD::VECREDUCE_UMAX:
@@ -2709,6 +2566,7 @@ SDValue PrimateTargetLowering::LowerOperation(SDValue Op,
       return lowerFixedLengthVectorLoadToPRV(Op, DAG);
     return Op;
   case ISD::STORE:
+    LLVM_DEBUG(dbgs() << "kayvan STORE\n");
     if (auto V = expandUnalignedPRVStore(Op, DAG))
       return V;
     if (Op.getOperand(1).getValueType().isFixedLengthVector())
@@ -3892,7 +3750,7 @@ SDValue PrimateTargetLowering::LowerINTRINSIC_VOID(SDValue Op,
   default:
     LLVM_DEBUG(dbgs()<< "no custom lower for this void intrin\n");
     return Op;
-  case Intrinsic::primate_output:{
+  case Intrinsic::primate_BFU_IO_output:{
     if(hasChain) {
       SDValue chain  = Op.getOperand(0);
       SDValue intrin = Op.getOperand(1);
@@ -3936,7 +3794,7 @@ SDValue PrimateTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
   SDLoc DL(Op);
   unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
   switch (IntNo) {
-  case Intrinsic::primate_input:{
+  case Intrinsic::primate_BFU_IO_input:{
     SDValue chain  = Op.getOperand(0);
     SDValue intrin = Op.getOperand(1);
     SDValue bytes  = Op.getOperand(2);
@@ -5495,7 +5353,7 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
-    case Intrinsic::primate_input: {
+    case Intrinsic::primate_BFU_IO_input: {
       SmallVector<SDValue> ops = {N->getOperand(0), N->getOperand(1), N->getOperand(2)};
       SmallVector<EVT> retTypes = {MVT::Primate_aggregate, MVT::Other};
 
@@ -5517,7 +5375,7 @@ void PrimateTargetLowering::ReplaceNodeResults(SDNode *N,
     default:
       llvm_unreachable(
           "Don't know how to custom type legalize this intrinsic!");
-    case Intrinsic::primate_input: {
+    case Intrinsic::primate_BFU_IO_input: {
       auto& TLI = DAG.getTargetLoweringInfo();
       SmallVector<SDValue> ops = {N->getOperand(0), N->getOperand(1)};
       SmallVector<EVT> retTypes = {MVT::Primate_aggregate};
