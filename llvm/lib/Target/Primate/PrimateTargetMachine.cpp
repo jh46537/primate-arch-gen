@@ -27,6 +27,7 @@
 #include "TargetInfo/PrimateTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/Analysis/PrimateBFUColoring.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/MIRParser/MIParser.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
