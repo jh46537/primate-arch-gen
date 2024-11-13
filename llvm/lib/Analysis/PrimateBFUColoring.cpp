@@ -1,27 +1,37 @@
-#include "llvm/ADT/StringRef.h"
-#include "llvm/IR/Instruction.h"
-#include "llvm/Analysis/PrimateBFUColoring.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/PrimateBFUColoring.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
+#include <utility>
 
 using namespace llvm;
 
 
 PreservedAnalyses PrimateBFUColoring::run(Function &F, 
                                           FunctionAnalysisManager& AM) {
-  LLVM_DEBUG(dbgs() << "\n==========================\n"
-                    << "Here in PrimateBFUColoring\n\n" 
-                    << "Current Function: " << F.getName() << "\n");
-  
-  if (isBFU(F))
-    colorSubBFUs(F);
-  else
-    dbgs() << F.getName() << "is NOT a BFU function\n\n";
 
-  LLVM_DEBUG(dbgs() << "Dump current function:\n"; F.dump());
+  LLVM_DEBUG(dbgs() << "\n==========================\n"
+                    << "Here in PrimateBFUColoring\n\n");
+  
+  if (isBFU(F)) {
+    LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
+    LLVM_DEBUG(dbgs() << "\nCreate new ISD Op map\n");
+    ISDOps = new ValueMap<Instruction *, ISDOperation *>();
+    
+    colorSubBFUs(F);
+    
+    LLVM_DEBUG(dbgs() << "\nDelete ISD Op map\n");
+    delete ISDOps;
+  }
+  else {
+    LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
+  }
 
   LLVM_DEBUG(dbgs() << "\nBye from PrimateBFUColoring" 
                     << "\n==========================\n\n");
@@ -30,61 +40,174 @@ PreservedAnalyses PrimateBFUColoring::run(Function &F,
 }
 
 bool PrimateBFUColoring::isBFU(Function &F) {
-  SmallVector<std::pair<unsigned int, MDNode *>> MDs;
-  F.getAllMetadata(MDs);
-  for (const auto &MD : MDs) {
-    MDNode *MDN = MD.second;
+  MDNode* PMD = F.getMetadata("primate");
+  if (PMD && 
+      dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue") {
+    LLVM_DEBUG(dbgs() << "Dump BFU metadata: "; PMD->dump(); dbgs() << "\n");
     
-    LLVM_DEBUG(dbgs() << "Metadata entry " << MD.first << ": "; MDN->dump());
+    std::string BFUName;
+    raw_string_ostream NameStream(BFUName);
+    PMD->getOperand(2)->print(NameStream);
+    
+    // remove the !" and " from the name
+    // BFUName.erase(BFUName.begin(), BFUName.begin() + 1);
+    // BFUName.erase(BFUName.end());
+    
+    LLVM_DEBUG(dbgs() << "\nBFU name: " << BFUName << "\n\n");
 
-    for (const auto &OP :MDN->operands()) {
-      if (OP.equalsStr("blue"))
-        return true;
-    }
+    return true;
   }
   return false;
 }
 
 void PrimateBFUColoring::colorSubBFUs(Function &F) {
-  dbgs() << F.getName() << "is a BFU function!\n";
+  LLVM_DEBUG(dbgs() << "\nPopulate ISD Op map\n\n");
   for (auto &BB : F) {
-    dbgs() << " >>> Basic Block: " << BB.getName() << "\n";
+    LLVM_DEBUG(dbgs() << "Basic Block: " << BB.getName() << "\n");
     for (auto &I : BB) {
-      dbgs() << " >>>     Current instruction: ";
-      I.dump();
+      // "New Pattern" for tablegen
+      std::pair<Instruction *, ISDOperation *> NP(&I, new ISDOperation);
+      
+      opcodeToISD(I.getOpcode(), NP.second);
 
-      auto CurrOP = opcodeToISD(I.getOpcode());
-      dbgs() << " >>>     Operands:\n";
+      LLVM_DEBUG(dbgs() << "Current instruction: "; I.dump());
+
+      if (NP.second->Opcode == ISD::DELETED_NODE) {
+        LLVM_DEBUG(dbgs() << "Pattern for this instr is not supported yet\n\n"); 
+        continue;
+      }
+
+      LLVM_DEBUG(dbgs() << "ISD Opname: " << NP.second->OPName << "\n");
+
       for (auto &OP : I.operands()) {
-        dbgs() << " >>>    ";
-        OP->getType()->dump();
-        dbgs() << " >>>    Type ID: " << OP->getType()->getTypeID() << "\n";
+        LLVM_DEBUG(dbgs() << "op num " << OP.getOperandNo() << ":\n"); 
+
+        bool IsDependency = false; // is the current operand an instr dependency?
+        ISDOperation *DISD = nullptr;
+
+        if (auto *IOP = dyn_cast<Instruction>(OP)) {
+          DISD = (*ISDOps)[IOP];
+          if (DISD && DISD->Opcode != ISD::DELETED_NODE) {
+            LLVM_DEBUG(dbgs() << "This op is an instruction!\n");
+            NP.second->Dependencies.push_back(IOP);
+            IsDependency = true;
+          }
+        }
+
+        std::string NewOP;
+        raw_string_ostream NewOPStream(NewOP);
+        if (IsDependency) {
+          NewOPStream << DISD->dump();
+        }
+        else {
+          switch (OP->getType()->getTypeID()) {
+            case 13:
+              NewOPStream << "GPR:$rs"; 
+              NewOPStream << OP.getOperandNo();
+              break;
+
+            // case 15:
+            //   dbgs() << "GPR:$rs";
+            //   break;
+
+            default:
+              NewOPStream << "NULL"; 
+              // LLVM_DEBUG(dbgs() << "        Operand is probably not a GPR\n");
+          }
+        }
+        NP.second->Operands.push_back(NewOP);
+        LLVM_DEBUG(dbgs() << "Operand Pattern: " << NewOP << "\n\n");
       }
       
-      if (CurrOP == ISD::DELETED_NODE)
-        continue;
-      if (CurrOP == ISD::BR || CurrOP == ISD::RETURNADDR)
-       break;
-      
-      // for (const auto &U : I.uses()) {
-      //   dbgs() << "Use type: ";
-      //   U->getType()->dump();
+      // dbgs() << " >>>     This intruction's has " << I.getNumUses() << " users:\n";
+      // for (const auto &U : I.users()) {
+      //   dbgs() << " >>>     ";
+      //   U->dump();
+      //   // dbgs() << " >>>     Use type: ";
+      //   // U->getType()->dump();
+      //   LLVM_DEBUG(dbgs() << "\n");
       // }
 
-      dbgs() << " >>> Add metadata... \n";
-      I.setMetadata("collapse-to-BFU-call", nullptr);
-      dbgs() << " >>> Dump Instr after adding metadata:\t";
-      I.dump();
+      LLVM_DEBUG(dbgs() << NP.second->dump() << "\n\n");
+      ISDOps->insert(NP);
     }
-    dbgs() << "\n\n";
   }
 }
 
-ISD::NodeType PrimateBFUColoring::opcodeToISD(unsigned int OP) {
-  LLVM_DEBUG(dbgs() << " >>>     Current Opcode: ");
+void PrimateBFUColoring::opcodeToISD(unsigned int OP, ISDOperation *ISDOP) {
   switch (OP) {
-    case Instruction::Ret: LLVM_DEBUG(dbgs() << "return\n");  return ISD::RETURNADDR;
-    case Instruction::Br:  LLVM_DEBUG(dbgs() << "branch\n");  return ISD::BR;
+    case Instruction::Ret:  
+      ISDOP->OPName = "return"; 
+      ISDOP->Opcode = ISD::RETURNADDR;
+      break;
+
+    case Instruction::Br:   
+      ISDOP->OPName = "branch"; 
+      ISDOP->Opcode = ISD::BR;
+      break;
+
+    case Instruction::Add:  
+      ISDOP->OPName = "add";    
+      ISDOP->Opcode = ISD::ADD;
+      break;
+
+    case Instruction::Sub:  
+      ISDOP->OPName = "sub";    
+      ISDOP->Opcode = ISD::SUB;
+      break;
+
+    case Instruction::Mul:  
+      ISDOP->OPName = "mul";    
+      ISDOP->Opcode = ISD::MUL;
+      break;
+
+    case Instruction::And:  
+      ISDOP->OPName = "and";    
+      ISDOP->Opcode = ISD::AND;
+      break;
+
+    case Instruction::Or :  
+      ISDOP->OPName = "or" ;    
+      ISDOP->Opcode = ISD::OR;
+      break;
+
+    case Instruction::Xor:  
+      ISDOP->OPName = "xor";    
+      ISDOP->Opcode = ISD::XOR;
+      break;
+
+    case Instruction::Load: 
+      ISDOP->OPName = "load";   
+      // ISDOP->Opcode = ISD::LOAD;
+      ISDOP->Opcode = ISD::DELETED_NODE;
+      break;
+
+    case Instruction::Store:
+      ISDOP->OPName = "store";  
+      ISDOP->Opcode = ISD::STORE;
+      break;
+
+    case Instruction::GetElementPtr:
+      ISDOP->OPName = "GEP is a lie";  
+      ISDOP->Opcode = ISD::DELETED_NODE;
+      break;
+
+    default: 
+      LLVM_DEBUG(dbgs() << "<Invalid operator>\n"); 
+      ISDOP->Opcode = ISD::DELETED_NODE;
+  }
+}
+
+  // case Instruction::FSub:  return ISD::FSUB;
+  // case Instruction::FAdd:  return ISD::FADD;
+  // case Instruction::FMul:  return ISD::MUL;
+  // case Instruction::UDiv:  return ISD::UDIV;
+  // case Instruction::SDiv:  return ISD::SDIV;
+  // case Instruction::FDiv:  return ISD::FDIV;
+  // case Instruction::URem:  return ISD::UREM;
+  // case Instruction::SRem:  return ISD::SREM;
+  // case Instruction::FRem:  return ISD::FREM;
+
   // case Switch: return "switch";
   // case IndirectBr: return "indirectbr";
   // case Invoke: return "invoke";
@@ -100,32 +223,11 @@ ISD::NodeType PrimateBFUColoring::opcodeToISD(unsigned int OP) {
   // case FNeg: return "fneg";
 
     // Standard binary operators...
-    case Instruction::Add:  LLVM_DEBUG(dbgs() << "add\n");  return ISD::ADD;
-    case Instruction::FAdd: LLVM_DEBUG(dbgs() << "fadd\n"); return ISD::FADD;
-    case Instruction::Sub:  LLVM_DEBUG(dbgs() << "sub\n");  return ISD::SUB;
-    case Instruction::FSub: LLVM_DEBUG(dbgs() << "fsub\n"); return ISD::FSUB;
-    case Instruction::Mul:  LLVM_DEBUG(dbgs() << "mul\n");  return ISD::MUL;
-    case Instruction::FMul: LLVM_DEBUG(dbgs() << "fmul\n"); return ISD::MUL;
-    case Instruction::UDiv: LLVM_DEBUG(dbgs() << "udiv\n"); return ISD::UDIV;
-    case Instruction::SDiv: LLVM_DEBUG(dbgs() << "sdiv\n"); return ISD::SDIV;
-    case Instruction::FDiv: LLVM_DEBUG(dbgs() << "fdiv\n"); return ISD::FDIV;
-    case Instruction::URem: LLVM_DEBUG(dbgs() << "urem\n"); return ISD::UREM;
-    case Instruction::SRem: LLVM_DEBUG(dbgs() << "srem\n"); return ISD::SREM;
-    case Instruction::FRem: LLVM_DEBUG(dbgs() << "frem\n"); return ISD::FREM;
-
-  // Logical operators...
-    case Instruction::And: LLVM_DEBUG(dbgs() << "and\n"); return ISD::AND;
-    case Instruction::Or : LLVM_DEBUG(dbgs() << "or\n");  return ISD::OR;
-    case Instruction::Xor: LLVM_DEBUG(dbgs() << "xor\n"); return ISD::XOR;
-
   // Memory instructions...
   // case Alloca:        return "alloca";
-    case Instruction::Load:  LLVM_DEBUG(dbgs() << "load\n"); return ISD::LOAD;
-    case Instruction::Store: LLVM_DEBUG(dbgs() << "store\n"); return ISD::STORE;
   // case AtomicCmpXchg: return "cmpxchg";
   // case AtomicRMW:     return "atomicrmw";
   // case Fence:         return "fence";
-    case Instruction::GetElementPtr: LLVM_DEBUG(dbgs() << "gep is pain\n"); return ISD::DELETED_NODE;
 
   // Convert instructions...
   // case Trunc:         return "trunc";
@@ -160,10 +262,6 @@ ISD::NodeType PrimateBFUColoring::opcodeToISD(unsigned int OP) {
   // case LandingPad:     return "landingpad";
   // case CleanupPad:     return "cleanuppad";
   // case Freeze:         return "freeze";
-
-    default: LLVM_DEBUG(dbgs() << "<Invalid operator>\n"); return ISD::DELETED_NODE;
-  }
-}
 
 char PrimateBFUColoring::ID = 0;
 

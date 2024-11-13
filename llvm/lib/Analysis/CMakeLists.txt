@@ -113,6 +113,7 @@ add_llvm_component_library(LLVMAnalysis
   PHITransAddr.cpp
   PhiValues.cpp
   PostDominators.cpp
+  PrimateBFUColoring.cpp
   ProfileSummaryInfo.cpp
   PtrUseVisitor.cpp
   RegionInfo.cpp

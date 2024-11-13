@@ -15,8 +15,13 @@ PreservedAnalyses PrimateModuleCleanPass::run(Module& M, ModuleAnalysisManager& 
             continue;
         }
         if(F.getNumUses() == 0) {
-            functionsToRemove.push_back(&F);
-            change = true;
+          MDNode* PMD = F.getMetadata("primate");
+          if (PMD && 
+              dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue")
+            continue;
+          
+          functionsToRemove.push_back(&F);
+          change = true;
         }
     }
     for(auto* F: functionsToRemove) {
