@@ -1,3 +1,4 @@
+/* 
 #include "PrimateInsertBFUCall.h"
 // #include "llvm/CodeGen/GlobalISel/Combiner.h"
 // #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
@@ -53,3 +54,4 @@ void PrimateInsertBFUCall::getAnalysisUsage(AnalysisUsage &AU) const {
 
 char PrimateInsertBFUCall::ID = 0;
 
+*/
