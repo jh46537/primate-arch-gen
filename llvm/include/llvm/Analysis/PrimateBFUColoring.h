@@ -2,7 +2,7 @@
 #define LLVM_ANALYSIS_PRIMATE_PRIMATEBFUCOLORING_H
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
+#include <cstddef>
 #include <llvm/CodeGen/ISDOpcodes.h>
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -16,33 +16,41 @@
 
 namespace llvm {
 
+class ISDOperation {
+private:
+  ISD::NodeType Opcode; 
+  std::string  OPName;     // Operation Name
+  unsigned int Complexity; // Complexity of ISD Operation's ISel Pattern
+  
+  SmallVector<std::string> Operands;
+  // SmallVector<Instruction *> Dependencies;
+
+public:
+  ISDOperation(unsigned int OP, unsigned int Complexity);
+
+  ISD::NodeType opcode()    { return Opcode; }
+  size_t numOperands()      { return Operands.size(); }
+  unsigned int complexity() { return Complexity; }
+
+  void pushOperand(std::string OP) { Operands.push_back(OP); }
+  void compInrc() { Complexity++; }
+  void compDecr() { Complexity--; }
+
+  // print the ISel pattern of the ISD operation to a raw ostream
+  void print(raw_ostream &ROS) {
+    ROS << "(" << OPName;
+    for (auto &OP : Operands)
+      ROS << " " << OP;
+    ROS << ")";
+  }
+
+  void dump() {
+    print(dbgs()); dbgs () << "\n";
+  }
+};
+
 class PrimateBFUColoring : public PassInfoMixin<PrimateBFUColoring > {
 private:
-  struct ISDOperation {
-    ISD::NodeType Opcode; // Opcode
-    std::string OPName;     // Operation Name
-    // ValueMap<Instruction *, StringRef> Dependencies;
-    
-    SmallVector<std::string> Operands;
-    SmallVector<Instruction *> Dependencies;
-
-    std::string dump() {
-      std::string OperationStr;
-      raw_string_ostream OpStrOut(OperationStr);
-      OpStrOut << "(" << OPName;
-      
-      LLVM_DEBUG(dbgs() << "ISD Node has " << Operands.size() << " Operands:\n");
-      for (auto &OP : Operands) {
-        LLVM_DEBUG(dbgs() << " > " << OP << "\n");
-        OpStrOut << " " << OP;
-      }
-
-      OpStrOut << ")";
-
-      return OperationStr;
-    }
-  };
-
   ValueMap<Instruction *, ISDOperation *> *ISDOps;
 
 public:
