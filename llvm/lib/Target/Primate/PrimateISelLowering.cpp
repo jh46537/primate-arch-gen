@@ -917,12 +917,12 @@ PrimateTargetLowering::PrimateTargetLowering(const TargetMachine &TM,
 	}
       }
       else if(name == "NUM_ALUS") {
-	alucount = std::stoi(value);
-	dbgs() << "number of ALUs found: " << alucount << "\n";
+        alucount = std::stoi(value);
+        dbgs() << "number of ALUs found: " << alucount << "\n";
       }
       else if(name == "NUM_BFUS") {
-	bfucount = std::stoi(value) + 2;
-	dbgs() << "number of BFUs found: " << bfucount << "\n";
+        bfucount = std::stoi(value) + 2;
+        dbgs() << "number of BFUs found: " << bfucount << "\n";
       }
     }
   }

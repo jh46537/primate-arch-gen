@@ -44,7 +44,7 @@ bool PrimatePacketLegalizer::runOnMachineFunction(MachineFunction& MF) {
             }
             bool need_to_legal = false;
             for(auto curInst = pktStart; curInst != pktEnd; curInst++) {
-                if(hasScalarRegs(&*curInst)) {
+                if(hasScalarRegs(&*curInst) || PrimateII::isBFUInstr(curInst->getDesc().TSFlags)) {
                     need_to_legal = true;
                 }
             }
@@ -317,6 +317,7 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                     continue;
                 }
                 if(PrimateII::isBFUInstr(curInst->getDesc().TSFlags)) {
+                    LLVM_DEBUG(dbgs() << "BFU instr might need fix\n");
                     fixBFUInstr(newBundle, isNewInstr, BundleMI, i);
                     continue;
                 }
@@ -388,7 +389,6 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
             dbgs() << "no fix needed for slot: " << i << " "; newBundle[i]->dump();
         }
     }
-
 }
 
 MachineFunctionPass *createPrimatePacketLegalizerPass();

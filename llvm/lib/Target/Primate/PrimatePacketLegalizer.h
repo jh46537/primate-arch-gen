@@ -17,6 +17,8 @@
 #include "PrimateInstrInfo.h"
 #include "PrimateSubtarget.h"
 
+#define DEBUG_TYPE "primate-packet-legalizer"
+
 namespace llvm {
 class PrimatePacketLegalizer : public MachineFunctionPass {
 

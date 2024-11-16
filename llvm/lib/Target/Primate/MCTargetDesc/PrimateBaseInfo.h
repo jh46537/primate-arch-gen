@@ -86,7 +86,7 @@ enum {
 
   // Does this instruction have a VL operand. It will be the second to last
   // explicit operand. Used by PRV Pseudos.
-  isBFUShift = HasVLOpShift + 1,
+  isBFUShift = 23,
   isBFUMask = 1 << isBFUShift,
 };
 
