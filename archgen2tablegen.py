@@ -23,8 +23,21 @@ gen_file_dir = ""
 DRY_RUN = False
 VERBOSE = False
 
+def write_if_different(filename, new_content):
+  """Writes to a file only if the new content is different."""
+
+  try:
+    with open(filename, 'r') as f:
+      existing_content = f.read()
+  except FileNotFoundError:
+    existing_content = None
+
+  if existing_content != new_content:
+    with open(filename, 'w') as f:
+      f.write(new_content)
+
 def comb_str(in_str, items):
-    return "".join([in_str.format(i) for i in items])
+  return "".join([in_str.format(i) for i in items])
 
 # returns the number of unique BFUs
 def parse_BFU_list(file_path):
@@ -44,7 +57,11 @@ def parse_arch_config(file_path):
         numBFUs = int(toks[1]) + 2 # IO and LSU are hidden
       if toks[0] == "NUM_REGS":
         numRegs = int(toks[1])
-  return numALUs, numBFUs, numRegs
+  try:
+    return numALUs, numBFUs, numRegs
+  except:
+    print("Malformed primate.cfg!")
+    exit(-1)
 
 def write_instr_format(num_regs: int):
   # size of instr
@@ -52,22 +69,22 @@ def write_instr_format(num_regs: int):
   other_bits_min = 32 - 5*4
   total_bits = reg_bits * 4 + other_bits_min
   total_bytes = ceil(total_bits/8)
+  out_str = ""
 
-  f = open(f"{gen_file_dir}/PrimateDisasseblerGen.inc", "w") 
-  print(f"""
+
+  
+  write_if_different(f"{gen_file_dir}/PrimateDisasseblerGen.inc", f"""
   unsigned InstructionSize = {total_bytes};
   auto DecTable = DecoderTable{total_bytes*8};
-  """, file=f)
-  f.close()
+  """)  
 
-  f = open(f"{gen_file_dir}/PrimateInstructionSize.inc", "w")
-  print(f"""const unsigned instrSize = {total_bytes};
-  const unsigned regFieldBitWidth = {reg_bits};""", file=f)
-  f.close()
+  write_if_different(f"{gen_file_dir}/PrimateInstructionSize.inc", f"""
+  const unsigned instrSize = {total_bytes};
+  const unsigned regFieldBitWidth = {reg_bits};
+  """)
 
-  f = open(f"{gen_file_dir}/PrimateInstrReconfigFormats.td", "w")
-
-  print(f"""
+  # patterns for how to swizzle bits in the instruction
+  out_str = f"""
   class PRInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format, InstrItinClass itin = ItinGreen>
     : PRInstCommon<outs, ins, opcodestr, argstr, pattern, format> {{
@@ -79,8 +96,7 @@ def write_instr_format(num_regs: int):
 
     let Inst{{6-0}} = Opcode;
     let Itinerary = itin;
-  }}
-  """, file=f)
+  }}\n"""
 
   # tuples for the ranges of the fields in the instruction.
   # each tuple feeds the next.
@@ -90,7 +106,7 @@ def write_instr_format(num_regs: int):
   rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
   rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   funct7       = (rs2_range[0]+7, rs2_range[0]+1)
-  print(f"""
+  out_str += f"""
   class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
               dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
     : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
@@ -104,8 +120,7 @@ def write_instr_format(num_regs: int):
   let Inst{{{funct3_range[1]}-{funct3_range[0]}}} = funct3;
   let Inst{{{rd_range[1]}-{rd_range[0]}}}= rd;
   let Opcode = opcode.Value;
-  }}
-  """, file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   funct3_range = (rd_range[0]+3, rd_range[0]+1)
@@ -113,7 +128,7 @@ def write_instr_format(num_regs: int):
   rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   funct2_range = (rs2_range[0]+2, rs2_range[0]+1)
   rs3_range    = (funct2_range[0]+reg_bits, funct2_range[0]+1)
-  print(f"""
+  out_str += f"""
   class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
                 dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {{
@@ -129,8 +144,7 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}
-  """, file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   frm_range    = (rd_range[0]+3, rd_range[0]+1)
@@ -138,7 +152,7 @@ def write_instr_format(num_regs: int):
   rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   funct2_range = (rs2_range[0]+2, rs2_range[0]+1)
   rs3_range    = (funct2_range[0]+reg_bits, funct2_range[0]+1)
-  print(f"""class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
                     string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {{
     bits<{reg_bits}> rs3;
@@ -154,7 +168,7 @@ def write_instr_format(num_regs: int):
     let Inst{{ {frm_range[0]}-{frm_range[1]} }} = frm;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   funct3_range = (rd_range[0]+3, rd_range[0]+1)
@@ -163,7 +177,7 @@ def write_instr_format(num_regs: int):
   rl_range     = (rs2_range[0]+1, rs2_range[0]+1)
   aq_range     = (rl_range[0]+1, rl_range[0]+1)
   funct5_range = (aq_range[0]+5, aq_range[0]+1)
-  print(f"""class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
+  out_str += f"""class PRInstRAtomic<bits<5> funct5, bit aq, bit rl, bits<3> funct3,
                       PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
                       string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
@@ -179,14 +193,14 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]} - {funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]} - {rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   frm_range    = (rd_range[0]+3, rd_range[0]+1)
   rs1_range    = (frm_range[0]+reg_bits, frm_range[0]+1)
   rs2_range    = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   funct7_range = (rs2_range[0]+7, rs2_range[0]+1)
-  print(f"""class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstRFrm<bits<7> funct7, PrimateOpcode opcode, dag outs, dag ins,
                   string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR, itin> {{
     bits<{reg_bits}> rs2;
@@ -200,12 +214,12 @@ def write_instr_format(num_regs: int):
     let Inst{{ {frm_range[0]} - {frm_range[1]} }} = frm;
     let Inst{{ {rd_range[0]} - {rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7) 
   funct3_range = (rd_range[0]+3, rd_range[0]+1)
   rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
-  print(f"""class PRInstIBase<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstIBase<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
                     string opcodestr, string argstr>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI> {{
     bits<{reg_bits}> rs1;
@@ -215,13 +229,13 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Inst{{ {6}-{0} }} = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   funct3_range = (rd_range[0]+3, rd_range[0]+1)
   rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
   imm12_range  = (rs1_range[0]+12, rs1_range[0]+1)
-  print(f"""class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstI<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
                 string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
     bits<12> imm12;
@@ -233,7 +247,7 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range      = (7+reg_bits-1, 7)
   funct3_range  = (rd_range[0]+3, rd_range[0]+1)
@@ -241,7 +255,7 @@ def write_instr_format(num_regs: int):
   shamt_range   = (rs1_range[0]+6, rs1_range[0]+1)
   zero_range    = (shamt_range[0]+1, shamt_range[0]+1)
   imm11_7_range = (zero_range[0]+5, zero_range[0]+1)
-  print(f"""class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
+  out_str += f"""class PRInstIShift<bits<5> imm11_7, bits<3> funct3, PrimateOpcode opcode,
                     dag outs, dag ins, string opcodestr, string argstr,
                     InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
@@ -256,14 +270,14 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   funct3_range = (rd_range[0]+3, rd_range[0]+1)
   rs1_range    = (funct3_range[0]+reg_bits, funct3_range[0]+1)
   shamt_range  = (rs1_range[0]+5, rs1_range[0]+1)
   imm11_5_range= (shamt_range[0]+7, shamt_range[0]+1)
-  print(f"""class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
+  out_str += f"""class PRInstIShiftW<bits<7> imm11_5, bits<3> funct3, PrimateOpcode opcode,
                       dag outs, dag ins, string opcodestr, string argstr,
                       InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatI, itin> {{
@@ -277,7 +291,7 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   imm12_5_range  = (11, 7)
   pad_zero_range = (imm12_5_range[0]+(reg_bits-5), imm12_5_range[0]+1)
@@ -285,7 +299,7 @@ def write_instr_format(num_regs: int):
   rs1_range      = (funct3_range[0]+reg_bits, funct3_range[0]+1)
   rs2_range      = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   imm12_7_range  = (rs2_range[0]+7, rs2_range[0]+1)
-  print(f"""class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstS<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
                 string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatS, itin> {{
     bits<12> imm12;
@@ -298,7 +312,7 @@ def write_instr_format(num_regs: int):
     let Inst{{ {funct3_range[0]}-{funct3_range[1]} }} = funct3;
     let Inst{{ {imm12_5_range[0]}-{imm12_5_range[1]} }} = imm12{{4-0}};
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   imm_12_10_range = (7, 7)
   imm_12_4_range  = (imm_12_10_range[0]+4, imm_12_10_range[0]+1)
@@ -308,7 +322,7 @@ def write_instr_format(num_regs: int):
   rs2_range       = (rs1_range[0]+reg_bits, rs1_range[0]+1)
   imm12_6_range   = (rs2_range[0]+6, rs2_range[0]+1)
   imm12_1_range   = (imm12_6_range[0]+1, imm12_6_range[0]+1)
-  print(f"""class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
+  out_str += f"""class PRInstB<bits<3> funct3, PrimateOpcode opcode, dag outs, dag ins,
                 string opcodestr, string argstr, InstrItinClass itin = ItinBranch>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatB, itin> {{
     bits<12> imm12;
@@ -323,11 +337,11 @@ def write_instr_format(num_regs: int):
     let Inst{{ {imm_12_4_range[0]}-{imm_12_4_range[1]} }} = imm12{{3-0}};
     let Inst{{ {imm_12_10_range[0]}-{imm_12_10_range[1]} }} = imm12{{10}};
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range     = (7+reg_bits-1, 7)
   imm20_range  = (rd_range[0]+20, rd_range[0]+1)
-  print(f"""class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
+  out_str += f"""class PRInstU<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
                 string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatU, itin> {{
     bits<20> imm20;
@@ -336,14 +350,14 @@ def write_instr_format(num_regs: int):
     let Inst{{ {imm20_range[0]}-{imm20_range[1]} }} = imm20;
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
   rd_range       = (7+reg_bits-1, 7)
   imm20_9_range  = (rd_range[0]+8, rd_range[0]+1)
   imm20_20_range = (imm20_9_range[0]+1, imm20_9_range[0]+1)
   imm20_10_range = (imm20_20_range[0]+10, imm20_20_range[0]+1)
   imm20_19_range = (imm20_10_range[0]+1, imm20_10_range[0]+1)
-  print(f"""class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
+  out_str += f"""class PRInstJ<PrimateOpcode opcode, dag outs, dag ins, string opcodestr,
                 string argstr, InstrItinClass itin = ItinBranch>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatJ, itin> {{
     bits<20> imm20;
@@ -355,12 +369,11 @@ def write_instr_format(num_regs: int):
     let Inst{{ {imm20_9_range[0]}-{imm20_9_range[1]} }} = imm20{{18-11}};
     let Inst{{ {rd_range[0]}-{rd_range[1]} }} = rd;
     let Opcode = opcode.Value;
-  }}""", file=f)
+  }}\n"""
 
-  f.close()
+  write_if_different(f"{gen_file_dir}/PrimateInstrReconfigFormats.td", out_str)
 
-  f = open(f"{gen_file_dir}/PrimateInstrReconfigF.td", "w")
-  print(f"""
+  out_str = f"""
   let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1 in
   class FPUnaryOp_r<bits<7> funct7, bits<{reg_bits}> rs2val, bits<3> funct3,
                     DAGOperand rdty, DAGOperand rs1ty, string opcodestr>
@@ -410,14 +423,13 @@ def write_instr_format(num_regs: int):
     def Ext.Suffix : FPUnaryOp_r_frmlegacy<funct7, rs2val, rdty, rs1ty,
                                           opcodestr>;
   }}
-  """, file=f)
-  f.close()
+  """
+
+  write_if_different(f"{gen_file_dir}/PrimateInstrReconfigF.td", out_str)
 
 def write_regfile(num_regs: int):
-  f1 = open(f"{gen_file_dir}/PrimateRegisterDefs.td", "w")
-  f2 = open(f"{gen_file_dir}/PrimateRegisterOrdering.td", "w")
 
-  print(f"""
+  write_if_different(f"{gen_file_dir}/PrimateRegisterDefs.td", f"""
   // Integer registers
   // CostPerUse is set higher for registers that may not be compressible as they
   // are not part of GPRC, the most restrictive register class used by the
@@ -439,9 +451,10 @@ def write_regfile(num_regs: int):
       }}
     }}
   }}
-  """, file=f1)
+  """)
 
-  print(f"""// The order of registers represents the preferred allocation sequence.
+  write_if_different(f"{gen_file_dir}/PrimateRegisterOrdering.td", 
+  f"""// The order of registers represents the preferred allocation sequence.
   // Registers are listed in the order caller-save, callee-save, specials.
   def GPR : GPRRegisterClass<(add (sequence "X%u", 0, {num_regs-1}))>;
 
@@ -458,10 +471,8 @@ def write_regfile(num_regs: int):
     )> {{
       let RegInfos = PrimateAGGRI;
     }}
-  """, file=f2)
+  """)
 
-  f1.close()
-  f2.close()
 
 
 # write the schedule itself in VLIW slot order
@@ -874,8 +885,7 @@ def write_schedule(num_bfus: int, num_alus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "./PrimateSchedPrimate.td"), "w") as f:
-    print(PrimateSchedPrimate, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./PrimateSchedPrimate.td"), PrimateSchedPrimate)
 
 # write the schedule resources that are used in the schedule
 # num_bfu is number of unique BFUs
@@ -899,8 +909,7 @@ def write_sched_resources_def(num_bfus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "./PrimateScheduleBFU.td"), "w") as f:
-      print(PrimateSchedule, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./PrimateScheduleBFU.td"), PrimateSchedule)
 
 # writes the machine instructions AND their codegen patterns for each unique BFU 
 def write_BFU_instr_info(num_bfus: int, bfu_list: list):
@@ -943,8 +952,7 @@ def write_BFU_instr_info(num_bfus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "./PrimateInstrInfoBFU.td"), "w") as f:
-      print(PrimateInstrInfo, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./PrimateInstrInfoBFU.td"), PrimateInstrInfo)
     
 # writes the bfu tablegen for number of UNIQUE bfus
 def write_bfu_intrins(num_bfus: int, bfu_list: list): 
@@ -972,8 +980,7 @@ def write_bfu_intrins(num_bfus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "./IntrinsicsPrimateBFU.td"), "w") as f:
-      print(IntrinsicsPrimate, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./IntrinsicsPrimateBFU.td"), IntrinsicsPrimate)
 
 # generate builtin frontend shit
 def write_bfu_clang_builtins(num_bfus: int, bfu_list: list): 
@@ -1057,8 +1064,7 @@ def write_bfu_clang_builtins(num_bfus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "./BuiltinsPrimate.def"), "w") as f:
-      print(builtins_str, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./BuiltinsPrimate.def"), builtins_str)
 
 # front end language tablegen 
 def write_bfu_CG(num_bfus: int, bfu_list: list):
@@ -1100,8 +1106,7 @@ def write_bfu_CG(num_bfus: int, bfu_list: list):
   if DRY_RUN:
     return
 
-  with open(os.path.join(gen_file_dir, "primate_bfu.td"), "w") as f:
-      print(front_end_stuff_template, file=f)
+  write_if_different(os.path.join(gen_file_dir, "./primate_bfu.td"), front_end_stuff_template)
 
 def main():
   global gen_file_dir 
@@ -1116,20 +1121,24 @@ def main():
   num_unique_bfus = len(bfu_dict) + 2 # IO and LSUs are hidden
   bfu_list = list(bfu_dict.keys())
 
+  
   write_bfu_intrins(num_unique_bfus, bfu_list)
+  if args.FrontendOnly:
+    return
+  
+  if(args.primate_cfg is None):
+    print("No primate config file provided")
+    exit(-1)
+
+  num_ALUs, num_BFUs, num_regs = parse_arch_config(args.primate_cfg)
+  
   write_bfu_clang_builtins(num_unique_bfus, bfu_list)
   write_bfu_CG(num_unique_bfus, bfu_list) 
   write_BFU_instr_info(num_unique_bfus, bfu_list)
   write_sched_resources_def(num_unique_bfus, bfu_list)
-  if not args.FrontendOnly:
-    num_ALUs, num_BFUs, num_regs = parse_arch_config(args.primate_cfg)
-  else:
-    num_ALUs, num_BFUs, num_regs = (1, num_unique_bfus, 32)
   write_schedule(num_BFUs, num_ALUs, bfu_list)
-
-  if not args.FrontendOnly:
-    write_regfile(num_regs)
-    write_instr_format(num_regs)
+  write_regfile(num_regs)
+  write_instr_format(num_regs)
 
 if __name__ == "__main__":
   main()

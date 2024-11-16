@@ -11,19 +11,9 @@
   //
   //===-------------------------------------------------------------------------===//
 
-  let Itinerary = ItinBlueaes128 in
-  let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
-  def BFUaes128 :
-      PRInstI<0b000, OPC_PR_ASCII, (outs WIDEREG:$rd), (ins WIDEREG:$rs1),
-          "bfuaes128", "$rd, $rs1">, Sched<[WriteIALU, ReadIALU]> {
-            let IsBFUInstruction = 1;
-            let imm12 = 0;
-          }
   
 
-  def : Pat<(int_primate_BFU_aes128 WIDEREG:$rs1), (BFUaes128 WIDEREG:$rs1)>;
+  
 
-
-  def : Pat<(int_primate_BFU_aes128 WIDEREG:$rs1), (BFUaes128 WIDEREG:$rs1)>;
-
+  
   

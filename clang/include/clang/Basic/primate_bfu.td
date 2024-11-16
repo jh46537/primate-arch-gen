@@ -25,5 +25,5 @@
   def inputDone:  PrimateBuiltin<"__primate_input_done", "", "primate_BFU_IO_input_done", "IO">;
   def output:     PrimateBuiltin<"__primate_output", "Bi", "primate_BFU_IO_output", "IO">;
   def outputDone: PrimateBuiltin<"__primate_output_done", "", "primate_BFU_IO_output_done", "IO">;
-  def BFU_aes128:      PrimateBuiltin<"__primate_BFU_aes128", "BB", "primate_BFU_aes128", "aes128">;
+  
   

@@ -183,6 +183,7 @@ void PrimatePacketLegalizer::fixBFUInstr(SmallVector<MachineInstr*>& newBundle, 
     }
 }
 
+// All this does is materialize hanging inserts and extracts
 void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
     const MCSubtargetInfo *STI = BundleMI->getParent()->getParent()->getTarget().getMCSubtargetInfo();
     unsigned const numResourceGroups = STI->getSchedModel().NumProcResourceKinds;
@@ -223,22 +224,22 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(0).getReg())) {
                     wideReg = TRI->getMatchingSuperReg(curInst->getOperand(0).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
                 }
-                int extIndex = i-1;
+                int extIndex = i-2;
                 int opIndex = i;
                 int insIndex = i+1; // fix up slots
                 newBundle[i]->setSlotIdx(extIndex);
                 newBundle[extIndex] = newBundle[i];
                 newBundle[opIndex] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                             PII->get(Primate::ADDI), 
-                                            Primate::X0)
-                                            .addReg(Primate::X0)
+                                            Primate::X0 + insIndex)
+                                            .addReg(Primate::X0 + extIndex)
                                             .addImm(0);
                 newBundle[opIndex]->setSlotIdx(opIndex);
                 newBundle[insIndex] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
                                             PII->get(Primate::INSERT), 
                                             wideReg)
                                             .addReg(wideReg)
-                                            .addReg(curInst->getOperand(0).getReg())
+                                            .addReg(Primate::X0 + opIndex)
                                             .addImm(TLI->getScalarField());
                 newBundle[insIndex]->setSlotIdx(insIndex);
                 MIBundleBuilder builder(BundleMI);
@@ -252,23 +253,56 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
             }
             case Primate::INSERT_hang:
             case Primate::INSERT:{
+                if(isNewInstr[i])
+                    continue; // new inserts have been handled.
+                
+                // This instruction is baseline and requires us to add an extract and an op
+                // also requires a slotIdx fix
                 // check if the op exists
-                int opCheck = i - 1;
-                // if no op there then just add it in. then the op clean up will clean it. 
-                if(!newBundle[opCheck]) {
-                    dbgs() << "found bad insert\n";
-                    curInst->dump();
-                    newBundle[opCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
-                                            PII->get(Primate::ADDI), 
-                                            curInst->getOperand(2).getReg())
-                                            .addReg(curInst->getOperand(2).getReg())
-                                            .addImm(0);
-                    newBundle[opCheck]->dump();
-                    newBundle[opCheck]->setSlotIdx(opCheck);
-                    MIBundleBuilder builder(BundleMI);
-                    isNewInstr[opCheck] = true;
-                    builder.insert((curInst->getIterator()), newBundle[opCheck]);
+                int insCheck = i + 1;
+                int opCheck = i;
+                int extCheck = i - 2;
+                assert(!newBundle[insCheck] && "hanging insert but there is already an insert there");
+                assert(!newBundle[extCheck] && "hanging insert but there is already an extract there");
+
+                newBundle[insCheck] = newBundle[i];
+                newBundle[insCheck]->setSlotIdx(insCheck);
+                newBundle[i] = nullptr;
+                // if no op there then just add it in. Also means that there will be no extract so add that too. 
+                dbgs() << "found bad insert\n";
+                
+                Register wideReg;
+                if(TRI->getRegClass(Primate::GPRRegClassID)->contains(curInst->getOperand(2).getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(curInst->getOperand(2).getReg(), Primate::gpr_idx, &Primate::WIDEREGRegClass);
                 }
+                else if(TRI->getRegClass(Primate::GPR128RegClassID)->contains(curInst->getOperand(2).getReg())) {
+                    wideReg = TRI->getMatchingSuperReg(curInst->getOperand(2).getReg(), Primate::Pri_hanger, &Primate::WIDEREGRegClass);
+                }
+                else {
+                    llvm_unreachable("insert with reg not wide or scalar. ping kayvan with IR and config.");
+                }
+
+                curInst->dump();
+                newBundle[opCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                        PII->get(Primate::ADDI), 
+                                        Primate::X0+i)
+                                        .addReg(Primate::X0 + extCheck)
+                                        .addImm(0);
+                newBundle[opCheck]->dump();
+                newBundle[opCheck]->setSlotIdx(opCheck);
+                newBundle[extCheck] = BuildMI(*(BundleMI->getParent()->getParent()), llvm::DebugLoc(), 
+                                        PII->get(Primate::EXTRACT), 
+                                        Primate::X0 + extCheck)
+                                        .addReg(wideReg)
+                                        .addImm(TLI->getScalarField());
+                newBundle[extCheck]->dump();
+                newBundle[extCheck]->setSlotIdx(extCheck);
+                MIBundleBuilder builder(BundleMI);
+                isNewInstr[insCheck] = true;
+                isNewInstr[opCheck] = true;
+                isNewInstr[extCheck] = true;
+                builder.insert((curInst->getIterator()), newBundle[extCheck]);
+                builder.insert((curInst->getIterator()), newBundle[opCheck]);
                 break;
             }
             case Primate::LW: {

@@ -11,6 +11,8 @@ namespace llvm {
 
 bool PrimateExtMerge::runOnMachineFunction(MachineFunction& MF) {
     dbgs() << "hello from Primate Extract Merger\n";
+    return false;
+    
     SmallVector<MachineInstr*> worklist; 
     SmallVector<MachineInstr*> MIToRemove;
     MachineRegisterInfo &MRI = MF.getRegInfo();

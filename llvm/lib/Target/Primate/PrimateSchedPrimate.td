@@ -8,15 +8,13 @@
 
   def ExtractUnit0a      : FuncUnit;
 def ExtractUnit0b      : FuncUnit;
-def GreenBlueUnitaes128      : FuncUnit;
+def GreenLSUUnit      : FuncUnit;
 def InsertUnit0      : FuncUnit;
 
 def ExtractUnit1a      : FuncUnit;
 def ExtractUnit1b      : FuncUnit;
-def GreenLSUUnit      : FuncUnit;
+def GreenIOUnit      : FuncUnit;
 def InsertUnit1      : FuncUnit;
-
-def IOUnit      : FuncUnit;
 
 
   def BranchUnit : FuncUnit;
@@ -25,10 +23,9 @@ def IOUnit      : FuncUnit;
     list<InstrItinData> ItinList = [
       InstrItinData<ItinExtract,       [InstrStage<1, [ExtractUnit0a,ExtractUnit0b,ExtractUnit1a,ExtractUnit1b]>]>,
       InstrItinData<ItinInsert,        [InstrStage<1, [InsertUnit0,InsertUnit1]>]>,
-      InstrItinData<ItinGreen,         [InstrStage<1, [GreenBlueUnitaes128,GreenLSUUnit]>]>,
-      InstrItinData<ItinBlueaes128,         [InstrStage<1, [GreenBlueUnitaes128]>]>,
-
-      InstrItinData<ItinIO,            [InstrStage<1, [IOUnit]>]>,
+      InstrItinData<ItinGreen,         [InstrStage<1, [GreenLSUUnit,GreenIOUnit]>]>,
+      
+      InstrItinData<ItinIO,            [InstrStage<1, [GreenIOUnit]>]>,
       InstrItinData<ItinBranch,        [InstrStage<1, [BranchUnit]>]>,
       InstrItinData<ItinMem,           [InstrStage<1, [GreenLSUUnit]>]>
     ];
@@ -36,7 +33,7 @@ def IOUnit      : FuncUnit;
 
   def PrimateItineraries :
       ProcessorItineraries<[  
-          ExtractUnit0a,ExtractUnit0b,GreenBlueUnitaes128,InsertUnit0,ExtractUnit1a,ExtractUnit1b,GreenLSUUnit,InsertUnit1,IOUnit,
+          ExtractUnit0a,ExtractUnit0b,GreenLSUUnit,InsertUnit0,ExtractUnit1a,ExtractUnit1b,GreenIOUnit,InsertUnit1,
           BranchUnit
       ],
       [],
@@ -70,23 +67,22 @@ def IOUnit      : FuncUnit;
   let BufferSize = 0 in {
   def ExtractUnit0aPipe         : ProcResource<1>;
 def ExtractUnit0bPipe         : ProcResource<1>;
-def GreenBlueUnitaes128Pipe         : ProcResource<1>;
+def GreenLSUUnitPipe         : ProcResource<1>;
 def InsertUnit0Pipe         : ProcResource<1>;
 def ExtractUnit1aPipe         : ProcResource<1>;
 def ExtractUnit1bPipe         : ProcResource<1>;
-def GreenLSUUnitPipe         : ProcResource<1>;
+def GreenIOUnitPipe         : ProcResource<1>;
 def InsertUnit1Pipe         : ProcResource<1>;
-def IOUnitPipe         : ProcResource<1>;
 
   def BranchPipe         : ProcResource<1>;
   }
 
   def PrimatePipes : ProcResGroup<[
-    ExtractUnit0aPipe,ExtractUnit0bPipe,GreenBlueUnitaes128Pipe,InsertUnit0Pipe,ExtractUnit1aPipe,ExtractUnit1bPipe,GreenLSUUnitPipe,InsertUnit1Pipe,IOUnitPipe,
+    ExtractUnit0aPipe,ExtractUnit0bPipe,GreenLSUUnitPipe,InsertUnit0Pipe,ExtractUnit1aPipe,ExtractUnit1bPipe,GreenIOUnitPipe,InsertUnit1Pipe,
     BranchPipe
   ]>;
-  def GreenPipes : ProcResGroup<[GreenBlueUnitaes128Pipe,GreenLSUUnitPipe]>;
-  def BluePipes : ProcResGroup<[GreenBlueUnitaes128Pipe]>;
+  def GreenPipes : ProcResGroup<[GreenLSUUnitPipe,GreenIOUnitPipe]>;
+  def BluePipes : ProcResGroup<[]>;
 
 
   // Branching

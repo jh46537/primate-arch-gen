@@ -11,7 +11,6 @@
     let Inst{6-0} = Opcode;
     let Itinerary = itin;
   }
-  
 
   class PRInstR<bits<7> funct7, bits<3> funct3, PrimateOpcode opcode, dag outs,
               dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
@@ -27,7 +26,6 @@
   let Inst{7-11}= rd;
   let Opcode = opcode.Value;
   }
-  
 
   class PRInstR4<bits<2> funct2, bits<3> funct3, PrimateOpcode opcode, dag outs,
                 dag ins, string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
@@ -45,7 +43,6 @@
     let Inst{ 11-7 } = rd;
     let Opcode = opcode.Value;
   }
-  
 class PRInstR4Frm<bits<2> funct2, PrimateOpcode opcode, dag outs, dag ins,
                     string opcodestr, string argstr, InstrItinClass itin = ItinGreen>
       : PRInst<outs, ins, opcodestr, argstr, [], InstFormatR4, itin> {
