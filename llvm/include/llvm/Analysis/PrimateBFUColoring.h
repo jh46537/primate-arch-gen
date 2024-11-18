@@ -23,7 +23,8 @@ private:
   ISD::NodeType Opcode; 
   std::string  OPName;     // Operation Name
   unsigned int Complexity; // Complexity of ISD Operation's ISel Pattern
-  
+                           // Essentially equal to he number of operands,
+                           // plus the complexity of any dependencies
   SmallVector<std::string> Operands;
 
 public:
@@ -34,10 +35,10 @@ public:
   unsigned int complexity() { return Complexity; }
 
   void pushOperand(std::string OP) { Operands.push_back(OP); }
-  void compInrc() { Complexity++; }
-  void compDecr() { Complexity--; }
+  void compInrc(unsigned int C)    { Complexity += C; }
 
-  // print the ISel pattern of the ISD operation to a raw ostream
+  // Print the ISel pattern of the ISD operation to a raw ostream. This isn't
+  // intended to be read, so I'm not bothering with making the output pretty
   void print(raw_ostream &ROS) {
     ROS << "(" << OPName;
     for (auto &OP : Operands)
@@ -62,6 +63,11 @@ public:
   static char ID;
 
 private:
+  bool isBFU(Function &F);
+  void colorSubBFUs(Function &F);
+  void getISDPatt(std::pair<Instruction *, ISDOperation *> &P);
+  void processGEP(std::pair<Instruction *, ISDOperation *> &P);
+
 #ifdef _DEBUG
   // Print derived type of an operand. See DerivedTypes.h file.
   void printDerviedType(unsigned OPTy) {
@@ -89,10 +95,6 @@ private:
     }
   }
 #endif
-
-  bool isBFU(Function &F);
-  void colorSubBFUs(Function &F);
-  void processGEP();
 };
 
 } // namespace llvm

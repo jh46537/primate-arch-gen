@@ -56,7 +56,7 @@ bool PrimateBFUColoring::isBFU(Function &F) {
 
 void PrimateBFUColoring::colorSubBFUs(Function &F) {
   for (auto &BB : F) {
-    LLVM_DEBUG(dbgs() << "Basic Block: " << BB.getName() << "\n\n"
+    LLVM_DEBUG(dbgs() << "Basic Block: " << BB.getName() << "\n"
                       << "Create new ISD Op map\n");
     ISDOps = new ValueMap<Instruction *, ISDOperation *>();
     
@@ -70,92 +70,30 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
       
       LLVM_DEBUG(dbgs() << "Current instruction: "; I.dump());
       
-      if (I.getOpcode() == Instruction::GetElementPtr) {
-
-      }
-
       if (NP.second->opcode() == ISD::DELETED_NODE) {
-        LLVM_DEBUG(dbgs() << "Pattern for this instruction is not supported\n\n"); 
+        LLVM_DEBUG(dbgs() << "Pattern for this instruction is not supported\n"); 
         continue;
       }
-      
-      int OPN = 0;
-      for (auto &OP : I.operands()) {
-        LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ": "; OP->dump(); 
-                   dbgs() << "\n");
 
-        bool IsDependency = false;    // Is the current operand an instr dependency?
-        ISDOperation *DISD = nullptr; // Dependant ISD Operation for current operation
-        std::string NewOP;            // New Operand for the current ISD operation
-        raw_string_ostream NewOPStream(NewOP);
-
-        if (auto *IOP = dyn_cast<Instruction>(OP)) {
-          DISD = (*ISDOps)[IOP];
-          if (DISD && DISD->opcode() != ISD::DELETED_NODE) {
-            LLVM_DEBUG(dbgs() << "\tThis op is an instruction!\n");
-            IsDependency = true;
-          }
-        }
-
-        if (IsDependency) {
-          DISD->print(NewOPStream);
-          NP.second->compInrc();
-        }
-        else {
-          switch (OP->getType()->getTypeID()) {
-            case Type::IntegerTyID:
-              NewOPStream << "GPR:$rs" << OPN; 
-              break;
-
-            case Type::PointerTyID:
-              LLVM_DEBUG(dbgs() << "Pointers are WIP!\n");
-
-              // I'm not sure which one is more correct in the case:
-              // for example, if we have the following IR:
-              // {
-              //    %a = getelementptr inbounds %struct.MAC_input_t, ptr %vec_in, i32 0, i32 0
-              //    %0 = load i32, ptr %a, align 4
-              // }
-              // 
-              // IR operation "load" only ever has 1 operand (ignore the align 4)
-              // So using OPN and OP.getOperandNo() are identical. However, I'm
-              // not sure if this captures all cases
-
-              // NewOPStream << "BaseAdd:$rs" << OP.getOperandNo(); 
-              NewOPStream << "BaseAdd:$rs" << OPN; 
-              break;
-
-            default:
-              LLVM_DEBUG(dbgs() << "Unsupported operand type encountered!\n";
-                         printDerviedType(OP->getType()->getTypeID()));
-              NewOPStream << "NULL"; 
-          }
-        }
-        
-        NP.second->pushOperand(NewOP);
-
-        if (IsDependency)
-          OPN += DISD->numOperands();
-        else
-          OPN++;
-
-        LLVM_DEBUG(dbgs() << "\tOperand Pattern: " << NewOP << "\n\n");
+      if (I.getOpcode() == Instruction::GetElementPtr) {
+        processGEP(NP);
+      }
+      else {
+        getISDPatt(NP);
       }
 
-      LLVM_DEBUG(dbgs() << "ISD Operation Pattern: "; 
-                 NP.second->dump(); dbgs() << "\n\n");
+      LLVM_DEBUG(dbgs() << "ISD Operation Pattern: "; NP.second->dump(););
+      ISDOps->insert(NP);
       
       if (!MCP ||
           (MCP->complexity() < NP.second->complexity() &&
            NP.second->opcode() != ISD::DELETED_NODE)) {
         MCP = NP.second;
       }
-
-      ISDOps->insert(NP);
     }
     LLVM_DEBUG(dbgs() << "The ISDOperation that characterizes the current BB "
                          "is the one with the highest complextity\n\n"
-                      << "Highest complexity pattern:\t"; MCP->dump());
+                      << "Highest complexity pattern:\n"; MCP->dump());
     LLVM_DEBUG(dbgs() << "\nDelete ISD Op map\n");
     delete ISDOps;
   }
@@ -218,7 +156,7 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
       Opcode = ISD::STORE;
       break;
 
-    // Marking GEP as a GlobalAddress leaf node is not entirely correct
+    // Marking GEP as a GlobalAddress leaf node likely is not entirely correct
     // however, it works for the use case of this pass
     case Instruction::GetElementPtr:
       // OPName = "GEP is a lie";  
@@ -233,73 +171,83 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
   }
 }
 
-  // case Instruction::FSub:  return ISD::FSUB;
-  // case Instruction::FAdd:  return ISD::FADD;
-  // case Instruction::FMul:  return ISD::MUL;
-  // case Instruction::UDiv:  return ISD::UDIV;
-  // case Instruction::SDiv:  return ISD::SDIV;
-  // case Instruction::FDiv:  return ISD::FDIV;
-  // case Instruction::URem:  return ISD::UREM;
-  // case Instruction::SRem:  return ISD::SREM;
-  // case Instruction::FRem:  return ISD::FREM;
+void 
+PrimateBFUColoring::getISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
+  int OPN = 0;
+  for (auto &OP : P.first->operands()) {
+    LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ": "; OP->dump(); 
+               dbgs() << "\n");
 
-  // case Switch: return "switch";
-  // case IndirectBr: return "indirectbr";
-  // case Invoke: return "invoke";
-  // case Resume: return "resume";
-  // case Unreachable: return "unreachable";
-  // case CleanupRet: return "cleanupret";
-  // case CatchRet: return "catchret";
-  // case CatchPad: return "catchpad";
-  // case CatchSwitch: return "catchswitch";
-  // case CallBr: return "callbr";
+    bool IsDependency = false;    // Is the current operand an instr dependency?
+    ISDOperation *DISD = nullptr; // Dependant ISD Operation for current operation
+    std::string NewOP;            // New Operand for the current ISD operation
+    raw_string_ostream NewOPStream(NewOP);
 
-  // Standard unary operators...
-  // case FNeg: return "fneg";
+    if (auto *IOP = dyn_cast<Instruction>(OP)) {
+      DISD = (*ISDOps)[IOP];
+      if (DISD && DISD->opcode() != ISD::DELETED_NODE) {
+        LLVM_DEBUG(dbgs() << "\tThis op is an instruction!\n");
+        IsDependency = true;
+      }
+    }
 
-    // Standard binary operators...
-  // Memory instructions...
-  // case Alloca:        return "alloca";
-  // case AtomicCmpXchg: return "cmpxchg";
-  // case AtomicRMW:     return "atomicrmw";
-  // case Fence:         return "fence";
+    if (IsDependency) {
+      DISD->print(NewOPStream);
+    }
+    else {
+      switch (OP->getType()->getTypeID()) {
+        case Type::IntegerTyID:
+          NewOPStream << "GPR:$rs" << OPN; 
+          break;
 
-  // Convert instructions...
-  // case Trunc:         return "trunc";
-  // case ZExt:          return "zext";
-  // case SExt:          return "sext";
-  // case FPTrunc:       return "fptrunc";
-  // case FPExt:         return "fpext";
-  // case FPToUI:        return "fptoui";
-  // case FPToSI:        return "fptosi";
-  // case UIToFP:        return "uitofp";
-  // case SIToFP:        return "sitofp";
-  // case IntToPtr:      return "inttoptr";
-  // case PtrToInt:      return "ptrtoint";
-  // case BitCast:       return "bitcast";
-  // case AddrSpaceCast: return "addrspacecast";
+        case Type::PointerTyID:
+          LLVM_DEBUG(dbgs() << "Pointers are WIP!\n");
 
-  // Other instructions...
-  // case ICmp:           return "icmp";
-  // case FCmp:           return "fcmp";
-  // case PHI:            return "phi";
-  // case Select:         return "select";
-  // case Call:           return "call";
-  // case Shl:            return "shl";
-  // case LShr:           return "lshr";
-  // case AShr:           return "ashr";
-  // case VAArg:          return "va_arg";
-  // case ExtractElement: return "extractelement";
-  // case InsertElement:  return "insertelement";
-  // case ShuffleVector:  return "shufflevector";
-  // case ExtractValue:   return "extractvalue";
-  // case InsertValue:    return "insertvalue";
-  // case LandingPad:     return "landingpad";
-  // case CleanupPad:     return "cleanuppad";
-  // case Freeze:         return "freeze";
+          // I'm not sure which one is more correct in the case:
+          // for example, if we have the following IR:
+          // {
+          //    %a = getelementptr inbounds %struct.MAC_input_t, ptr %vec_in, i32 0, i32 0
+          //    %0 = load i32, ptr %a, align 4
+          // }
+          // 
+          // IR operation "load" only ever has 1 operand (ignore the align 4)
+          // So using OPN and OP.getOperandNo() are identical. However, I'm
+          // not sure if this captures all cases
 
+          // NewOPStream << "BaseAdd:$rs" << OP.getOperandNo(); 
+          NewOPStream << "BaseAdd:$rs" << OPN; 
+          break;
 
+        default:
+          LLVM_DEBUG(dbgs() << "Unsupported operand type encountered!\n";
+                     printDerviedType(OP->getType()->getTypeID()));
+          NewOPStream << "NULL"; 
+      }
+    }
+    P.second->pushOperand(NewOP);
 
+    if (IsDependency)
+      OPN += DISD->numOperands();
+    else
+      OPN++;
+
+    LLVM_DEBUG(dbgs() << "\tOperand Pattern: " << NewOP << "\n\n");
+  }
+  P.second->compInrc(OPN);
+}
+
+void 
+PrimateBFUColoring::processGEP(std::pair<Instruction *, ISDOperation *> &P) {
+  for (auto &OP : P.first->operands()) {
+    if (OP.getOperandNo() == 1)
+      continue;
+
+    // std::string NewOP;
+    // raw_string_ostream NewOPStream(NewOP);
+    dbgs() << "Curr GEP operand: "; 
+    printDerviedType(OP->getType()->getTypeID());
+  }
+}
 
 char PrimateBFUColoring::ID = 0;
 
