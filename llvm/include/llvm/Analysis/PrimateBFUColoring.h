@@ -40,10 +40,16 @@ public:
   // Print the ISel pattern of the ISD operation to a raw ostream. This isn't
   // intended to be read, so I'm not bothering with making the output pretty
   void print(raw_ostream &ROS) {
-    ROS << "(" << OPName;
+    if (Opcode != ISD::GlobalAddress) {
+      ROS << "(";
+      ROS << OPName;
+    }
+    
     for (auto &OP : Operands)
       ROS << " " << OP;
-    ROS << ")";
+    
+    if (Opcode != ISD::GlobalAddress) 
+      ROS << ")";
   }
 
   void dump() {
@@ -54,6 +60,7 @@ public:
 class PrimateBFUColoring : public PassInfoMixin<PrimateBFUColoring > {
 private:
   ValueMap<Instruction *, ISDOperation *> *ISDOps;
+  int ImmNum;
 
 public:
   // PrimateBFUColoring() {}
@@ -65,8 +72,8 @@ public:
 private:
   bool isBFU(Function &F);
   void colorSubBFUs(Function &F);
-  void getISDPatt(std::pair<Instruction *, ISDOperation *> &P);
-  void processGEP(std::pair<Instruction *, ISDOperation *> &P);
+  void createISDPatt(std::pair<Instruction *, ISDOperation *> &P);
+  void createGEPPatt(std::pair<Instruction *, ISDOperation *> &P);
 
 #ifdef _DEBUG
   // Print derived type of an operand. See DerivedTypes.h file.

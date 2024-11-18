@@ -15,7 +15,6 @@ using namespace llvm;
 
 PreservedAnalyses PrimateBFUColoring::run(Function &F, 
                                           FunctionAnalysisManager& AM) {
-
   LLVM_DEBUG(dbgs() << "\n==========================\n"
                     << "Here in PrimateBFUColoring\n\n");
   
@@ -59,6 +58,7 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
     LLVM_DEBUG(dbgs() << "Basic Block: " << BB.getName() << "\n"
                       << "Create new ISD Op map\n");
     ISDOps = new ValueMap<Instruction *, ISDOperation *>();
+    ImmNum = 0;
     
     // "Max Complexity Pattern"
     ISDOperation *MCP = nullptr;
@@ -76,20 +76,18 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
       }
 
       if (I.getOpcode() == Instruction::GetElementPtr) {
-        processGEP(NP);
+        createGEPPatt(NP);
       }
       else {
-        getISDPatt(NP);
+        createISDPatt(NP);
       }
 
-      LLVM_DEBUG(dbgs() << "ISD Operation Pattern: "; NP.second->dump(););
+      LLVM_DEBUG(dbgs() << "ISD Operation Pattern: "; NP.second->dump());
       ISDOps->insert(NP);
       
-      if (!MCP ||
-          (MCP->complexity() < NP.second->complexity() &&
-           NP.second->opcode() != ISD::DELETED_NODE)) {
+      if (!MCP || (MCP->complexity() < NP.second->complexity() &&
+                   NP.second->opcode() != ISD::DELETED_NODE))
         MCP = NP.second;
-      }
     }
     LLVM_DEBUG(dbgs() << "The ISDOperation that characterizes the current BB "
                          "is the one with the highest complextity\n\n"
@@ -172,11 +170,10 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
 }
 
 void 
-PrimateBFUColoring::getISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
+PrimateBFUColoring::createISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
   int OPN = 0;
   for (auto &OP : P.first->operands()) {
-    LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ": "; OP->dump(); 
-               dbgs() << "\n");
+    LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ": "; OP->dump());
 
     bool IsDependency = false;    // Is the current operand an instr dependency?
     ISDOperation *DISD = nullptr; // Dependant ISD Operation for current operation
@@ -196,6 +193,7 @@ PrimateBFUColoring::getISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
     }
     else {
       switch (OP->getType()->getTypeID()) {
+        // TODO: Need to differentiate bw GPR inputs and imm inputs
         case Type::IntegerTyID:
           NewOPStream << "GPR:$rs" << OPN; 
           break;
@@ -214,8 +212,8 @@ PrimateBFUColoring::getISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
           // So using OPN and OP.getOperandNo() are identical. However, I'm
           // not sure if this captures all cases
 
-          // NewOPStream << "BaseAdd:$rs" << OP.getOperandNo(); 
-          NewOPStream << "BaseAdd:$rs" << OPN; 
+          // NewOPStream << "BaseAddr:$rs" << OP.getOperandNo(); 
+          NewOPStream << "BaseAddr:$rs" << OPN; 
           break;
 
         default:
@@ -224,28 +222,47 @@ PrimateBFUColoring::getISDPatt(std::pair<Instruction *, ISDOperation *> &P) {
           NewOPStream << "NULL"; 
       }
     }
+    LLVM_DEBUG(dbgs() << "\tOperand Pattern: " << NewOP << "\n");
     P.second->pushOperand(NewOP);
-
     if (IsDependency)
       OPN += DISD->numOperands();
     else
       OPN++;
-
-    LLVM_DEBUG(dbgs() << "\tOperand Pattern: " << NewOP << "\n\n");
   }
   P.second->compInrc(OPN);
 }
 
 void 
-PrimateBFUColoring::processGEP(std::pair<Instruction *, ISDOperation *> &P) {
+PrimateBFUColoring::createGEPPatt(std::pair<Instruction *, ISDOperation *> &P) {
   for (auto &OP : P.first->operands()) {
+    LLVM_DEBUG(dbgs() << "Curr GEP operand: "; OP->dump());
+    LLVM_DEBUG(dbgs() << "Curr GEP operand type: "; 
+               printDerviedType(OP->getType()->getTypeID()));
+
     if (OP.getOperandNo() == 1)
       continue;
 
-    // std::string NewOP;
-    // raw_string_ostream NewOPStream(NewOP);
-    dbgs() << "Curr GEP operand: "; 
-    printDerviedType(OP->getType()->getTypeID());
+    std::string NewOP;
+    raw_string_ostream NewOPStream(NewOP);
+    
+    switch (OP->getType()->getTypeID()) {
+      case Type::IntegerTyID:
+        NewOPStream << "simm12:$imm" << ImmNum; 
+        ImmNum++;
+        break;
+        
+      // For GEP, we only ever have one pointer arg
+      case Type::PointerTyID:
+        NewOPStream << "BaseAddr:$rs0"; 
+        break;
+
+      default:
+        LLVM_DEBUG(dbgs() << "Unsupported operand type encountered!\n";
+                   printDerviedType(OP->getType()->getTypeID()));
+        NewOPStream << "NULL"; 
+    }
+    LLVM_DEBUG(dbgs() << "\tOperand Pattern: " << NewOP << "\n");
+    P.second->pushOperand(NewOP);
   }
 }
 
