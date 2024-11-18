@@ -1,4 +1,3 @@
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/PrimateBFUColoring.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
@@ -6,6 +5,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
@@ -39,15 +39,15 @@ bool PrimateBFUColoring::isBFU(Function &F) {
       dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue") {
     LLVM_DEBUG(dbgs() << "Dump BFU metadata: "; PMD->dump(); dbgs() << "\n");
     
-    std::string BFUName;
-    raw_string_ostream NameStream(BFUName);
+    std::string BFUListEntry;
+    raw_string_ostream NameStream(BFUListEntry);
     PMD->getOperand(2)->print(NameStream);
     
     // remove the !" and " from the name
-    // BFUName.erase(BFUName.begin(), BFUName.begin() + 1);
-    // BFUName.erase(BFUName.end());
-    
-    LLVM_DEBUG(dbgs() << "\nBFU name: " << BFUName << "\n\n");
+    BFUListEntry.erase(BFUListEntry.begin(), BFUListEntry.begin() + 2);
+    BFUListEntry.erase(BFUListEntry.end() - 1, BFUListEntry.end());
+    NameStream << "\n{\n\tio\n}\n";
+    LLVM_DEBUG(dbgs() << "bfu_list.txt entry:\n" << BFUListEntry << "\n");
 
     return true;
   }
@@ -69,21 +69,25 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
           NP(&I, new ISDOperation(I.getOpcode(), 0));
       
       LLVM_DEBUG(dbgs() << "Current instruction: "; I.dump());
+      
+      if (I.getOpcode() == Instruction::GetElementPtr) {
 
-      if (NP.second->opcode() == ISD::DELETED_NODE) {
-        LLVM_DEBUG(dbgs() << "Pattern for this instr is not supported yet\n\n"); 
-        continue;
       }
 
+      if (NP.second->opcode() == ISD::DELETED_NODE) {
+        LLVM_DEBUG(dbgs() << "Pattern for this instruction is not supported\n\n"); 
+        continue;
+      }
+      
       int OPN = 0;
       for (auto &OP : I.operands()) {
-        LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ":\n"); 
+        LLVM_DEBUG(dbgs() << "Operand Number " << OPN << ": "; OP->dump(); 
+                   dbgs() << "\n");
 
-        // is the current operand an instr dependency?
-        bool IsDependency = false; 
-
-        // Dependant ISD Operation for the ISD Op we are currently parsing
-        ISDOperation *DISD = nullptr;
+        bool IsDependency = false;    // Is the current operand an instr dependency?
+        ISDOperation *DISD = nullptr; // Dependant ISD Operation for current operation
+        std::string NewOP;            // New Operand for the current ISD operation
+        raw_string_ostream NewOPStream(NewOP);
 
         if (auto *IOP = dyn_cast<Instruction>(OP)) {
           DISD = (*ISDOps)[IOP];
@@ -93,20 +97,37 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
           }
         }
 
-        std::string NewOP;
-        raw_string_ostream NewOPStream(NewOP);
         if (IsDependency) {
           DISD->print(NewOPStream);
+          NP.second->compInrc();
         }
         else {
           switch (OP->getType()->getTypeID()) {
-            case 13:
-              NewOPStream << "GPR:$rs"; 
-              NewOPStream << OPN;
+            case Type::IntegerTyID:
+              NewOPStream << "GPR:$rs" << OPN; 
+              break;
+
+            case Type::PointerTyID:
+              LLVM_DEBUG(dbgs() << "Pointers are WIP!\n");
+
+              // I'm not sure which one is more correct in the case:
+              // for example, if we have the following IR:
+              // {
+              //    %a = getelementptr inbounds %struct.MAC_input_t, ptr %vec_in, i32 0, i32 0
+              //    %0 = load i32, ptr %a, align 4
+              // }
+              // 
+              // IR operation "load" only ever has 1 operand (ignore the align 4)
+              // So using OPN and OP.getOperandNo() are identical. However, I'm
+              // not sure if this captures all cases
+
+              // NewOPStream << "BaseAdd:$rs" << OP.getOperandNo(); 
+              NewOPStream << "BaseAdd:$rs" << OPN; 
               break;
 
             default:
-              LLVM_DEBUG(dbgs() << "Something bad happened\n");
+              LLVM_DEBUG(dbgs() << "Unsupported operand type encountered!\n";
+                         printDerviedType(OP->getType()->getTypeID()));
               NewOPStream << "NULL"; 
           }
         }
@@ -125,7 +146,7 @@ void PrimateBFUColoring::colorSubBFUs(Function &F) {
                  NP.second->dump(); dbgs() << "\n\n");
       
       if (!MCP ||
-          (MCP->complexity() <= NP.second->complexity() &&
+          (MCP->complexity() < NP.second->complexity() &&
            NP.second->opcode() != ISD::DELETED_NODE)) {
         MCP = NP.second;
       }
@@ -184,22 +205,26 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
     //   Opcode = ISD::BR;
     //   break;
 
-    // case Instruction::Load: 
-    //   OPName = "load";   
-    //   // Opcode = ISD::LOAD;
-    //   Opcode = ISD::DELETED_NODE;
-    //   break;
+    // TODO: Maybe I should change this ctor to have Instruction as an input
+    //       because just knowing that it's a load is not enough to characterize
+    //       all cases!
+    case Instruction::Load: 
+      OPName = "extract";   
+      Opcode = ISD::LOAD;
+      break;
 
-    // case Instruction::Store:
-    //   OPName = "store";  
-    //   // Opcode = ISD::STORE;
-    //   Opcode = ISD::DELETED_NODE;
-    //   break;
+    case Instruction::Store:
+      OPName = "insert";  
+      Opcode = ISD::STORE;
+      break;
 
-    // case Instruction::GetElementPtr:
-    //   OPName = "GEP is a lie";  
-    //   Opcode = ISD::DELETED_NODE;
-    //   break;
+    // Marking GEP as a GlobalAddress leaf node is not entirely correct
+    // however, it works for the use case of this pass
+    case Instruction::GetElementPtr:
+      // OPName = "GEP is a lie";  
+      OPName = "";  
+      Opcode = ISD::GlobalAddress;
+      break;
 
     default: 
       // LLVM_DEBUG(dbgs() << "<Invalid operator>\n"); 
@@ -272,6 +297,9 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
   // case LandingPad:     return "landingpad";
   // case CleanupPad:     return "cleanuppad";
   // case Freeze:         return "freeze";
+
+
+
 
 char PrimateBFUColoring::ID = 0;
 
