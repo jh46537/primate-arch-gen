@@ -3,13 +3,18 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include <llvm/CodeGen/ISDOpcodes.h>
+#include "llvm/ADT/StringRef.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include <llvm/IR/PassManager.h>
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/ValueMap.h"
 #include <llvm/Pass.h>
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/YAMLTraits.h"
 #include <llvm/Support/raw_ostream.h>
 #include <cstddef>
 #include <string>
@@ -18,8 +23,67 @@
 
 namespace llvm {
 
+struct BFUPatternInfo {
+  std::string name;
+  SmallVector<std::string> interfaces;
+  SmallVector<std::string> instructions;
+  std::string pattern;
+
+  BFUPatternInfo() { name = ""; }
+  
+  BFUPatternInfo(MDNode* MD, BasicBlock *BB, std::string Pattern) {
+    for (unsigned int I = 0; I < MD->getNumOperands(); I++) {
+      auto *MDOP = dyn_cast<MDString>(MD->getOperand(I));
+      if (!MDOP)
+        break;
+
+      auto CurrOP = MDOP->getString();
+      switch (I) {
+        case 0:
+          continue;
+        
+        case 1:
+          name = std::string(CurrOP);
+          break;
+
+        default:
+          instructions.push_back(std::string(CurrOP) + 
+                                 std::string(BB->getName()));
+      }
+    }
+    interfaces.push_back("io");
+    pattern = Pattern;
+  }
+
+  void dump() {
+    dbgs() << "Entry Name: " << name << "\n";
+    
+    dbgs() << "Interfaces: ";
+    for (auto &I : interfaces)
+      dbgs() << I << ", ";
+    dbgs() << "\n";
+    
+    dbgs() << "Instructions: ";
+    for (auto &I : instructions)
+      dbgs() << I << ", ";
+    dbgs() << "\n";
+    
+    dbgs() << "Pattern: " << pattern << "\n";
+  }
+
+};
+
+template<>
+struct yaml::MappingTraits<BFUPatternInfo> {
+  static void mapping(IO &io, BFUPatternInfo &info) {
+    io.mapRequired("name",         info.name);
+    io.mapRequired("interfaces",   info.interfaces);
+    io.mapRequired("instructions", info.instructions);
+    io.mapRequired("patterns",     info.pattern);
+  }
+};
+
 class ISDOperation {
-private:
   ISD::NodeType Opcode; 
   std::string  OPName;     // Operation Name
   unsigned int Complexity; // Complexity of ISD Operation's ISel Pattern
@@ -30,50 +94,38 @@ private:
 public:
   ISDOperation(unsigned int OP, unsigned int Complexity);
 
-  ISD::NodeType opcode()    { return Opcode; }
-  size_t numOperands()      { return Operands.size(); }
-  unsigned int complexity() { return Complexity; }
+  std::string InstName;
 
-  void pushOperand(std::string OP) { Operands.push_back(OP); }
-  void compInrc(unsigned int C)    { Complexity += C; }
+  inline ISD::NodeType opcode()           { return Opcode; }
+  inline std::string name()               { return OPName; }
+  inline size_t numOperands()             { return Operands.size(); }
+  inline unsigned int complexity()        { return Complexity; }
+  inline void pushOperand(std::string OP) { Operands.push_back(OP); }
+  inline void compInrc(unsigned int C)    { Complexity += C; }
 
   // Print the ISel pattern of the ISD operation to a raw ostream. This isn't
   // intended to be read, so I'm not bothering with making the output pretty
-  void print(raw_ostream &ROS) {
-    if (Opcode != ISD::GlobalAddress) {
-      ROS << "(";
-      ROS << OPName;
-    }
-    
-    for (auto &OP : Operands)
-      ROS << " " << OP;
-    
-    if (Opcode != ISD::GlobalAddress) 
-      ROS << ")";
-  }
-
-  void dump() {
-    print(dbgs()); dbgs () << "\n";
-  }
+  void print(raw_ostream &ROS);
+  void dump();
 };
 
 class PrimateBFUColoring : public PassInfoMixin<PrimateBFUColoring > {
 private:
-  ValueMap<Instruction *, ISDOperation *> *ISDOps;
+  ValueMap<Instruction *, ISDOperation *> *ISDOperationMap;
+  SmallVector<BFUPatternInfo*> BFUPatterns;
   int ImmNum;
 
 public:
   // PrimateBFUColoring() {}
   PreservedAnalyses run(Function &F, FunctionAnalysisManager& AM);
   // void getAnalysisUsage(AnalysisUsage &AU) const;
-  
+
   static char ID;
 
 private:
-  bool isBFU(Function &F);
-  void colorSubBFUs(Function &F);
-  void createISDPatt(std::pair<Instruction *, ISDOperation *> &P);
-  void createGEPPatt(std::pair<Instruction *, ISDOperation *> &P);
+  void createBFUPatterns(Function &F);
+  void processISD(std::pair<Instruction *, ISDOperation *> &P);
+  void processGEP(std::pair<Instruction *, ISDOperation *> &P);
 
 #ifdef _DEBUG
   // Print derived type of an operand. See DerivedTypes.h file.
