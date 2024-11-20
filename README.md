@@ -18,8 +18,7 @@
 
 ### CMake with proper targets. This will make the backend with RISCV and Primate useful for comparisons.
 
-        cmake -S llvm -B build -G Ninja -DLLVM_CCACHE_BUILD=On -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS='clang' -DLLVM_TARGETS_TO_BUILD='Primate;RISCV' -DLLVM_BUILD_TESTS=False -DCMAKE_INSTALL_PREFIX="/primate/primate-compiler/build" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Primate -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-
+        cmake -S llvm -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DLLVM_CCACHE_BUILD=On -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS='clang;lld' -DLLVM_TARGETS_TO_BUILD='Primate;RISCV' -DLLVM_BUILD_TESTS=False -DCMAKE_INSTALL_PREFIX="/primate/primate-compiler/build" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Primate -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 ### Ninja to actually compile
 
         ninja -C {PRIMATE_COMPILER_ROOT}/build
