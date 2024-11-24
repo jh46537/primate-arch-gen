@@ -525,6 +525,10 @@ struct ElfSym {
   // __global_pointer$ for RISC-V.
   static Defined *riscvGlobalPointer;
 
+  // __global_pointer$ for primate.
+  // I am bored. This is such bullshit work I hate it more than anything frfrfr
+  static Defined *primateGlobalPointer;
+
   // __rel{,a}_iplt_{start,end} symbols.
   static Defined *relaIpltStart;
   static Defined *relaIpltEnd;

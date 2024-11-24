@@ -18,7 +18,11 @@ with open(sys.argv[1]) as f:
         mask = 0x0ff
         shift_amt = 24
         for tok in toks:
-            tok_int = int(tok, 16)
+            try: 
+                tok_int = int(tok, 16)
+            except ValueError:
+                print("ERROR:", tok)
+                continue
             
             print(hex((tok_int & (mask << shift_amt)) >> shift_amt)[2:], file=out_file)
             

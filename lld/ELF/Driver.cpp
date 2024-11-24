@@ -184,7 +184,8 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf32_x86_64", {ELF32LEKind, EM_X86_64})
           .Cases("elf32btsmip", "elf32btsmipn32", {ELF32BEKind, EM_MIPS})
           .Cases("elf32ltsmip", "elf32ltsmipn32", {ELF32LEKind, EM_MIPS})
-          .Case("elf32lriscv", {ELF32LEKind, EM_RISCV})
+          .Case("elf32lriscv",   {ELF32LEKind, EM_RISCV})
+          .Case("elf32lprimate", {ELF32LEKind, EM_PRIMATE})
           .Cases("elf32ppc", "elf32ppclinux", {ELF32BEKind, EM_PPC})
           .Cases("elf32lppc", "elf32lppclinux", {ELF32LEKind, EM_PPC})
           .Case("elf32loongarch", {ELF32LEKind, EM_LOONGARCH})
@@ -351,12 +352,30 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
   }
 }
 
+#include <iostream>
+#include <execinfo.h>
+
+void foo() {
+    void *array[10];
+    int size = backtrace(array, 10);
+    char **strings = backtrace_symbols(array, size);
+    std::cout << "============= ERROR: STACK TRACE: =============\n";
+    for (int i = 0; i < size; i++) {
+        std::cout << strings[i] << std::endl;
+    }
+    free(strings);
+    std::cout << "===============================================\n";
+}
+
+
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
   if (std::optional<std::string> path = searchLibrary(name))
     addFile(saver().save(*path), /*withLOption=*/true);
-  else
+  else {
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
+    foo();
+  }
 }
 
 // This function is called on startup. We need this for LTO since
@@ -1797,6 +1816,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
   InputFile::isInGroup = false;
   bool hasInput = false;
   for (auto *arg : args) {
+    std::cout << "arg: "<< arg->getAsString(args) << "\n";
     switch (arg->getOption().getID()) {
     case OPT_library:
       addLibrary(arg->getValue());

@@ -1955,6 +1955,23 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
       }
     }
 
+    // I STOLE THIS CODE FROM RISCV
+    // GO LOOK AT THEIR REASONING FOR THIS GARBAGE
+    if (config->emachine == EM_PRIMATE) {
+      ElfSym::primateGlobalPointer = nullptr;
+      if (!config->shared) {
+        OutputSection *sec = findSection(".sdata");
+        addOptionalRegular(
+            "__global_pointer$", sec ? sec : Out::elfHeader, 0x800, STV_DEFAULT);
+	// primateGlobalPointerRelaxation or some shit idfk.
+        if (config->relaxGP) {
+          Symbol *s = symtab.find("__global_pointer$");
+          if (s && s->isDefined())
+            ElfSym::primateGlobalPointer = cast<Defined>(s);
+        }
+      }
+    }
+
     if (config->emachine == EM_386 || config->emachine == EM_X86_64) {
       // On targets that support TLSDESC, _TLS_MODULE_BASE_ is defined in such a
       // way that:

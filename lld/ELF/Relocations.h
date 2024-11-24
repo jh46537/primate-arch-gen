@@ -115,6 +115,9 @@ enum RelExpr {
   R_LOONGARCH_GOT,
   R_LOONGARCH_GOT_PAGE_PC,
   R_LOONGARCH_TLSGD_PAGE_PC,
+  R_PRIMATE_ADD,
+  R_PRIMATE_LEB128,
+  R_PRIMATE_PC_INDIRECT,
 };
 
 // Architecture-neutral representation of relocation.
