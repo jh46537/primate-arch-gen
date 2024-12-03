@@ -8,6 +8,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
 
@@ -16,36 +17,58 @@ using namespace llvm;
 PreservedAnalyses PrimateBFUColoring::run(Function &F, 
                                           FunctionAnalysisManager& AM) {
   LLVM_DEBUG(dbgs() << "Hello from PrimateBFUColoring\n\n");
-  MDNode* PMD = F.getMetadata("primate");
-  if (PMD && 
-      dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue") {
-    LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
-    createBFUPatterns(F);
+  // BFUPatternInfo *BP = (F);
+  auto BP = BFUPatternInfo::create(F);  
 
-    yaml::Output YamlDBG(dbgs());
-    for (auto &P : BFUPatterns)
-      YamlDBG << *P;
+  // MDNode* PMD = F.getMetadata("primate");
+  // if (PMD && 
+  //     dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue") {
+  //   LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
+  // 
+  //   raw_fd_ostream OS(File, EC);
+  //   yaml::Output YamlFileOut(OS), YamlDBG(dbgs());
+
+  //   createBFUPatterns(F);
+  //   for (auto &P : BP) {
+  //     LLVM_DEBUG(YamlDBG << *P);
+  //     YamlFileOut << *P;
+  //   }
+  // }
+  // else {
+  //   LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
+  // }
+  
+  if (BP) {
+    createBFUPatterns(F, BP.get());
+    // for (auto &P : BP) {
+    //   LLVM_DEBUG(YamlDBG << *P);
+    //   YamlFileOut << *P;
+    // }
+
+    LLVM_DEBUG(yaml::Output YamlDbg(dbgs()); YamlDbg << *BP);
+    
+    raw_fd_ostream OS(File, EC);
+    yaml::Output YamlFileOut(OS);
+    YamlFileOut << *BP;
   }
-  else {
-    LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
-  }
+
   return PreservedAnalyses::all();
 }
 
-void PrimateBFUColoring::createBFUPatterns(Function &F) {
+void PrimateBFUColoring::createBFUPatterns(Function &F, BFUPatternInfo *BPI) {
   for (auto &BB : F) {
     LLVM_DEBUG(dbgs() << "Basic Block: " << BB.getName() << "\n");
     ISDOperationMap = new ValueMap<Instruction *, ISDOperation *>();
     ImmNum = 0;
     
-    // "Max Complexity Pattern"
-    ISDOperation *MCP = nullptr;
+    ISDOperation *MCP = nullptr; // "Max Complexity Pattern"
     
     for (auto &I : BB) {
       LLVM_DEBUG(dbgs() << "Current instruction: "; I.dump());
-      // "New Pattern" for tablegen
-      std::pair<Instruction *, 
-                ISDOperation *> NP(&I, new ISDOperation(I.getOpcode(), 0));
+      std::pair<Instruction *, ISDOperation *> 
+          NP(&I, new ISDOperation(I.getOpcode(), 0)); // "New Pattern" for tablegen
+
+      NP.second->InstName = BPI->BFUname + std::string(BB.getName());
       
       if (NP.second->opcode() == ISD::DELETED_NODE) {
         LLVM_DEBUG(dbgs() << "Pattern for this instruction is not supported\n"); 
@@ -66,17 +89,19 @@ void PrimateBFUColoring::createBFUPatterns(Function &F) {
                    NP.second->opcode() != ISD::DELETED_NODE))
         MCP = NP.second;
     }
-    LLVM_DEBUG(dbgs() << "The ISDOperation that characterizes the current BB "
-                         "is the one with the highest complextity\n\n"
-                      << "Highest complexity pattern:\n"; MCP->dump());
+    LLVM_DEBUG(dbgs() << "Highest complexity pattern: "; 
+               MCP->dump(); dbgs() << "\n");
 
-    // There has to be a better way to do this
+    // This whole block might feel veru weird and hacky, and that's because it is!
     std::string NewPattern;
     raw_string_ostream PatternStream(NewPattern);
     MCP->print(PatternStream);
-    BFUPatterns.push_back(new BFUPatternInfo(F.getMetadata("primate"),
-                                             &BB, NewPattern));
-
+    BPI->InstrList.push_back(MCP->InstName);
+    BPI->PatternList.push_back(NewPattern);
+    // BPI->InstrList.push_back(
+    //     std::pair<std::string, std::string>(MCP->InstName, NewPattern));
+    // BFUPatterns.push_back(new BFUPatternInfo(F.getMetadata("primate"),
+    //                                          &BB, NewPattern));
     delete ISDOperationMap;
   }
 }
@@ -234,6 +259,13 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
       OPName = "insert";  
       Opcode = ISD::STORE;
       break;
+        
+    // case Instruction::ICmp:           
+    //   OPName =  "icmp";
+    //   // Opcode = ISD::
+    //   break;
+    // case Instruction::FCmp:
+        // OPname "fcmp";
 
     // Marking GEP as a GlobalAddress leaf node likely is not entirely correct
     // however, it works for the use case of this pass
@@ -244,7 +276,6 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
       break;
 
     default: 
-      // LLVM_DEBUG(dbgs() << "<Invalid operator>\n"); 
       OPName = "skipped_node";  
       Opcode = ISD::DELETED_NODE;
   }

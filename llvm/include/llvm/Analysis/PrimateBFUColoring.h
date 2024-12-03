@@ -2,6 +2,7 @@
 #define LLVM_ANALYSIS_PRIMATE_PRIMATEBFUCOLORING_H
 
 #include "llvm/ADT/SmallVector.h"
+#include <algorithm>
 #include <llvm/CodeGen/ISDOpcodes.h>
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
@@ -17,71 +18,12 @@
 #include "llvm/Support/YAMLTraits.h"
 #include <llvm/Support/raw_ostream.h>
 #include <cstddef>
+#include <memory>
 #include <string>
 
 #define DEBUG_TYPE "primate-bfu-coloring"
 
 namespace llvm {
-
-struct BFUPatternInfo {
-  std::string name;
-  SmallVector<std::string> interfaces;
-  SmallVector<std::string> instructions;
-  std::string pattern;
-
-  BFUPatternInfo() { name = ""; }
-  
-  BFUPatternInfo(MDNode* MD, BasicBlock *BB, std::string Pattern) {
-    for (unsigned int I = 0; I < MD->getNumOperands(); I++) {
-      auto *MDOP = dyn_cast<MDString>(MD->getOperand(I));
-      if (!MDOP)
-        break;
-
-      auto CurrOP = MDOP->getString();
-      switch (I) {
-        case 0:
-          continue;
-        
-        case 1:
-          name = std::string(CurrOP);
-          break;
-
-        default:
-          instructions.push_back(std::string(CurrOP) + 
-                                 std::string(BB->getName()));
-      }
-    }
-    interfaces.push_back("io");
-    pattern = Pattern;
-  }
-
-  void dump() {
-    dbgs() << "Entry Name: " << name << "\n";
-    
-    dbgs() << "Interfaces: ";
-    for (auto &I : interfaces)
-      dbgs() << I << ", ";
-    dbgs() << "\n";
-    
-    dbgs() << "Instructions: ";
-    for (auto &I : instructions)
-      dbgs() << I << ", ";
-    dbgs() << "\n";
-    
-    dbgs() << "Pattern: " << pattern << "\n";
-  }
-
-};
-
-template<>
-struct yaml::MappingTraits<BFUPatternInfo> {
-  static void mapping(IO &io, BFUPatternInfo &info) {
-    io.mapRequired("name",         info.name);
-    io.mapRequired("interfaces",   info.interfaces);
-    io.mapRequired("instructions", info.instructions);
-    io.mapRequired("patterns",     info.pattern);
-  }
-};
 
 class ISDOperation {
   ISD::NodeType Opcode; 
@@ -95,35 +37,126 @@ public:
   ISDOperation(unsigned int OP, unsigned int Complexity);
 
   std::string InstName;
-
-  inline ISD::NodeType opcode()           { return Opcode; }
-  inline std::string name()               { return OPName; }
-  inline size_t numOperands()             { return Operands.size(); }
-  inline unsigned int complexity()        { return Complexity; }
-  inline void pushOperand(std::string OP) { Operands.push_back(OP); }
-  inline void compInrc(unsigned int C)    { Complexity += C; }
-
+  
   // Print the ISel pattern of the ISD operation to a raw ostream. This isn't
   // intended to be read, so I'm not bothering with making the output pretty
   void print(raw_ostream &ROS);
   void dump();
+
+  inline ISD::NodeType opcode()           { return Opcode;          }
+  inline std::string name()               { return OPName;          }
+  inline size_t numOperands()             { return Operands.size(); }
+  inline unsigned int complexity()        { return Complexity;      }
+  inline void pushOperand(std::string OP) { Operands.push_back(OP); }
+  inline void compInrc(unsigned int C)    { Complexity += C;        }
+};
+
+// template<>
+// struct yaml::MappingTraits<ISDOperation *> {
+//   static void mapping(IO &io, ISDOperation *info) {
+//     io.mapRequired("inst_name", info->InstName);
+//     io.mapRequired("pattern",   info->Pattern);
+//   }
+// };
+
+class BFUPatternInfo {
+  // BFUPatternInfo(Function &F, MDNode *PMD) {
+  //   LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
+  //   auto *MDOP = dyn_cast<MDString>(PMD->getOperand(1));  // BFU Name is always operand 1
+  //   BFUname = std::string(MDOP->getString());
+  //   InterfaceList.push_back("io");
+  // }
+
+public:
+  std::string BFUname;
+
+  // Why didn't I make some kind of std::pair, or just create a yaml template
+  // for ISDOperation? That's because Doing so broke the yaml template for this
+  // class and it makes me want to commit self harm
+  SmallVector<std::string> InterfaceList;
+  // SmallVector<ISDOperation *> InstrList;
+  // std::string pattern;
+  // SmallVector<std::pair<std::string, std::string>> InstrList;
+  SmallVector<std::string> InstrList;
+  SmallVector<std::string> PatternList;
+  
+  BFUPatternInfo() {
+    BFUname = "";
+    InterfaceList.push_back("io");
+  }
+  
+  // DO NOT CALL THIS FUCKING CONSTRUCTOR. This is supposed to be a private constructor.
+  // But making this private causes the yaml template to shit the bed.
+  BFUPatternInfo(Function &F, MDNode *PMD) {
+    LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
+    auto *MDOP = dyn_cast<MDString>(PMD->getOperand(1));  // BFU Name is always operand 1
+    BFUname = std::string(MDOP->getString());
+    InterfaceList.push_back("io");
+  }
+
+  static std::shared_ptr<BFUPatternInfo> create(Function &F) {
+    MDNode* MD = F.getMetadata("primate");
+    if (MD && 
+        dyn_cast<MDString>(MD->getOperand(0))->getString() == "blue") {
+      return std::make_shared<BFUPatternInfo>(F, MD);
+    }
+    LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
+    return nullptr;
+  }
+  
+  // BFUPatternInfo(MDNode* MD, BasicBlock *BB, std::string Pattern) {
+  //   for (unsigned int I = 0; I < MD->getNumOperands(); I++) {
+  //     auto *MDOP = dyn_cast<MDString>(MD->getOperand(I));
+  //     if (!MDOP)
+  //       break;
+
+  //     auto CurrOP = MDOP->getString();
+  //     switch (I) {
+  //       case 0:
+  //         continue;
+  //       
+  //       case 1:
+  //         name = std::string(CurrOP);
+  //         break;
+
+  //       default:
+  //         instructions.push_back(std::string(CurrOP) + 
+  //                                std::string(BB->getName()));
+  //     }
+  //   }
+  //   interfaces.push_back("io");
+  //   pattern = Pattern;
+  // }
+};
+
+template<>
+struct yaml::MappingTraits<BFUPatternInfo> {
+  static void mapping(IO &io, BFUPatternInfo &info) {
+    io.mapRequired("name",         info.BFUname);
+    io.mapRequired("interfaces",   info.InterfaceList);
+    io.mapRequired("instructions", info.InstrList);
+    io.mapRequired("patterns",     info.PatternList);
+  }
 };
 
 class PrimateBFUColoring : public PassInfoMixin<PrimateBFUColoring > {
-private:
+
   ValueMap<Instruction *, ISDOperation *> *ISDOperationMap;
-  SmallVector<BFUPatternInfo*> BFUPatterns;
+  // BFUPatternInfo *BFUPatterns;
   int ImmNum;
+  
+  std::error_code EC;
+  StringRef File = "bfu_list.yaml";
 
 public:
-  // PrimateBFUColoring() {}
+  PrimateBFUColoring() {} 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager& AM);
-  // void getAnalysisUsage(AnalysisUsage &AU) const;
+  void getAnalysisUsage(AnalysisUsage &AU) const;
 
   static char ID;
 
 private:
-  void createBFUPatterns(Function &F);
+  void createBFUPatterns(Function &F, BFUPatternInfo *BPI);
   void processISD(std::pair<Instruction *, ISDOperation *> &P);
   void processGEP(std::pair<Instruction *, ISDOperation *> &P);
 
