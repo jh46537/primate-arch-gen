@@ -132,6 +132,9 @@ Primate::Primate() {
   pltHeaderSize = 32;
   pltEntrySize = 16;
   ipltEntrySize = 16;
+
+  // get owned stupid OS shills
+  defaultImageBase = 0x000000;
 }
 
 static uint32_t getEFlags(InputFile *f) {

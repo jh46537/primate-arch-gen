@@ -1,0 +1,5 @@
+dbus-python==1.2.16
+pyelftools==0.31
+Pygments==2.3.1
+PyGObject==3.36.0
+PyYAML==5.3.1
