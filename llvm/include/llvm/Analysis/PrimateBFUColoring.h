@@ -37,6 +37,7 @@ public:
   ISDOperation(unsigned int OP, unsigned int Complexity);
 
   std::string InstName;
+  std::string Pattern;
   
   // Print the ISel pattern of the ISD operation to a raw ostream. This isn't
   // intended to be read, so I'm not bothering with making the output pretty
@@ -51,22 +52,12 @@ public:
   inline void compInrc(unsigned int C)    { Complexity += C;        }
 };
 
-// template<>
-// struct yaml::MappingTraits<ISDOperation *> {
-//   static void mapping(IO &io, ISDOperation *info) {
-//     io.mapRequired("inst_name", info->InstName);
-//     io.mapRequired("pattern",   info->Pattern);
-//   }
-// };
-
+// I converted this from struct -> class because I wanted to make a private constructor
+// so that in the Pass Run func I could be all fancy and have a "create" function that
+// would return nullptr if you try to create BFUPatternInfo on a function that isn't a
+// BFU. However, because of the god damn, yaml mapping, it didn't work, and now I'm too
+// lazy to turn this back into a struct. Why to live.
 class BFUPatternInfo {
-  // BFUPatternInfo(Function &F, MDNode *PMD) {
-  //   LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
-  //   auto *MDOP = dyn_cast<MDString>(PMD->getOperand(1));  // BFU Name is always operand 1
-  //   BFUname = std::string(MDOP->getString());
-  //   InterfaceList.push_back("io");
-  // }
-
 public:
   std::string BFUname;
 
@@ -74,11 +65,7 @@ public:
   // for ISDOperation? That's because Doing so broke the yaml template for this
   // class and it makes me want to commit self harm
   SmallVector<std::string> InterfaceList;
-  // SmallVector<ISDOperation *> InstrList;
-  // std::string pattern;
-  // SmallVector<std::pair<std::string, std::string>> InstrList;
-  SmallVector<std::string> InstrList;
-  SmallVector<std::string> PatternList;
+  SmallVector<ISDOperation *> InstrList;
   
   BFUPatternInfo() {
     BFUname = "";
@@ -88,7 +75,6 @@ public:
   // DO NOT CALL THIS FUCKING CONSTRUCTOR. This is supposed to be a private constructor.
   // But making this private causes the yaml template to shit the bed.
   BFUPatternInfo(Function &F, MDNode *PMD) {
-    LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
     auto *MDOP = dyn_cast<MDString>(PMD->getOperand(1));  // BFU Name is always operand 1
     BFUname = std::string(MDOP->getString());
     InterfaceList.push_back("io");
@@ -98,55 +84,17 @@ public:
     MDNode* MD = F.getMetadata("primate");
     if (MD && 
         dyn_cast<MDString>(MD->getOperand(0))->getString() == "blue") {
+      LLVM_DEBUG(dbgs() << "Found BFU Function:\n");
       return std::make_shared<BFUPatternInfo>(F, MD);
     }
     LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
     return nullptr;
   }
-  
-  // BFUPatternInfo(MDNode* MD, BasicBlock *BB, std::string Pattern) {
-  //   for (unsigned int I = 0; I < MD->getNumOperands(); I++) {
-  //     auto *MDOP = dyn_cast<MDString>(MD->getOperand(I));
-  //     if (!MDOP)
-  //       break;
-
-  //     auto CurrOP = MDOP->getString();
-  //     switch (I) {
-  //       case 0:
-  //         continue;
-  //       
-  //       case 1:
-  //         name = std::string(CurrOP);
-  //         break;
-
-  //       default:
-  //         instructions.push_back(std::string(CurrOP) + 
-  //                                std::string(BB->getName()));
-  //     }
-  //   }
-  //   interfaces.push_back("io");
-  //   pattern = Pattern;
-  // }
-};
-
-template<>
-struct yaml::MappingTraits<BFUPatternInfo> {
-  static void mapping(IO &io, BFUPatternInfo &info) {
-    io.mapRequired("name",         info.BFUname);
-    io.mapRequired("interfaces",   info.InterfaceList);
-    io.mapRequired("instructions", info.InstrList);
-    io.mapRequired("patterns",     info.PatternList);
-  }
 };
 
 class PrimateBFUColoring : public PassInfoMixin<PrimateBFUColoring > {
-
   ValueMap<Instruction *, ISDOperation *> *ISDOperationMap;
-  // BFUPatternInfo *BFUPatterns;
   int ImmNum;
-  
-  std::error_code EC;
-  StringRef File = "bfu_list.yaml";
 
 public:
   PrimateBFUColoring() {} 
@@ -161,7 +109,8 @@ private:
   void processGEP(std::pair<Instruction *, ISDOperation *> &P);
 
 #ifdef _DEBUG
-  // Print derived type of an operand. See DerivedTypes.h file.
+  // Print derived type of an operand. See DerivedTypes.h file. I have no idea if
+  // this ifdef _DEBUG even fucking works.
   void printDerviedType(unsigned OPTy) {
     switch (OPTy) {
       ///< Arbitrary bit width integers
@@ -188,6 +137,45 @@ private:
   }
 #endif
 };
+
+// This has been both a blessing and a curse. LLVM Yaml is really easy to work with,
+// however you have to tune your classes to output to it easily. For example, all of
+// fields would usually be private in a class, but since we want to print them in the
+// Yaml output, we have them as public. What's that? Why don't I make BFUPatternInfo
+// a struct so that everything is public by default?
+namespace yaml {
+
+template<>
+struct MappingTraits<BFUPatternInfo> {
+  static void mapping(IO &io, BFUPatternInfo &info) {
+    io.mapRequired("bfu_name",     info.BFUname);
+    io.mapRequired("interfaces",   info.InterfaceList);
+    io.mapRequired("instructions", info.InstrList);
+  }
+};
+
+template<>
+struct MappingTraits<ISDOperation> {
+  static void mapping(IO &io, ISDOperation &info) {
+    io.mapRequired("sub_bfu_instruction", info.InstName);
+    io.mapRequired("pattern",             info.Pattern);
+  }
+};
+
+template <>
+struct SequenceTraits<SmallVector<ISDOperation *>> {
+  static size_t size(IO &io, SmallVector<ISDOperation *> &list) { 
+    return list.size(); 
+  }
+  
+  static 
+  ISDOperation &element(IO &io, SmallVector<ISDOperation *> &list, 
+                        size_t index) {
+    return *list[index];
+  }
+};
+
+} // namespace yaml
 
 } // namespace llvm
 

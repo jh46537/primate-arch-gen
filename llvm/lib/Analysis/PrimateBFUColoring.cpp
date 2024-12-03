@@ -17,41 +17,15 @@ using namespace llvm;
 PreservedAnalyses PrimateBFUColoring::run(Function &F, 
                                           FunctionAnalysisManager& AM) {
   LLVM_DEBUG(dbgs() << "Hello from PrimateBFUColoring\n\n");
-  // BFUPatternInfo *BP = (F);
   auto BP = BFUPatternInfo::create(F);  
-
-  // MDNode* PMD = F.getMetadata("primate");
-  // if (PMD && 
-  //     dyn_cast<MDString>(PMD->getOperand(0))->getString() == "blue") {
-  //   LLVM_DEBUG(dbgs() << "Found BFU Function:\n"; F.dump(););
-  // 
-  //   raw_fd_ostream OS(File, EC);
-  //   yaml::Output YamlFileOut(OS), YamlDBG(dbgs());
-
-  //   createBFUPatterns(F);
-  //   for (auto &P : BP) {
-  //     LLVM_DEBUG(YamlDBG << *P);
-  //     YamlFileOut << *P;
-  //   }
-  // }
-  // else {
-  //   LLVM_DEBUG(dbgs() << F.getName() << "is NOT a BFU function\n\n");
-  // }
-  
   if (BP) {
     createBFUPatterns(F, BP.get());
-    // for (auto &P : BP) {
-    //   LLVM_DEBUG(YamlDBG << *P);
-    //   YamlFileOut << *P;
-    // }
-
-    LLVM_DEBUG(yaml::Output YamlDbg(dbgs()); YamlDbg << *BP);
-    
+    std::error_code EC;
+    StringRef File = "bfu_list.yaml";
     raw_fd_ostream OS(File, EC);
     yaml::Output YamlFileOut(OS);
     YamlFileOut << *BP;
   }
-
   return PreservedAnalyses::all();
 }
 
@@ -93,15 +67,9 @@ void PrimateBFUColoring::createBFUPatterns(Function &F, BFUPatternInfo *BPI) {
                MCP->dump(); dbgs() << "\n");
 
     // This whole block might feel veru weird and hacky, and that's because it is!
-    std::string NewPattern;
-    raw_string_ostream PatternStream(NewPattern);
+    raw_string_ostream PatternStream(MCP->Pattern);
     MCP->print(PatternStream);
-    BPI->InstrList.push_back(MCP->InstName);
-    BPI->PatternList.push_back(NewPattern);
-    // BPI->InstrList.push_back(
-    //     std::pair<std::string, std::string>(MCP->InstName, NewPattern));
-    // BFUPatterns.push_back(new BFUPatternInfo(F.getMetadata("primate"),
-    //                                          &BB, NewPattern));
+    BPI->InstrList.push_back(MCP);
     delete ISDOperationMap;
   }
 }
