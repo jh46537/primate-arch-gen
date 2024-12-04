@@ -2,15 +2,13 @@
 #define LLVM_ANALYSIS_PRIMATE_PRIMATEBFUCOLORING_H
 
 #include "llvm/ADT/SmallVector.h"
-#include <algorithm>
-#include <llvm/CodeGen/ISDOpcodes.h>
 #include "llvm/ADT/StringRef.h"
+#include <llvm/CodeGen/ISDOpcodes.h>
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
-#include <llvm/IR/PassManager.h>
 #include "llvm/IR/Metadata.h"
+#include <llvm/IR/PassManager.h>
 #include "llvm/IR/Type.h"
 #include "llvm/IR/ValueMap.h"
 #include <llvm/Pass.h>
@@ -52,31 +50,29 @@ public:
   inline void compInrc(unsigned int C)    { Complexity += C;        }
 };
 
-// I converted this from struct -> class because I wanted to make a private constructor
-// so that in the Pass Run func I could be all fancy and have a "create" function that
-// would return nullptr if you try to create BFUPatternInfo on a function that isn't a
-// BFU. However, because of the god damn, yaml mapping, it didn't work, and now I'm too
-// lazy to turn this back into a struct. Why to live.
 class BFUPatternInfo {
 public:
   std::string BFUname;
+  std::string InstName;
 
-  // Why didn't I make some kind of std::pair, or just create a yaml template
-  // for ISDOperation? That's because Doing so broke the yaml template for this
-  // class and it makes me want to commit self harm
-  SmallVector<std::string> InterfaceList;
+  // In the future, interfaces will be more defined. However, for now
+  // 'io' is the only one we have to worry about.
+  SmallVector<std::string> InterfaceList; 
   SmallVector<ISDOperation *> InstrList;
   
   BFUPatternInfo() {
     BFUname = "";
+    InstName = "";
     InterfaceList.push_back("io");
   }
   
-  // DO NOT CALL THIS FUCKING CONSTRUCTOR. This is supposed to be a private constructor.
-  // But making this private causes the yaml template to shit the bed.
+  // DO NOT CALL THIS CONSTRUCTOR. This is supposed to be a private constructor.
+  // But making this private causes the yaml template to throw a hissy fit.
   BFUPatternInfo(Function &F, MDNode *PMD) {
-    auto *MDOP = dyn_cast<MDString>(PMD->getOperand(1));  // BFU Name is always operand 1
-    BFUname = std::string(MDOP->getString());
+    auto *BFUOP = dyn_cast<MDString>(PMD->getOperand(1)); // BFU Name is always operand 1
+    auto *IOP = dyn_cast<MDString>(PMD->getOperand(2));   // Inst Name is always 2
+    BFUname = std::string(BFUOP->getString());
+    InstName = std::string(IOP->getString());
     InterfaceList.push_back("io");
   }
 
@@ -110,7 +106,7 @@ private:
 
 #ifdef _DEBUG
   // Print derived type of an operand. See DerivedTypes.h file. I have no idea if
-  // this ifdef _DEBUG even fucking works.
+  // this ifdef _DEBUG even works.
   void printDerviedType(unsigned OPTy) {
     switch (OPTy) {
       ///< Arbitrary bit width integers
@@ -138,19 +134,17 @@ private:
 #endif
 };
 
-// This has been both a blessing and a curse. LLVM Yaml is really easy to work with,
-// however you have to tune your classes to output to it easily. For example, all of
-// fields would usually be private in a class, but since we want to print them in the
-// Yaml output, we have them as public. What's that? Why don't I make BFUPatternInfo
-// a struct so that everything is public by default?
+// Create a yaml mapping for the BFUPatternInfo. We do this so that other passes
+// can read the output yaml from this pass.
 namespace yaml {
 
 template<>
 struct MappingTraits<BFUPatternInfo> {
   static void mapping(IO &io, BFUPatternInfo &info) {
-    io.mapRequired("bfu_name",     info.BFUname);
-    io.mapRequired("interfaces",   info.InterfaceList);
-    io.mapRequired("instructions", info.InstrList);
+    io.mapRequired("bfu_name",        info.BFUname);
+    io.mapRequired("interfaces",      info.InterfaceList);
+    io.mapRequired("bfu_instruction", info.InstName);
+    io.mapRequired("sub_bfus",        info.InstrList);
   }
 };
 

@@ -26,6 +26,8 @@ PreservedAnalyses PrimateBFUColoring::run(Function &F,
     yaml::Output YamlFileOut(OS);
     YamlFileOut << *BP;
   }
+  // Since all the results from this pass are being stored in an output YAML
+  // we don't need to actually change any of the LLVM analyses
   return PreservedAnalyses::all();
 }
 
@@ -42,7 +44,9 @@ void PrimateBFUColoring::createBFUPatterns(Function &F, BFUPatternInfo *BPI) {
       std::pair<Instruction *, ISDOperation *> 
           NP(&I, new ISDOperation(I.getOpcode(), 0)); // "New Pattern" for tablegen
 
-      NP.second->InstName = BPI->BFUname + std::string(BB.getName());
+      NP.second->InstName = BPI->InstName + "_" + std::string(BB.getName());
+      std::replace(NP.second->InstName.begin(), 
+                   NP.second->InstName.end(), '.', '_');
       
       if (NP.second->opcode() == ISD::DELETED_NODE) {
         LLVM_DEBUG(dbgs() << "Pattern for this instruction is not supported\n"); 
@@ -66,7 +70,7 @@ void PrimateBFUColoring::createBFUPatterns(Function &F, BFUPatternInfo *BPI) {
     LLVM_DEBUG(dbgs() << "Highest complexity pattern: "; 
                MCP->dump(); dbgs() << "\n");
 
-    // This whole block might feel veru weird and hacky, and that's because it is!
+    // I hate string streaming so much
     raw_string_ostream PatternStream(MCP->Pattern);
     MCP->print(PatternStream);
     BPI->InstrList.push_back(MCP);
@@ -171,6 +175,7 @@ PrimateBFUColoring::processGEP(std::pair<Instruction *, ISDOperation *> &P) {
 
 char PrimateBFUColoring::ID = 0;
 
+// TODO: Need to figure out a way for this to properly characterize branch
 ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
   Complexity = C;
   switch (OP) {
@@ -228,6 +233,8 @@ ISDOperation::ISDOperation(unsigned int OP, unsigned int C) {
       Opcode = ISD::STORE;
       break;
         
+    // TODO: Need to create patterns for cmp!
+    //
     // case Instruction::ICmp:           
     //   OPName =  "icmp";
     //   // Opcode = ISD::
