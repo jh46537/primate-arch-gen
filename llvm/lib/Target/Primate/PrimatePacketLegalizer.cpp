@@ -305,12 +305,6 @@ void PrimatePacketLegalizer::fixBundle(MachineInstr *BundleMI) {
                 builder.insert((curInst->getIterator()), newBundle[opCheck]);
                 break;
             }
-            case Primate::LW: {
-                break;
-            }
-            case Primate::SW: {
-                break;
-            }
             default: {
                 if(curInst->isBranch()) {
                     dbgs() << "ran into branch. already handled...\n";

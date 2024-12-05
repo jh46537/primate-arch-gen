@@ -1,13 +1,16 @@
+#!/usr/bin/env python3
+
 import argparse
 from pathlib import Path
 import os
 from elftools.elf.elffile import ELFFile
+import random
 
 parser = argparse.ArgumentParser(
                     prog='primate-elf-loader',
                     description='converts an ELF exec into a set of files for simulation (ROMs)',
                     epilog='Shout at Kayvan if this fails')
-parser.add_argument('-i', '--input_file', type=str, help='Path to ELF executable', required=True)
+parser.add_argument('-i', '--input_file', type=str, help='Path to ELF relocatable', required=True)
 parser.add_argument('-o', '--output_dir', type=str, help='Output directory for HEX files', default='./primate-a-out/')
 parser.add_argument('-p', '--primate_cfg', type=str, help='Path to primate.cfg', required=True)
 parser.add_argument('--verbose', action='store_true', help='Prints debug information', default=False)
@@ -82,16 +85,20 @@ def get_memory_hex(elf_fpath: str) -> str:
                 print("offset:", section['sh_offset'], "size:", section.data_size)
             data_section = section
 
+    post_section_padding = 512
     if rodata_section is not None:
         if rodata_section['sh_offset'] % 4 != 0:
             print("rodata offset is not multiple of 4!")
             print("We can't cope with that")
             exit(-1)
-        offset_in_words = int(rodata_section['sh_offset'] / 4)
+        offset_in_words = int(rodata_section['sh_offset']) 
         for i in range(offset_in_words):
+            random_int = random.randint(1, 1 << 31)
             if args.verbose:
-                print("00000000")
-            memory_contents.append("00000000")
+                print(f"{random_int:0{8}x}")
+            memory_contents.append(f"{random_int:0{8}x}")
+            
+        post_section_padding -= offset_in_words
             
         rodata_bytes = rodata_section.data()
         int_rodata = [int.from_bytes(rodata_bytes[n:(n+4)], 'little') for n in range(0, len(rodata_bytes), 4)]
@@ -100,9 +107,16 @@ def get_memory_hex(elf_fpath: str) -> str:
             print(int_rodata)
         for i in int_rodata:
             memory_contents.append(f"{i:0{8}x}")
+            post_section_padding -= 1
             
     if data_section is not None:
         pass
+
+    for _ in range(post_section_padding):
+        random_int = random.randint(1, 1 << 31)
+        if args.verbose:
+            print(f"{random_int:0{8}x}")
+        memory_contents.append(f"{random_int:0{8}x}")
     
     f.close()
 
