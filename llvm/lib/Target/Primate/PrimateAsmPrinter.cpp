@@ -110,6 +110,7 @@ void PrimateAsmPrinter::PseudoExpansionIndexFixup(const MachineInstr *MI, unsign
 // return true if the instruction was pseudo and was lowered
 bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreamer, const MachineInstr *MI, unsigned int *lastSlotIdx) {
   if(!MI->isPseudo()) {
+    LLVM_DEBUG(dbgs() << "not a custom lowered pseudo: not a pseudo\n";);
     return false;
   }
   
@@ -341,6 +342,31 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       *lastSlotIdx += 2; 
       break;
     }
+    case Primate::PseudoANDwss: {
+      // (outs WIDEREG:$rd)
+      // (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2)
+
+      // insert: (outs WIDEREG:$rd), (ins WIDEREG:$rs1, GPR:$rs2, simm12:$imm12)
+      MCInst InsertDest;
+      MCInst TmpInst;
+      MCOperand MCOp;
+
+      InsertDest.setOpcode(Primate::INSERT);
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(0).getReg())); // rd
+      InsertDest.addOperand(MCOperand::createReg(MI->getOperand(1).getReg())); // rs1
+      InsertDest.addOperand(MCOperand::createReg(Primate::X0));                // rs2
+      lowerOperand(MI->getOperand(2), MCOp);
+      InsertDest.addOperand(MCOp); // imm12
+
+      TmpInst.setOpcode(Primate::AND);
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rd
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs1
+      TmpInst.addOperand(MCOperand::createReg(Primate::X0)); // rs2
+      EmitToStreamer(OutStreamer, TmpInst);
+      EmitToStreamer(OutStreamer, InsertDest);
+      *lastSlotIdx += 1; 
+      break;
+    }
     case Primate::PseudoADDwss: {
       // (outs WIDEREG:$rd)
       // (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, GPR:$rs2)
@@ -418,10 +444,12 @@ bool PrimateAsmPrinter::emitPseudoExpansionCustomLowering(MCStreamer &OutStreame
       break;
     }
     default: {
+      LLVM_DEBUG(dbgs() << "Not a custom lower for an instruction: Unrecognized.\n");
       return false;
       //llvm_unreachable("don't know how to custom or TABLEGEN expand this pseudo instr. See Kayvan.");
     }
  }
+ LLVM_DEBUG(dbgs() << "custom lowered!\n";);
  return true;
 }
 
