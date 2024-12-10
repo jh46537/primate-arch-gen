@@ -1500,6 +1500,7 @@ def PseudoADDwss : Pseudo<(outs WIDEREG:$rd),
       []>{
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
+	let PseudoSkipOps = 2; // skip the rs0 and imm0 on legalization
       }
 
 let Itinerary = ItinGreen in
@@ -1519,6 +1520,7 @@ def PseudoADDIwsi : Pseudo<(outs WIDEREG:$rd),
       []> {
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
+	let PseudoSkipOps = 2;
       }
 
 def PseudoANDIswi : Pseudo<(outs GPR:$rd), 
@@ -1536,7 +1538,8 @@ def PseudoANDIwsi : Pseudo<(outs WIDEREG:$rd),
       (ins WIDEREG:$rs0, simm12:$imm0, GPR:$rs1, simm12:$imm1), 
       []> {
         let Itinerary = ItinGreen;
-        let Constraints = "$rd = $rs0";
+        let Constraints = "$rd = $rs0";	
+        let PseudoSkipOps = 2;
       }
 
 def PseudoANDsww : Pseudo<(outs GPR:$rd), 
@@ -1557,6 +1560,7 @@ def PseudoANDwss : Pseudo<(outs WIDEREG:$rd),
       []>{
         let Itinerary = ItinGreen;
         let Constraints = "$rd = $rs0";
+        let PseudoSkipOps = 2;
       }
 }
 

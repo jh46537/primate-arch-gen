@@ -211,6 +211,9 @@ class PRInstCommon<dag outs, dag ins, string opcodestr, string argstr,
 
   bit IsBFUInstruction = 0;
   let TSFlags{23} = IsBFUInstruction;
+
+  bits<3> PseudoSkipOps = 0;
+  let TSFlags{26-24} = PseudoSkipOps;
 }
 
 include "PrimateInstrReconfigFormats.td"

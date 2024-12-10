@@ -93,8 +93,7 @@ void PrimateAsmPrinter::PseudoExpansionIndexFixup(const MachineInstr *MI, unsign
       *slotIdx -= 2;
       return;
     } 
-    case Primate::PseudoADDIwwi: 
-    case Primate::PseudoADDwss: {
+    case Primate::PseudoADDIwwi: {
       *slotIdx -= 1;
       return;
     }

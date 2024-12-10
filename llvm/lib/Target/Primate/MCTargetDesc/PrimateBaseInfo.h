@@ -86,8 +86,16 @@ enum {
 
   // Does this instruction have a VL operand. It will be the second to last
   // explicit operand. Used by PRV Pseudos.
+  // Matches the bit in the PrimateInstrFormats.td file.
   isBFUShift = 23,
   isBFUMask = 1 << isBFUShift,
+
+  // is this a pseudo instruction which has some operands that need to be skipped for
+  // packet legalization purposes
+  // We assume the operands to skip are the first n operands of the instruction.
+  // currently 3 bits
+  PseudoOperandsShift = isBFUShift + 1,
+  PseudoOperandsMask = 7 << PseudoOperandsShift,
 };
 
 // Match with the definitions in PrimateInstrFormatsV.td
@@ -146,6 +154,10 @@ static inline bool hasVLOp(uint64_t TSFlags) {
 
 static inline bool isBFUInstr(uint64_t TSFlags) {
   return TSFlags & isBFUMask;
+}
+
+static inline int numPseudoOperands(uint64_t TSFlags) {
+  return (TSFlags & PseudoOperandsMask) >> PseudoOperandsShift;
 }
 
 // Primate Specific Machine Operand Flags
