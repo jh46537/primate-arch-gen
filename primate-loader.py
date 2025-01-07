@@ -77,21 +77,23 @@ def get_memory_hex(elf_fpath: str) -> str:
         if section.name == ".rodata":
             if args.verbose:
                 print("rodata found!")
-                print("offset:", section['sh_offset'], "size:", section.data_size)
+                print(vars(section))
+                print("sh_addr:", section['sh_addr'], "size:", section.data_size)
             rodata_section = section
         if section.name == ".data":
             if args.verbose:
                 print("data found!")
-                print("offset:", section['sh_offset'], "size:", section.data_size)
+                print(vars(section))
+                print("sh_addr:", section['sh_addr'], "size:", section.data_size)
             data_section = section
 
     post_section_padding = 512
     if rodata_section is not None:
-        if rodata_section['sh_offset'] % 4 != 0:
+        if rodata_section['sh_addr'] % 4 != 0:
             print("rodata offset is not multiple of 4!")
             print("We can't cope with that")
             exit(-1)
-        offset_in_words = int(rodata_section['sh_offset']) 
+        offset_in_words = int(rodata_section['sh_addr']) // 4 
         for i in range(offset_in_words):
             random_int = random.randint(1, 1 << 31)
             if args.verbose:
